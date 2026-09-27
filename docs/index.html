@@ -73,6 +73,8 @@ textarea{font-family:var(--mono);font-size:12px;min-height:120px}
 dialog{border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);padding:18px;width:min(440px,calc(100% - 32px))}
 dialog::backdrop{background:rgba(0,0,0,.4)}
 .pos-up{color:var(--buy)} .pos-dn{color:var(--stop)}
+.ind{display:block;font-family:var(--sans);font-size:11.5px;font-weight:400;color:var(--muted);line-height:1.3}
+.secbar{display:flex;flex-wrap:wrap;gap:6px}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
@@ -110,6 +112,7 @@ const f2 = x => (x == null || !isFinite(x)) ? "—" : Number(x).toLocaleString("
 const f0 = x => (x == null || !isFinite(x)) ? "—" : Math.round(x).toLocaleString("en-US");
 const pct = (x, d=1) => (x == null || !isFinite(x)) ? "—" : (x >= 0 ? "+" : "") + (x*100).toFixed(d) + "%";
 const today = () => new Date().toISOString().slice(0,10);
+const indOf = sym => { const r = SCAN?.ranking?.find(x => x.sym === sym) || S.positions.find(p => p.sym === sym); return r?.industry ? `${r.industry}${r.sector && r.sector !== r.industry ? " · " + r.sector : ""}` : ""; };
 
 // ───────────────────────── 帳戶計算
 function nav(){
@@ -231,7 +234,7 @@ function viewToday(){
   else {
     h += `<p class="small muted">由 RS 排名最高開始。邊隻先升穿 buy-stop 價就先買，買夠 ${o.slots} 隻即刻取消其餘單。成交後即刻喺止蝕位掛 stop 賣單（長期有效）。</p>`;
     h += o.list.map(r => `<div class="card order">
-      <div><span class="sym">${r.sym}</span> <span class="tag t-skip">RS 第 ${r.rank}</span>${r.frac>RULE.frac?` <span class="tag t-warn">排第 1：30% 注碼</span>`:""}</div>
+      <div><span class="sym">${r.sym}</span> <span class="tag t-skip">RS 第 ${r.rank}</span>${r.frac>RULE.frac?` <span class="tag t-warn">排第 1：30% 注碼</span>`:""}<span class="ind">${esc(indOf(r.sym))}</span></div>
       <button class="primary" data-buy="${r.sym}">我買咗</button>
       <div class="kv" style="grid-column:1/-1">
         <div><span>buy-stop 價</span><b>${f2(r.pivot)}</b></div><div><span>今日收市</span><b>${f2(r.close)}</b></div>
@@ -249,10 +252,15 @@ function viewRank(){
   const held = new Set(S.positions.map(p=>p.sym));
   const tag = r => held.has(r.sym) ? `<span class="tag t-buy">持有</span>` :
     r.status === "候選" ? `<span class="tag t-buy">候選</span>` : r.status === "唔合格" ? `<span class="tag t-stop">唔合格</span>` : `<span class="tag t-skip">高過前高</span>`;
+  // 頭 20 名板塊分佈：睇資金集中喺邊個板塊
+  const top = SCAN.ranking.slice(0, 20), cnt = {};
+  top.forEach(r => { const k = r.sector || "未知"; cnt[k] = (cnt[k] || 0) + 1; });
+  const secs = Object.entries(cnt).sort((a,b) => b[1] - a[1]);
   return header() + `<h2>RS 排名（成交額頭 50）</h2>
+    ${top.some(r => r.sector) ? `<div class="card"><p class="small muted">頭 ${top.length} 名板塊分佈</p><div class="secbar">${secs.map(([k,n],i)=>`<span class="tag ${i?"t-skip":"t-buy"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線　②50 日線 &gt; 200 日線　③收市 ≥ 52 週高 × 0.75。距前高 = 要升幾多先觸發 buy-stop。</p>
-    <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r">收市</th><th>①②③</th><th class="r">前高</th><th class="r">距前高</th><th class="r">止蝕</th><th>狀態</th></tr>
-    ${SCAN.ranking.map(r=>`<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b></td><td class="r mono">${f2(r.close)}</td>
+    <div class="tablewrap"><table><tr><th class="r">#</th><th>股票／行業</th><th class="r">收市</th><th>①②③</th><th class="r">前高</th><th class="r">距前高</th><th class="r">止蝕</th><th>狀態</th></tr>
+    ${SCAN.ranking.map(r=>`<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b><span class="ind">${esc(indOf(r.sym))}</span></td><td class="r mono">${f2(r.close)}</td>
       <td>${[r.c1,r.c2,r.c3].map(x=>x?"✅":"❌").join("")}</td><td class="r mono">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono">${f2(r.stop)}</td><td>${tag(r)}</td></tr>`).join("")}
     </table></div>`;
@@ -267,7 +275,7 @@ function viewPos(){
     const r = sells[p.sym] || [];
     return `<div class="card">
       <div class="row spread"><div><span class="mono" style="font-size:18px;font-weight:900">${p.sym}</span>
-        ${p.be?`<span class="tag t-buy">已保本</span>`:`<span class="tag t-skip">未保本</span>`} ${s?.rank?`<span class="tag t-skip">RS 第 ${s.rank}</span>`:""}</div>
+        ${p.be?`<span class="tag t-buy">已保本</span>`:`<span class="tag t-skip">未保本</span>`} ${s?.rank?`<span class="tag t-skip">RS 第 ${s.rank}</span>`:""}<span class="ind">${esc(indOf(p.sym))}</span></div>
         <button data-sell="${p.sym}">記錄賣出</button></div>
       ${SCAN && p.date > SCAN.date ? `<p class="small muted">${p.date} 買入，下面數字等 ${p.date} 收市數據出咗先準。</p>` : ""}
       ${r.length?`<div class="alert small"><b>要賣：</b>${r.map(esc).join("；")}</div>`:""}
@@ -335,7 +343,9 @@ function buyDialog(r){
     if (!sym || !(price>0) || !(shares>0)) return "請填股票、成交價同股數。";
     if (!(stop>0 && stop<price)) return "止蝕位要低過成交價。";
     if (S.positions.some(p=>p.sym===sym)) return "已經持有呢隻股。";
-    S.positions.push({sym, date:String(fd.get("date")), entry:price, shares, stop, R:price-stop, be:false});
+    const rk = SCAN?.ranking?.find(x => x.sym === sym);           // 記低行業：跌出排名之後都顯示到
+    S.positions.push({sym, date:String(fd.get("date")), entry:price, shares, stop, R:price-stop, be:false,
+                      sector: rk?.sector || "", industry: rk?.industry || ""});
     S.cash -= price*shares; save(); render();
   });
 }

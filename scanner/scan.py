@@ -18,21 +18,25 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from sector_names import zh
+
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "scan.json"
 UNI = ROOT / "scanner" / "universe.txt"   # Nasdaq 名單攞唔到時用上次嘅預選股
+SECT = ROOT / "scanner" / "sectors.json"  # 行業快取：Yahoo 查過就唔再查（每 180 日更新）
 
 UA = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
 
 def nasdaq_universe(n_dv=300, n_cap=300):
+    """回傳（預選股、Nasdaq 行業 {股票: (板塊, 行業)}）。"""
     try:
-        syms = _nasdaq(n_dv, n_cap)
+        syms, info = _nasdaq(n_dv, n_cap)
         UNI.write_text("\n".join(syms), encoding="utf-8")
-        return syms
+        return syms, info
     except Exception as e:                                      # Nasdaq 網站出事：用上次嘅名單
         print("Nasdaq 名單攞唔到，用上次嘅：", e)
-        return UNI.read_text(encoding="utf-8").split()
+        return UNI.read_text(encoding="utf-8").split(), {}
 
 
 def _nasdaq(n_dv, n_cap):
@@ -45,7 +49,35 @@ def _nasdaq(n_dv, n_cap):
     df = df[df.px >= 5]
     df["dv"] = df.px * df.vol
     pick = set(df.nlargest(n_dv, "dv").symbol) | set(df.nlargest(n_cap, "cap").symbol)
-    return sorted(s.replace(".", "-") for s in pick)
+    df = df.fillna({"sector": "", "industry": ""})
+    info = {r.symbol.replace(".", "-"): (r.sector, r.industry) for r in df.itertuples() if r.symbol in pick}
+    return sorted(s.replace(".", "-") for s in pick), info
+
+
+def sectors(syms, nasdaq_info, max_age=180):
+    """排名股嘅板塊／行業：Yahoo 優先（分類接近 GICS），查唔到用 Nasdaq。結果存喺 sectors.json。"""
+    try:
+        cache = json.loads(SECT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        cache = {}
+    now = pd.Timestamp.now().normalize()
+    old = lambda e: e.get("src") != "yahoo" or (now - pd.Timestamp(e["date"])).days > max_age
+    need = [s for s in syms if s not in cache or old(cache[s])]
+    if need:
+        import yfinance as yf
+        for s in need:
+            try:
+                i = yf.Ticker(s).info
+                if i.get("sector"):
+                    cache[s] = dict(sector=i["sector"], industry=i.get("industry") or "", src="yahoo", date=str(now.date()))
+                    continue
+            except Exception as e:
+                print("Yahoo 行業攞唔到：", s, e)
+            if s in nasdaq_info and s not in cache:
+                sec, ind = nasdaq_info[s]
+                cache[s] = dict(sector=sec, industry=ind, src="nasdaq", date=str(now.date()))
+        SECT.write_text(json.dumps(cache, ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+    return {s: zh(cache[s]["sector"], cache[s]["industry"]) if s in cache else ("", "") for s in syms}
 
 
 def download(syms, end=None):
@@ -90,7 +122,7 @@ def next_trading_day(d):
 
 
 def scan(end=None):
-    syms = nasdaq_universe()
+    syms, nas_info = nasdaq_universe()
     D = download(syms, end)
     H, L, C, AC, V = D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
     ndx = C.pop("^NDX").dropna()
@@ -117,6 +149,7 @@ def scan(end=None):
     pool = adv[ok].sort_values(ascending=False).head(50).index
     rs = rs_all[pool][C[pool].notna().sum() >= 253].dropna().sort_values(ascending=False)
     rank = {s: i + 1 for i, s in enumerate(rs.index)}
+    sect = sectors(list(rs.index), nas_info)
     nxt = next_trading_day(t)
     # 最近 10 個交易日：app 幾日冇開，都可以補返 2R 保本、盤中穿止蝕、星期五帳戶值
     days = C.index[-10:]
@@ -141,7 +174,7 @@ def scan(end=None):
                                 sma50=round(float(sma50[s]), 4), sma200=rec["sma200"], hi52=round(float(hi52[s]), 4),
                                 c1=c1, c2=c2, c3=c3, pivot=round(float(piv[s]), 4), stop=round(float(stop), 4),
                                 R=round(float(piv[s] - stop), 4), be_trigger=round(float(piv[s] + 2 * (piv[s] - stop)), 4),
-                                status=status))
+                                sector=sect[s][0], industry=sect[s][1], status=status))
     ranking.sort(key=lambda r: r["rank"])
     out = dict(date=str(t.date()), next_day=str(nxt.date()), week_end=days_we[-1],
                days=[str(d.date()) for d in days], days_we=days_we,
@@ -180,6 +213,6 @@ if __name__ == "__main__":
     o = scan(*(sys.argv[1:] or [None]))
     print(o["date"], "綠燈" if o["green"] else "紅燈", "NDX", round(o["ndx"]), "200 日線", round(o["ndx_s200"]))
     for r in o["ranking"][:25]:
-        print(f'{r["rank"]:>2} {r["sym"]:<6} RS {r["rs"]:.3f} 收市 {r["close"]:.2f} 前高 {r["pivot"]:.2f} 止蝕 {r["stop"]:.2f} '
+        print(f'{r["rank"]:>2} {r["sym"]:<6} {r["industry"]:<8} RS {r["rs"]:.3f} 收市 {r["close"]:.2f} 前高 {r["pivot"]:.2f} 止蝕 {r["stop"]:.2f} '
               f'{"".join("✅" if x else "❌" for x in (r["c1"], r["c2"], r["c3"]))} {r["status"]}')
     print("候選：", o["candidates"][:10], "｜下一個交易日", o["next_day"], "｜今日係週尾" if o["week_end"] else "")

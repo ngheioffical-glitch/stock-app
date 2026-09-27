@@ -1,0 +1,290 @@
+{
+ "AAPL": {
+  "date": "2026-09-27",
+  "industry": "Consumer Electronics",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "AMAT": {
+  "date": "2026-09-27",
+  "industry": "Semiconductor Equipment & Materials",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "AMD": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "AMZN": {
+  "date": "2026-09-27",
+  "industry": "Internet Retail",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
+ "APP": {
+  "date": "2026-09-27",
+  "industry": "Advertising Agencies",
+  "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "ASML": {
+  "date": "2026-09-27",
+  "industry": "Semiconductor Equipment & Materials",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "AVGO": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "BAC": {
+  "date": "2026-09-27",
+  "industry": "Banks - Diversified",
+  "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "BE": {
+  "date": "2026-09-27",
+  "industry": "Electrical Equipment & Parts",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
+ "CAT": {
+  "date": "2026-09-27",
+  "industry": "Farm & Heavy Construction Machinery",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
+ "COHR": {
+  "date": "2026-09-27",
+  "industry": "Scientific & Technical Instruments",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "CRM": {
+  "date": "2026-09-27",
+  "industry": "Software - Application",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "CRWD": {
+  "date": "2026-09-27",
+  "industry": "Software - Infrastructure",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "CRWV": {
+  "date": "2026-09-27",
+  "industry": "Software - Infrastructure",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "CSCO": {
+  "date": "2026-09-27",
+  "industry": "Communication Equipment",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "DELL": {
+  "date": "2026-09-27",
+  "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "GEV": {
+  "date": "2026-09-27",
+  "industry": "Specialty Industrial Machinery",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
+ "GOOG": {
+  "date": "2026-09-27",
+  "industry": "Internet Content & Information",
+  "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "GOOGL": {
+  "date": "2026-09-27",
+  "industry": "Internet Content & Information",
+  "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "GS": {
+  "date": "2026-09-27",
+  "industry": "Capital Markets",
+  "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "HOOD": {
+  "date": "2026-09-27",
+  "industry": "Capital Markets",
+  "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "INTC": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "JPM": {
+  "date": "2026-09-27",
+  "industry": "Banks - Diversified",
+  "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "LITE": {
+  "date": "2026-09-27",
+  "industry": "Communication Equipment",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "LLY": {
+  "date": "2026-09-27",
+  "industry": "Drug Manufacturers - General",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
+ "LRCX": {
+  "date": "2026-09-27",
+  "industry": "Semiconductor Equipment & Materials",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "META": {
+  "date": "2026-09-27",
+  "industry": "Internet Content & Information",
+  "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "MRNA": {
+  "date": "2026-09-27",
+  "industry": "Biotechnology",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
+ "MRVL": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "MSFT": {
+  "date": "2026-09-27",
+  "industry": "Software - Infrastructure",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "MSTR": {
+  "date": "2026-09-27",
+  "industry": "Software - Application",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "MU": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "NBIS": {
+  "date": "2026-09-27",
+  "industry": "Internet Content & Information",
+  "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "NFLX": {
+  "date": "2026-09-27",
+  "industry": "Entertainment",
+  "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "NOW": {
+  "date": "2026-09-27",
+  "industry": "Software - Application",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "NVDA": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "ORCL": {
+  "date": "2026-09-27",
+  "industry": "Software - Infrastructure",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "PANW": {
+  "date": "2026-09-27",
+  "industry": "Software - Infrastructure",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "PLTR": {
+  "date": "2026-09-27",
+  "industry": "Software - Infrastructure",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "QCOM": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "SNDK": {
+  "date": "2026-09-27",
+  "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "STX": {
+  "date": "2026-09-27",
+  "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "TSLA": {
+  "date": "2026-09-27",
+  "industry": "Auto Manufacturers",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
+ "TSM": {
+  "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "V": {
+  "date": "2026-09-27",
+  "industry": "Credit Services",
+  "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "WDC": {
+  "date": "2026-09-27",
+  "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "WMT": {
+  "date": "2026-09-27",
+  "industry": "Discount Stores",
+  "sector": "Consumer Defensive",
+  "src": "yahoo"
+ },
+ "XOM": {
+  "date": "2026-09-27",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ }
+}
