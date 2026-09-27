@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d6b58">
+<title>龍頭突破</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f5f7f6; --paper:#fff; --ink:#17212a; --muted:#5d6872; --line:#dde3e0; --soft:#edf1ef;
+  --buy:#0d6b58; --buy-soft:#e2f1eb; --stop:#b3261e; --stop-soft:#f8e5e3; --warn:#8a5a00; --warn-soft:#fbf0d8;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --sans:"Noto Sans HK","PingFang HK","Microsoft JhengHei",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0f151a;--paper:#161e25;--ink:#e3e8eb;--muted:#9aa6ae;--line:#29343d;--soft:#1c262e;
+    --buy:#57c6a8;--buy-soft:#14302a;--stop:#ff8a80;--stop-soft:#3a1d1b;--warn:#f0c060;--warn-soft:#352a12;color-scheme:dark}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;
+  padding-top:env(safe-area-inset-top,0px)}
+main{max-width:760px;margin:0 auto;padding-inline:16px;padding-block:16px 96px;display:flex;flex-direction:column;gap:16px}
+h1{font-size:20px;font-weight:900;margin:0}
+h2{font-size:16px;font-weight:700;margin:0}
+p{margin:0}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.spread{justify-content:space-between}
+.light{display:flex;align-items:center;gap:12px}
+.dot{width:14px;height:14px;border-radius:50%;flex:none}
+.dot.g{background:var(--buy)} .dot.r{background:var(--stop)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.t-buy{background:var(--buy-soft);color:var(--buy)} .t-stop{background:var(--stop-soft);color:var(--stop)}
+.t-warn{background:var(--warn-soft);color:var(--warn)} .t-skip{background:var(--soft);color:var(--muted)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--soft);font-weight:700;position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+.order{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:start}
+.order .sym{font-size:18px;font-weight:900;font-family:var(--mono)}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px 14px;font-size:13.5px}
+.kv div{display:flex;flex-direction:column}
+.kv b{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums}
+.kv span{color:var(--muted);font-size:12px}
+.alert{border-left:4px solid var(--stop);background:var(--stop-soft);border-radius:0 8px 8px 0;padding:10px 14px}
+.info{border-left:4px solid var(--warn);background:var(--warn-soft);border-radius:0 8px 8px 0;padding:10px 14px}
+.ok{border-left:4px solid var(--buy);background:var(--buy-soft);border-radius:0 8px 8px 0;padding:10px 14px}
+button{font:inherit;font-weight:700;border-radius:6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:8px 14px;cursor:pointer}
+button.primary{background:var(--buy);color:var(--paper);border-color:var(--buy)}
+button.danger{background:var(--stop);color:var(--paper);border-color:var(--stop)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--buy);outline-offset:2px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+nav button{border:0;border-radius:0;background:none;padding:12px 4px;font-size:14px;color:var(--muted)}
+nav button[aria-current="page"]{color:var(--buy);box-shadow:inset 0 3px 0 var(--buy)}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+textarea{font-family:var(--mono);font-size:12px;min-height:120px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+dialog{border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);padding:18px;width:min(440px,calc(100% - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.4)}
+.pos-up{color:var(--buy)} .pos-dn{color:var(--stop)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main id="app"><p class="muted">載入中…</p></main>
+
+<nav id="tabs">
+  <button data-tab="today" aria-current="page">今日</button>
+  <button data-tab="rank">排名</button>
+  <button data-tab="pos">持倉</button>
+  <button data-tab="set">設定</button>
+</nav>
+
+<dialog id="dlg"><form id="dlgForm" method="dialog"></form></dialog>
+
+<script>
+"use strict";
+// ───────────────────────── 規則參數（RULES_V2.md v2.1）
+const RULE = { cap: 5, capBrake: 2, frac: 0.20, boost: 1.5, rankExit: 12.5, rankExitBrake: 5,
+               brakeDown: 0.75, brakeUp: 0.875, beR: 2, atrBuf: 0.2 };
+const KEY = "v21-app";
+const defaults = { capital: 100000, cash: 100000, positions: [], trades: [], navs: {}, peak: null,
+                   braking: false, lastScan: null, notes: {}, dataUrl: "scan.json" };
+
+// ───────────────────────── 儲存
+function load(){ try { const s = JSON.parse(localStorage.getItem(KEY)); return s ? Object.assign({}, defaults, s) : {...defaults}; } catch(e){ return {...defaults}; } }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+let S = load(), SCAN = null, TAB = "today", ERR = null;
+try { TAB = localStorage.getItem(KEY + "-tab") || "today"; } catch(e){}
+
+// ───────────────────────── 工具
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const f2 = x => (x == null || !isFinite(x)) ? "—" : Number(x).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
+const f0 = x => (x == null || !isFinite(x)) ? "—" : Math.round(x).toLocaleString("en-US");
+const pct = (x, d=1) => (x == null || !isFinite(x)) ? "—" : (x >= 0 ? "+" : "") + (x*100).toFixed(d) + "%";
+const today = () => new Date().toISOString().slice(0,10);
+
+// ───────────────────────── 帳戶計算
+function nav(){
+  let v = S.cash;
+  for (const p of S.positions){ const s = SCAN?.stocks?.[p.sym]; v += p.shares * (s ? s.close : p.entry); }
+  return v;
+}
+
+// 每個掃描日做一次：推止蝕、記星期五帳戶值、更新回撤剎車
+function applyScan(){
+  if (!SCAN || S.lastScan === SCAN.date) return;
+  const notes = [];
+  for (const p of S.positions){
+    if (p.date > SCAN.date) continue;                       // 掃描日之後先買嘅，等下一份數據
+    const s = SCAN.stocks[p.sym]; if (!s) continue;
+    const old = p.stop;
+    if (!p.be && p.R > 0 && s.close >= p.entry + RULE.beR * p.R){ p.be = true; p.stop = Math.max(p.stop, p.entry); }
+    if (p.be && isFinite(s.swing_low) && isFinite(s.atr)) p.stop = Math.max(p.stop, s.swing_low - RULE.atrBuf * s.atr);
+    if (p.stop > old + 1e-9) notes.push({sym:p.sym, from:old, to:p.stop, be:p.be});
+  }
+  if (SCAN.week_end){
+    const v = nav();
+    S.navs[SCAN.date] = v;
+    S.peak = Math.max(S.peak ?? v, v);
+    if (v <= S.peak * RULE.brakeDown) S.braking = true;
+    else if (v >= S.peak * RULE.brakeUp) S.braking = false;
+  }
+  S.notes = {date: SCAN.date, list: notes};
+  S.lastScan = SCAN.date;
+  save();
+}
+
+// 持倉要做嘅嘢
+function sellReasons(){
+  const out = {};
+  const lim = S.braking ? RULE.rankExitBrake : RULE.rankExit;
+  for (const p of S.positions){
+    const s = SCAN?.stocks?.[p.sym], r = [];
+    if (!SCAN || p.date > SCAN.date) { out[p.sym] = r; continue; }   // 未有買入之後嘅收市數據
+    if (!s) r.push("冇數據，請自己檢查");
+    if (!SCAN.green) r.push("大市紅燈");
+    if (s && s.close <= p.stop) r.push("收市已低過止蝕位（止蝕單應該已經成交）");
+    if (s && s.close < s.sma200) r.push("收市跌穿 200 日線");
+    if (SCAN.week_end && (!s || !s.rank || s.rank > lim)) r.push(s && s.rank ? `排名第 ${s.rank}（要頭 ${Math.floor(lim)}）` : "跌出股票池頭 50");
+    out[p.sym] = r;
+  }
+  if (S.braking && SCAN?.week_end){                        // 剎車：只留排名最好嘅 2 隻
+    const keep = S.positions.filter(p => !out[p.sym].length)
+      .sort((a,b) => (SCAN.stocks[a.sym]?.rank ?? 999) - (SCAN.stocks[b.sym]?.rank ?? 999));
+    keep.slice(RULE.capBrake).forEach(p => out[p.sym].push("回撤剎車減倉"));
+  }
+  return out;
+}
+
+function orders(){
+  if (!SCAN) return {list:[], slots:0, why:"未有數據"};
+  if (!SCAN.green) return {list:[], slots:0, why:"大市紅燈：唔買"};
+  const sells = sellReasons();
+  const keep = S.positions.filter(p => !sells[p.sym].length);
+  const cap = S.braking ? RULE.capBrake : RULE.cap;
+  const slots = Math.max(0, cap - keep.length);
+  if (!slots) return {list:[], slots, why: S.braking ? "回撤剎車生效：上限 2 隻，已經揸滿" : "已經揸滿 5 隻"};
+  const held = new Set(S.positions.map(p => p.sym));
+  const v = nav();
+  const list = SCAN.ranking.filter(r => r.status === "候選" && !held.has(r.sym)).slice(0, slots * 2).map(r => {
+    const frac = RULE.frac * (r.sym === SCAN.rank1 ? RULE.boost : 1);
+    return {...r, frac, amount: v * frac, shares: Math.floor(v * frac / r.pivot)};
+  });
+  return {list, slots, why: list.length ? "" : "今日冇合格候選股"};
+}
+
+// ───────────────────────── 畫面
+function header(){
+  if (ERR) return `<div class="alert"><b>讀唔到數據</b><p class="small">${esc(ERR)}。去「設定」檢查數據網址，或者遲啲再試。</p></div>`;
+  if (!SCAN) return "";
+  const g = SCAN.green;
+  return `<div class="card">
+    <div class="row spread"><div class="light"><span class="dot ${g?"g":"r"}"></span><h1>${g?"大市綠燈":"大市紅燈"}</h1></div>
+      <span class="tag ${SCAN.week_end?"t-warn":"t-skip"}">${SCAN.week_end?"週尾：今日要檢查排名出場":"平日"}</span></div>
+    <p class="small muted">數據：<span class="num">${SCAN.date}</span> 收市 · 下一個交易日 <span class="num">${SCAN.next_day}</span> · 更新於 ${esc(SCAN.generated)}</p>
+    <p class="small">NDX <b class="num">${f0(SCAN.ndx)}</b>　200 日線 <span class="num">${f0(SCAN.ndx_s200)}</span>　21 日 EMA <span class="num">${f0(SCAN.ndx_e21)}</span>　50 日線 <span class="num">${f0(SCAN.ndx_s50)}</span></p>
+    <p class="small muted">綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA 而且 21 日 EMA &gt; 50 日線。</p>
+  </div>`;
+}
+
+function viewToday(){
+  const v = nav(), o = orders(), sells = sellReasons();
+  const acts = S.positions.filter(p => sells[p.sym].length);
+  const notes = (SCAN && S.notes && S.notes.date === SCAN.date) ? (S.notes.list || []) : [];
+  let h = header();
+  h += `<div class="card"><div class="kv">
+      <div><span>帳戶總值</span><b>${f0(v)}</b></div><div><span>現金</span><b>${f0(S.cash)}</b></div>
+      <div><span>持股</span><b>${S.positions.length} / ${S.braking?2:5}</b></div>
+      <div><span>回撤剎車</span><b class="${S.braking?"pos-dn":""}">${S.braking?"生效中":"冇"}</b></div></div>
+      ${S.peak ? `<p class="small muted">星期五高位 ${f0(S.peak)}；跌到 ${f0(S.peak*RULE.brakeDown)} 或以下會剎車${S.braking?`；要返到 ${f0(S.peak*RULE.brakeUp)} 先解除`:""}。</p>`:""}
+    </div>`;
+  if (acts.length) h += `<div class="alert"><b>下一個交易日開市要賣</b>${acts.map(p=>`<p class="small"><b class="mono">${p.sym}</b>：${sells[p.sym].map(esc).join("；")}</p>`).join("")}</div>`;
+  if (notes.length) h += `<div class="info"><b>喺券商更新止蝕單</b>${notes.map(n=>`<p class="small"><b class="mono">${n.sym}</b>：${f2(n.from)} → <b class="num">${f2(n.to)}</b>${n.be?"（已保本）":""}</p>`).join("")}</div>`;
+  h += `<div class="row spread"><h2>${SCAN?`${SCAN.next_day} 要掛嘅 buy-stop 單`:"掛單"}</h2><span class="small muted">空位 ${o.slots}${o.slots?`，掛 ${o.list.length} 張`:""}</span></div>`;
+  if (!o.list.length) h += `<div class="ok"><b>${esc(o.why)}</b></div>`;
+  else {
+    h += `<p class="small muted">由 RS 排名最高開始。邊隻先升穿 buy-stop 價就先買，買夠 ${o.slots} 隻即刻取消其餘單。成交後即刻喺止蝕位掛 stop 賣單（長期有效）。</p>`;
+    h += o.list.map(r => `<div class="card order">
+      <div><span class="sym">${r.sym}</span> <span class="tag t-skip">RS 第 ${r.rank}</span>${r.frac>RULE.frac?` <span class="tag t-warn">排第 1：30% 注碼</span>`:""}</div>
+      <button class="primary" data-buy="${r.sym}">我買咗</button>
+      <div class="kv" style="grid-column:1/-1">
+        <div><span>buy-stop 價</span><b>${f2(r.pivot)}</b></div><div><span>今日收市</span><b>${f2(r.close)}</b></div>
+        <div><span>初始止蝕</span><b class="pos-dn">${f2(r.stop)}</b></div><div><span>R（每股風險）</span><b>${f2(r.R)} <small>(${(r.R/r.pivot*100).toFixed(1)}%)</small></b></div>
+        <div><span>2R 保本觸發</span><b>${f2(r.be_trigger)}</b></div><div><span>股數（${Math.round(r.frac*100)}%）</span><b>${f0(r.shares)}</b></div>
+      </div></div>`).join("");
+    const need = o.list.slice(0,o.slots).reduce((a,r)=>a+r.amount,0);
+    if (S.cash < need*0.99) h += `<div class="info small">現金 ${f0(S.cash)}，唔夠買晒 ${o.slots} 隻（約需 ${f0(need)}）：有幾多用幾多。</div>`;
+  }
+  return h;
+}
+
+function viewRank(){
+  if (!SCAN) return header();
+  const held = new Set(S.positions.map(p=>p.sym));
+  const tag = r => held.has(r.sym) ? `<span class="tag t-buy">持有</span>` :
+    r.status === "候選" ? `<span class="tag t-buy">候選</span>` : r.status === "唔合格" ? `<span class="tag t-stop">唔合格</span>` : `<span class="tag t-skip">高過前高</span>`;
+  return header() + `<h2>RS 排名（成交額頭 50）</h2>
+    <p class="small muted">①收市 &gt; 200 日線　②50 日線 &gt; 200 日線　③收市 ≥ 52 週高 × 0.75。距前高 = 要升幾多先觸發 buy-stop。</p>
+    <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r">收市</th><th>①②③</th><th class="r">前高</th><th class="r">距前高</th><th class="r">止蝕</th><th>狀態</th></tr>
+    ${SCAN.ranking.map(r=>`<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b></td><td class="r mono">${f2(r.close)}</td>
+      <td>${[r.c1,r.c2,r.c3].map(x=>x?"✅":"❌").join("")}</td><td class="r mono">${f2(r.pivot)}</td>
+      <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono">${f2(r.stop)}</td><td>${tag(r)}</td></tr>`).join("")}
+    </table></div>`;
+}
+
+function viewPos(){
+  const sells = sellReasons();
+  let h = header() + `<div class="row spread"><h2>我的持倉</h2><button data-add="1">＋ 手動加一筆</button></div>`;
+  if (!S.positions.length) h += `<div class="card"><p class="muted">未有持倉。喺「今日」按「我買咗」記錄成交。</p></div>`;
+  h += S.positions.map(p => {
+    const s = SCAN?.stocks?.[p.sym], c = s ? s.close : p.entry, pl = c/p.entry - 1, w = p.shares*c/nav();
+    const r = sells[p.sym] || [];
+    return `<div class="card">
+      <div class="row spread"><div><span class="mono" style="font-size:18px;font-weight:900">${p.sym}</span>
+        ${p.be?`<span class="tag t-buy">已保本</span>`:`<span class="tag t-skip">未保本</span>`} ${s?.rank?`<span class="tag t-skip">RS 第 ${s.rank}</span>`:""}</div>
+        <button data-sell="${p.sym}">記錄賣出</button></div>
+      ${SCAN && p.date > SCAN.date ? `<p class="small muted">${p.date} 買入，下面數字等 ${p.date} 收市數據出咗先準。</p>` : ""}
+      ${r.length?`<div class="alert small"><b>要賣：</b>${r.map(esc).join("；")}</div>`:""}
+      <div class="kv">
+        <div><span>入場（${p.date}）</span><b>${f2(p.entry)}</b></div><div><span>股數</span><b>${f0(p.shares)}</b></div>
+        <div><span>收市</span><b>${f2(c)}</b></div><div><span>浮盈</span><b class="${pl>=0?"pos-up":"pos-dn"}">${pct(pl)}</b></div>
+        <div><span>止蝕位</span><b class="pos-dn">${f2(p.stop)}</b></div><div><span>R</span><b>${f2(p.R)}</b></div>
+        <div><span>${p.be?"保本後跟 swing low":"2R 保本觸發"}</span><b>${p.be?"—":f2(p.entry+RULE.beR*p.R)}</b></div>
+        <div><span>200 日線</span><b>${s?f2(s.sma200):"—"}</b></div><div><span>佔總值</span><b>${pct(w,0).replace("+","")}</b></div>
+      </div></div>`;
+  }).join("");
+  if (S.trades.length){
+    h += `<h2>已完成交易</h2><div class="tablewrap"><table><tr><th>股票</th><th>買入</th><th class="r">買入價</th><th>賣出</th><th class="r">賣出價</th><th class="r">回報</th><th>原因</th></tr>
+      ${S.trades.slice().reverse().map(t=>`<tr><td class="mono"><b>${t.sym}</b></td><td class="mono">${t.date}</td><td class="r mono">${f2(t.entry)}</td>
+      <td class="mono">${t.sellDate}</td><td class="r mono">${f2(t.sell)}</td><td class="r mono ${t.sell>=t.entry?"pos-up":"pos-dn"}">${pct(t.sell/t.entry-1)}</td><td>${esc(t.reason)}</td></tr>`).join("")}
+      </table></div>`;
+  }
+  return h;
+}
+
+function viewSet(){
+  return `<h2>設定</h2>
+  <div class="card"><div class="grid2">
+    <label>現金（美元）<input id="cash" type="number" step="any" inputmode="decimal" value="${S.cash}"></label>
+    <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label></div>
+    <p class="small muted">第一次用：將現金設做你打算投入嘅本金。之後買賣會自動加減。</p>
+    <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
+  <div class="card"><h2>備份</h2><p class="small muted">資料只存喺呢部手機嘅瀏覽器。換手機或者清瀏覽器資料之前，先複製備份。</p>
+    <textarea id="backup">${esc(JSON.stringify(S))}</textarea>
+    <div class="row"><button id="copyBk">複製備份</button><button id="importBk">用上面內容還原</button></div><p id="bkMsg" class="small muted"></p></div>
+  <div class="card"><h2>清除所有資料</h2><p class="small muted">持倉、交易紀錄、帳戶高位全部刪除，冇得返轉頭。</p>
+    <div class="row"><input id="resetConfirm" placeholder="輸入「刪除」確認" style="max-width:200px"><button class="danger" id="reset">清除</button></div></div>
+  <div class="card small muted"><p>規則：RULES_V2.md（v2.1）。數據：Nasdaq 股票名單 + Yahoo 日線，每日美股收市後更新。</p>
+    <p>回測結果，唔係投資建議。</p></div>`;
+}
+
+function render(){
+  const v = {today:viewToday, rank:viewRank, pos:viewPos, set:viewSet}[TAB]();
+  $("#app").innerHTML = v;
+  document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  bind();
+}
+
+// ───────────────────────── 對話框
+function dialog(html, onOk){
+  const d = $("#dlg"), f = $("#dlgForm");
+  f.innerHTML = html + `<div class="row" style="margin-top:14px;justify-content:flex-end"><button value="cancel" formnovalidate>取消</button><button class="primary" value="ok">確定</button></div><p id="dlgErr" class="small pos-dn"></p>`;
+  f.onsubmit = e => {
+    if (e.submitter?.value !== "ok") return;
+    const err = onOk(new FormData(f));
+    if (err){ e.preventDefault(); $("#dlgErr").textContent = err; }
+  };
+  d.showModal();
+}
+
+function buyDialog(r){
+  dialog(`<h2>記錄買入</h2><div class="grid2" style="margin-top:10px">
+    <label>股票<input name="sym" required value="${esc(r?.sym||"")}"></label>
+    <label>成交日期<input name="date" type="date" required value="${esc(SCAN?.next_day||today())}"></label>
+    <label>成交價<input name="price" type="number" step="any" inputmode="decimal" required value="${r?r.pivot.toFixed(2):""}"></label>
+    <label>股數<input name="shares" type="number" step="any" inputmode="decimal" required value="${r?r.shares:""}"></label>
+    <label>初始止蝕位<input name="stop" type="number" step="any" inputmode="decimal" required value="${r?r.stop.toFixed(2):""}"></label></div>
+    <p class="small muted" style="margin-top:8px">成交價同股數請填券商實際數字。</p>`, fd => {
+    const sym = String(fd.get("sym")).trim().toUpperCase(), price = +fd.get("price"), shares = +fd.get("shares"), stop = +fd.get("stop");
+    if (!sym || !(price>0) || !(shares>0)) return "請填股票、成交價同股數。";
+    if (!(stop>0 && stop<price)) return "止蝕位要低過成交價。";
+    if (S.positions.some(p=>p.sym===sym)) return "已經持有呢隻股。";
+    S.positions.push({sym, date:String(fd.get("date")), entry:price, shares, stop, R:price-stop, be:false});
+    S.cash -= price*shares; save(); render();
+  });
+}
+
+function sellDialog(sym){
+  const p = S.positions.find(x=>x.sym===sym), s = SCAN?.stocks?.[sym], r = sellReasons()[sym] || [];
+  dialog(`<h2>記錄賣出 ${esc(sym)}</h2><div class="grid2" style="margin-top:10px">
+    <label>成交日期<input name="date" type="date" required value="${esc(SCAN?.next_day||today())}"></label>
+    <label>成交價<input name="price" type="number" step="any" inputmode="decimal" required value="${s?s.close.toFixed(2):""}"></label>
+    <label>原因<input name="reason" value="${esc(r[0]||"打止蝕")}"></label></div>`, fd => {
+    const price = +fd.get("price"); if (!(price>0)) return "請填成交價。";
+    S.trades.push({sym, date:p.date, entry:p.entry, shares:p.shares, sell:price, sellDate:String(fd.get("date")), reason:String(fd.get("reason"))});
+    S.cash += price*p.shares; S.positions = S.positions.filter(x=>x.sym!==sym); save(); render();
+  });
+}
+
+function bind(){
+  document.querySelectorAll("[data-buy]").forEach(b => b.onclick = () => buyDialog(orders().list.find(r=>r.sym===b.dataset.buy)));
+  document.querySelectorAll("[data-sell]").forEach(b => b.onclick = () => sellDialog(b.dataset.sell));
+  document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => buyDialog(null));
+  const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+  on("#saveSet", () => { const c = +$("#cash").value; if (isFinite(c)) S.cash = c; S.dataUrl = $("#dataUrl").value.trim() || "scan.json"; save(); fetchScan(); });
+  on("#reload", () => fetchScan());
+  on("#copyBk", async () => { const t = $("#backup"); try { await navigator.clipboard.writeText(t.value); $("#bkMsg").textContent = "已複製。"; } catch(e){ t.select(); $("#bkMsg").textContent = "請手動長按複製。"; } });
+  on("#importBk", () => { try { const o = JSON.parse($("#backup").value); S = Object.assign({}, defaults, o); save(); $("#bkMsg").textContent = "已還原。"; render(); } catch(e){ $("#bkMsg").textContent = "格式唔啱，還原唔到。"; } });
+  on("#reset", () => { if ($("#resetConfirm").value.trim() !== "刪除") return; S = {...defaults}; save(); render(); });
+}
+
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { TAB = b.dataset.tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){} render(); window.scrollTo(0,0); });
+
+async function fetchScan(){
+  try {
+    const r = await fetch(S.dataUrl + (S.dataUrl.includes("?")?"&":"?") + "t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    SCAN = await r.json(); ERR = null; applyScan();
+  } catch(e){ ERR = e.message; }
+  render();
+}
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+fetchScan();
+</script>
+</body>
+</html>

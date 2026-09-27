@@ -1,0 +1,37 @@
+name: 打包 APK
+# Android 外殼（WebView 載入 GitHub Pages 上面嘅 app）。改咗 android/ 或者手動按 Run workflow 先會打包。
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android/**"
+      - ".github/workflows/build-apk.yml"
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+      - name: 打包
+        working-directory: android
+        run: gradle assembleDebug --no-daemon -PappUrl="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: longtou-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: 發佈到 Releases（手機可以直接下載）
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-${{ github.run_number }}
+          name: 龍頭突破 APK（第 ${{ github.run_number }} 版）
+          body: 用手機喺呢頁下載 app-debug.apk 安裝。第一次安裝要允許「安裝未知來源應用程式」。
+          files: android/app/build/outputs/apk/debug/app-debug.apk
