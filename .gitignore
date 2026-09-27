@@ -5,3 +5,4 @@ android/build/
 android/app/build/
 android/local.properties
 .DS_Store
+feeds_out/

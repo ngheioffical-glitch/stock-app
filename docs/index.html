@@ -63,7 +63,7 @@ button.primary{background:var(--buy);color:var(--paper);border-color:var(--buy)}
 button.danger{background:var(--stop);color:var(--paper);border-color:var(--stop)}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--buy);outline-offset:2px}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--line);
-  display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+  display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
 nav button{border:0;border-radius:0;background:none;padding:12px 4px;font-size:14px;color:var(--muted)}
 nav button[aria-current="page"]{color:var(--buy);box-shadow:inset 0 3px 0 var(--buy)}
 label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
@@ -75,6 +75,27 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
 .pos-up{color:var(--buy)} .pos-dn{color:var(--stop)}
 .ind{display:block;font-family:var(--sans);font-size:11.5px;font-weight:400;color:var(--muted);line-height:1.3}
 .secbar{display:flex;flex-wrap:wrap;gap:6px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips button{flex:none;border-radius:999px;padding:5px 12px;font-size:13px;font-weight:500;color:var(--muted)}
+.chips button[aria-pressed="true"]{background:var(--buy);border-color:var(--buy);color:var(--paper);font-weight:700}
+.news{display:flex;flex-direction:column;gap:2px;padding:10px 0;border-bottom:1px solid var(--line)}
+.news:last-child{border-bottom:0}
+.news a{color:var(--ink);text-decoration:none;font-weight:500;line-height:1.45}
+.news a:hover{text-decoration:underline}
+.news .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ev{display:grid;grid-template-columns:52px 1fr;gap:2px 10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.ev:last-child{border-bottom:0}
+.ev .tm{font-family:var(--mono);font-size:13px;color:var(--muted);padding-top:1px}
+.ev .nm{font-weight:500;line-height:1.35}
+.ev .en{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
+.ev .vals{grid-column:2;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:12px;color:var(--muted)}
+.ev .vals b{display:block;font-family:var(--mono);font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ev.done .vals b.act{color:var(--buy)}
+.imp{display:inline-flex;gap:2px;vertical-align:middle;margin-right:4px}
+.imp i{width:5px;height:10px;border-radius:1px;background:var(--line)}
+.imp.i3 i{background:var(--stop)} .imp.i2 i:nth-child(-n+2){background:var(--warn)} .imp.i1 i:first-child{background:var(--muted)}
+.dayhd{font-size:13px;font-weight:700;padding:10px 0 2px;color:var(--muted);border-bottom:1px solid var(--line)}
+.dayhd.now{color:var(--buy)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
@@ -85,6 +106,7 @@ dialog::backdrop{background:rgba(0,0,0,.4)}
   <button data-tab="today" aria-current="page">今日</button>
   <button data-tab="rank">排名</button>
   <button data-tab="pos">持倉</button>
+  <button data-tab="news">新聞</button>
   <button data-tab="set">設定</button>
 </nav>
 
@@ -97,7 +119,8 @@ const RULE = { cap: 5, capBrake: 2, frac: 0.20, boost: 1.5, rankExit: 12.5, rank
                brakeDown: 0.75, brakeUp: 0.875, beR: 2, atrBuf: 0.2 };
 const KEY = "v21-app";
 const defaults = { capital: 100000, cash: 100000, positions: [], trades: [], navs: {}, peak: null,
-                   braking: false, lastScan: null, notes: {}, dataUrl: "scan.json" };
+                   braking: false, lastScan: null, notes: {}, dataUrl: "scan.json",
+                   feedUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/feeds/" };
 
 // ───────────────────────── 儲存
 function load(){ try { const s = JSON.parse(localStorage.getItem(KEY)); return s ? Object.assign({}, defaults, s) : {...defaults}; } catch(e){ return {...defaults}; } }
@@ -300,7 +323,8 @@ function viewSet(){
   return `<h2>設定</h2>
   <div class="card"><div class="grid2">
     <label>現金（美元）<input id="cash" type="number" step="any" inputmode="decimal" value="${S.cash}"></label>
-    <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label></div>
+    <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
+    <label style="grid-column:1/-1">新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label></div>
     <p class="small muted">第一次用：將現金設做你打算投入嘅本金。之後買賣會自動加減。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
   <div class="card"><h2>備份</h2><p class="small muted">資料只存喺呢部手機嘅瀏覽器。換手機或者清瀏覽器資料之前，先複製備份。</p>
@@ -312,11 +336,91 @@ function viewSet(){
     <p>回測結果，唔係投資建議。</p></div>`;
 }
 
+// ───────────────────────── 新聞同經濟數據（GitHub Actions 每 30 分鐘更新 feeds 分支）
+let FEED = {news:null, econ:null, err:null, at:0, busy:false}, NT = "econ", NCAT = "全部", EALL = false;
+try { NT = localStorage.getItem(KEY + "-nt") || "econ"; } catch(e){}
+const HK = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Hong_Kong", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
+const NY = new Intl.DateTimeFormat("en-CA", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
+const parts = (fmt, d) => { const o = {}; fmt.formatToParts(d).forEach(p => o[p.type] = p.value); return {date:`${o.year}-${o.month}-${o.day}`, time:`${o.hour}:${o.minute}`}; };
+// 美東時間字串（2026-09-30T08:30）-> Date：試 EDT／EST 邊個格式返原本嗰個
+function fromET(t){
+  if (t.length === 10) return null;
+  for (const off of [4, 5]){ const d = new Date(Date.parse(t + ":00Z") + off * 3600e3); const p = parts(NY, d); if (`${p.date}T${p.time}` === t) return d; }
+  return new Date(Date.parse(t + ":00Z") + 4 * 3600e3);
+}
+const WD = "日一二三四五六";
+const dayLabel = ds => { const d = new Date(ds + "T12:00:00Z"); return `${+ds.slice(5,7)} 月 ${+ds.slice(8)} 日（星期${WD[d.getUTCDay()]}）`; };
+const ago = t => { const m = (Date.now() - Date.parse(t)) / 60e3; return m < 60 ? `${Math.max(1, Math.round(m))} 分鐘前` : m < 1440 ? `${Math.round(m / 60)} 小時前` : `${Math.round(m / 1440)} 日前`; };
+
+async function fetchFeeds(force){
+  if (FEED.busy || (!force && Date.now() - FEED.at < 5 * 60e3 && FEED.news)) return;
+  FEED.busy = true;
+  try {
+    const base = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/";
+    const get = async f => { const r = await fetch(base + f + "?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
+    [FEED.news, FEED.econ] = await Promise.all([get("news.json"), get("econ.json")]);
+    FEED.err = null; FEED.at = Date.now();
+  } catch(e){ FEED.err = e.message; }
+  FEED.busy = false;
+  if (TAB === "news") render();
+}
+
+function viewEcon(){
+  const E = FEED.econ;
+  const rows = E.rows.filter(r => EALL || r.imp >= 2).map(r => ({...r, d: fromET(r.t)}));
+  const nowHK = parts(HK, new Date()).date;
+  let h = `<div class="chips"><button data-eall="0" aria-pressed="${!EALL}">重要數據</button><button data-eall="1" aria-pressed="${EALL}">全部</button></div>
+    <p class="small muted">時間係香港時間（括號係美東）。<span class="imp i3"><i></i><i></i><i></i></span>影響大　<span class="imp i2"><i></i><i></i><i></i></span>中　<span class="imp i1"><i></i><i></i><i></i></span>細。來源：${esc(E.src)}，更新於 ${esc(E.generated)}。</p><div class="card" style="gap:0;padding-top:4px">`;
+  let last = "", nextMarked = false;
+  for (const r of rows){
+    const hk = r.d ? parts(HK, r.d) : {date: r.t.slice(0,10), time: "全日"};
+    if (hk.date !== last){ h += `<div class="dayhd ${hk.date === nowHK ? "now" : ""}">${dayLabel(hk.date)}${hk.date === nowHK ? " · 今日" : ""}</div>`; last = hk.date; }
+    const done = r.actual != null;
+    const soon = !done && !nextMarked && r.d && r.d > new Date() && (nextMarked = true);
+    const cmp = done && r.forecast ? (() => { const a = parseFloat(String(r.actual).replace(/[^\d.-]/g,"")), f = parseFloat(String(r.forecast).replace(/[^\d.-]/g,"")); return isFinite(a) && isFinite(f) && a !== f ? (a > f ? "高過預測" : "低過預測") : (isFinite(a) && a === f ? "同預測一樣" : ""); })() : "";
+    h += `<div class="ev ${done ? "done" : ""}${soon ? " next" : ""}"><div class="tm">${hk.time}<br><small>(${r.t.length > 10 ? r.t.slice(11) : "—"})</small></div>
+      <div class="nm"><span class="imp i${r.imp || 1}"><i></i><i></i><i></i></span>${esc(r.zh || r.name)}${soon ? ` <span class="tag t-warn">下一個</span>` : ""}${cmp ? ` <span class="tag t-skip">${cmp}</span>` : ""}${r.zh ? `<span class="en">${esc(r.name)}</span>` : ""}</div>
+      <div class="vals"><div>實際<b class="act">${esc(r.actual ?? "未公佈")}</b></div><div>預測<b>${esc(r.forecast ?? "—")}</b></div><div>上次<b>${esc(r.previous ?? "—")}</b></div></div></div>`;
+  }
+  return h + (rows.length ? "" : `<p class="muted">冇數據</p>`) + `</div>`;
+}
+
+function viewNewsList(){
+  const N = FEED.news.items;
+  const mine = new Set([...S.positions.map(p => p.sym), ...(SCAN ? orders().list.map(r => r.sym) : [])]);
+  const cats = ["全部", "我的股票", "市場", "經濟", "國際", "科技"];
+  let list = NCAT === "全部" ? N.filter(x => !x.sym) : NCAT === "我的股票" ? N.filter(x => x.sym && mine.has(x.sym)) : N.filter(x => x.cat === NCAT);
+  const seen = new Set();
+  list = list.filter(x => { const k = x.title + (NCAT === "我的股票" ? "" : x.sym || ""); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 80);
+  let h = `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>`;
+  if (NCAT === "我的股票") h += `<p class="small muted">持倉同今日要掛單嘅股：${mine.size ? [...mine].map(s => `<b class="mono">${s}</b>`).join("、") : "冇"}。</p>`;
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (list.length ? list.map(x => {
+    const syms = NCAT === "我的股票" ? N.filter(y => y.title === x.title && y.sym && mine.has(y.sym)).map(y => y.sym) : [];
+    return `<div class="news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>
+      <div class="meta">${syms.map(s => `<span class="tag t-buy">${s}</span>`).join("")}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-skip">${esc(x.cat)}</span>` : ""}</div></div>`;
+  }).join("") : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
+  return h + `<p class="small muted">更新於 ${esc(FEED.news.generated)}。標題係原文；撳標題開原文。</p>`;
+}
+
+function viewNews(){
+  if (!FEED.news && !FEED.err) fetchFeeds();
+  let h = `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button></div>
+    <button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`;
+  if (FEED.err) h += `<div class="alert"><b>讀唔到新聞數據</b><p class="small">${esc(FEED.err)}。「新聞同經濟數據」自動化可能未跑過，或者未有網絡。</p></div>`;
+  if (!FEED.news || !FEED.econ) return h + (FEED.err ? "" : `<p class="muted">載入中…</p>`);
+  return h + (NT === "econ" ? viewEcon() : viewNewsList());
+}
+
 function render(){
-  const v = {today:viewToday, rank:viewRank, pos:viewPos, set:viewSet}[TAB]();
+  const v = {today:viewToday, rank:viewRank, pos:viewPos, news:viewNews, set:viewSet}[TAB]();
   $("#app").innerHTML = v;
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   bind();
+  if (TAB === "news" && NT === "econ" && FEED.econ && !FEED.scrolled){      // 第一次打開：跳去今日（或者下一個數據）
+    const el = $(".dayhd.now") || $(".ev.next");
+    if (el){ el.scrollIntoView({block:"start"}); window.scrollBy(0, -8); }
+    FEED.scrolled = true;
+  }
 }
 
 // ───────────────────────── 對話框
@@ -367,8 +471,13 @@ function bind(){
   document.querySelectorAll("[data-sell]").forEach(b => b.onclick = () => sellDialog(b.dataset.sell));
   document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => buyDialog(null));
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
-  on("#saveSet", () => { const c = +$("#cash").value; if (isFinite(c)) S.cash = c; S.dataUrl = $("#dataUrl").value.trim() || "scan.json"; save(); fetchScan(); });
+  on("#saveSet", () => { const c = +$("#cash").value; if (isFinite(c)) S.cash = c; S.dataUrl = $("#dataUrl").value.trim() || "scan.json";
+    S.feedUrl = $("#feedUrl").value.trim() || defaults.feedUrl; save(); FEED.at = 0; fetchScan(); });
   on("#reload", () => fetchScan());
+  on("#feedReload", () => { fetchFeeds(true); render(); });
+  document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render(); });
+  document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render(); });
+  document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render(); });
   on("#copyBk", async () => { const t = $("#backup"); try { await navigator.clipboard.writeText(t.value); $("#bkMsg").textContent = "已複製。"; } catch(e){ t.select(); $("#bkMsg").textContent = "請手動長按複製。"; } });
   on("#importBk", () => { try { const o = JSON.parse($("#backup").value); S = Object.assign({}, defaults, o); save(); $("#bkMsg").textContent = "已還原。"; render(); } catch(e){ $("#bkMsg").textContent = "格式唔啱，還原唔到。"; } });
   on("#reset", () => { if ($("#resetConfirm").value.trim() !== "刪除") return; S = {...defaults}; save(); render(); });

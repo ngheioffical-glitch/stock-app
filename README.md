@@ -9,6 +9,7 @@
 | 每日掃描 | `scanner/scan.py`、`.github/workflows/daily-scan.yml` | 每個交易日香港時間 06:30 自動跑：Nasdaq 股票名單 + Yahoo 日線 → 計排名、合格條件、前高、止蝕位、大市燈號 → 更新 `docs/scan.json` |
 | App | `docs/`（GitHub Pages） | 手機瀏覽器開，可以「加到主畫面」。讀 `scan.json`，按你自己嘅持倉計空位、掛單、止蝕、賣出提示 |
 | APK | `android/`、`.github/workflows/build-apk.yml` | Android 外殼，打開就係上面個網頁 app。喺 Releases 下載 |
+| 新聞同經濟數據 | `scanner/feeds.py`、`.github/workflows/feeds.yml` | 每 30 分鐘抓新聞（CNBC、Investing.com、MarketWatch、BBC、Al Jazeera、港台、聯儲局；排名股用 Yahoo 個股新聞）同美國經濟日曆（Nasdaq：實際、預測、上次），推去 `feeds` 分支（每次覆蓋）。App「新聞」分頁讀 `raw.githubusercontent.com` 上面嘅 `news.json`、`econ.json` |
 
 持倉、交易紀錄只存喺手機（瀏覽器或者 APK 嘅 localStorage），唔會上傳。換手機、刪 app、清資料之前，喺「設定」複製備份。
 
@@ -18,6 +19,7 @@
 2. **Actions** 頁：如果見到提示，按「I understand my workflows, go ahead and enable them」。
 3. 想即刻更新數據：Actions → 每日掃描 → Run workflow。
 4. APK：Actions → 打包 APK → Run workflow，完成後喺 Releases 下載 `app-debug.apk`。
+5. 新聞：Actions → 新聞同經濟數據 → Run workflow（之後每 30 分鐘自動跑）。
 
 ## 規則
 
