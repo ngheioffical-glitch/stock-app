@@ -3,7 +3,8 @@
 1. 股票池預選：Nasdaq 名單（全美約 7,000 隻普通股／ADR，唔包 ETF），揀當日成交額頭 300 + 市值頭 300（取合集）。
 2. Yahoo 下載預選股 2 年日線（拆股、派息調整）+ ^NDX。
 3. 照 RULES_V2.md 計：ADV50 頭 50、RS 排名、合格 ①②③、前高、swing low、ATR、大市燈號。
-4. 輸出 JSON：大市燈號、排名表、候選股（buy-stop 價、止蝕、R、2R）。帳戶相關（持倉、空位、剎車）由 app 自己計。
+4. 輸出 JSON：大市燈號、排名表、候選股（buy-stop 價、止蝕、R、2R）、每隻股最近 10 日收市／最低。
+   帳戶相關（持倉、空位、剎車）由 app 自己計。
 
 用法：python scanner/scan.py [截止日 YYYY-MM-DD]   → docs/scan.json（GitHub Actions 每個交易日收市後自動跑）
 """
@@ -116,6 +117,12 @@ def scan(end=None):
     pool = adv[ok].sort_values(ascending=False).head(50).index
     rs = rs_all[pool][C[pool].notna().sum() >= 253].dropna().sort_values(ascending=False)
     rank = {s: i + 1 for i, s in enumerate(rs.index)}
+    nxt = next_trading_day(t)
+    # 最近 10 個交易日：app 幾日冇開，都可以補返 2R 保本、盤中穿止蝕、星期五帳戶值
+    days = C.index[-10:]
+    after = list(days[1:]) + [nxt]
+    days_we = [bool(a.isocalendar()[1] != d.isocalendar()[1]) for d, a in zip(days, after)]
+    r4 = lambda row: [round(float(x), 4) for x in row]
     stocks, ranking = {}, []
     for s in C.columns:
         if not np.isfinite(close.get(s, np.nan)):
@@ -125,7 +132,8 @@ def scan(end=None):
             stop = low20[s] - 0.2 * atr[s]
         c1, c2, c3 = bool(close[s] > sma200[s]), bool(sma50[s] > sma200[s]), bool(close[s] >= 0.75 * hi52[s])
         rec = dict(close=round(float(close[s]), 4), sma200=round(float(sma200[s]), 4), swing_low=round(float(swl[s]), 4),
-                   atr=round(float(atr[s]), 4), rank=rank.get(s), in_pool=s in rank)
+                   atr=round(float(atr[s]), 4), rank=rank.get(s), in_pool=s in rank,
+                   c10=r4(C[s].loc[days]), l10=r4(L[s].loc[days]))
         stocks[s] = rec
         if s in rank:
             status = "唔合格" if not (c1 and c2 and c3) else ("收市高過前高，唔追" if not close[s] < piv[s] else "候選")
@@ -135,8 +143,8 @@ def scan(end=None):
                                 R=round(float(piv[s] - stop), 4), be_trigger=round(float(piv[s] + 2 * (piv[s] - stop)), 4),
                                 status=status))
     ranking.sort(key=lambda r: r["rank"])
-    nxt = next_trading_day(t)
-    out = dict(date=str(t.date()), next_day=str(nxt.date()), week_end=bool(nxt.isocalendar()[1] != t.isocalendar()[1]),
+    out = dict(date=str(t.date()), next_day=str(nxt.date()), week_end=days_we[-1],
+               days=[str(d.date()) for d in days], days_we=days_we,
                generated=pd.Timestamp.now(tz="Asia/Hong_Kong").strftime("%Y-%m-%d %H:%M HKT"),
                ndx=round(float(ndx[t]), 2), ndx_e21=round(float(e21[t]), 2), ndx_s50=round(float(s50n[t]), 2),
                ndx_s200=round(float(s200n[t]), 2), green=green, rank1=ranking[0]["sym"] if ranking else None,

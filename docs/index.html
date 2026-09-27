@@ -118,21 +118,36 @@ function nav(){
   return v;
 }
 
-// 每個掃描日做一次：推止蝕、記星期五帳戶值、更新回撤剎車
+// 某個交易日（SCAN.days 第 i 日）收市嘅帳戶值；嗰日之後先買嘅用成本價
+function navAt(i){
+  let v = S.cash;
+  for (const p of S.positions){ const c = SCAN.stocks[p.sym]?.c10?.[i]; v += p.shares * (p.date <= SCAN.days[i] && c != null ? c : p.entry); }
+  return v;
+}
+
+// 每份新數據做一次：推止蝕、檢查盤中穿止蝕、記星期五帳戶值、更新回撤剎車。
+// 幾日冇開 app 都會逐日補返（數據有最近 10 個交易日）；第一次用淨係計最新一日。
 function applyScan(){
   if (!SCAN || S.lastScan === SCAN.date) return;
+  if (!SCAN.days) SCAN.days = [SCAN.date], SCAN.days_we = [SCAN.week_end];   // 舊格式數據
+  const todo = SCAN.days.map((d, i) => i).filter(i => S.lastScan ? SCAN.days[i] > S.lastScan : SCAN.days[i] === SCAN.date);
   const notes = [];
   for (const p of S.positions){
-    if (p.date > SCAN.date) continue;                       // 掃描日之後先買嘅，等下一份數據
     const s = SCAN.stocks[p.sym]; if (!s) continue;
-    const old = p.stop;
-    if (!p.be && p.R > 0 && s.close >= p.entry + RULE.beR * p.R){ p.be = true; p.stop = Math.max(p.stop, p.entry); }
+    const old = p.stop, c = s.c10 || [s.close], l = s.l10 || [];
+    for (const i of todo){
+      if (SCAN.days[i] < p.date) continue;                 // 買入之前嘅日子唔計
+      if (!p.hit && l[i] != null && l[i] <= p.stop) p.hit = {date: SCAN.days[i], low: l[i], stop: p.stop};
+      if (!p.be && p.R > 0 && c[i] != null && c[i] >= p.entry + RULE.beR * p.R){ p.be = true; p.stop = Math.max(p.stop, p.entry); }
+    }
+    if (p.date > SCAN.date) continue;                       // 掃描日之後先買嘅，等下一份數據
     if (p.be && isFinite(s.swing_low) && isFinite(s.atr)) p.stop = Math.max(p.stop, s.swing_low - RULE.atrBuf * s.atr);
     if (p.stop > old + 1e-9) notes.push({sym:p.sym, from:old, to:p.stop, be:p.be});
   }
-  if (SCAN.week_end){
-    const v = nav();
-    S.navs[SCAN.date] = v;
+  for (const i of todo){
+    if (!SCAN.days_we[i]) continue;
+    const v = navAt(i);
+    S.navs[SCAN.days[i]] = v;
     S.peak = Math.max(S.peak ?? v, v);
     if (v <= S.peak * RULE.brakeDown) S.braking = true;
     else if (v >= S.peak * RULE.brakeUp) S.braking = false;
@@ -151,7 +166,8 @@ function sellReasons(){
     if (!SCAN || p.date > SCAN.date) { out[p.sym] = r; continue; }   // 未有買入之後嘅收市數據
     if (!s) r.push("冇數據，請自己檢查");
     if (!SCAN.green) r.push("大市紅燈");
-    if (s && s.close <= p.stop) r.push("收市已低過止蝕位（止蝕單應該已經成交）");
+    if (p.hit) r.push(`${p.hit.date} 最低 ${f2(p.hit.low)} 跌穿止蝕 ${f2(p.hit.stop)}：止蝕單應該已經成交，喺券商確認後按「記錄賣出」`);
+    else if (s && s.close <= p.stop) r.push("收市已低過止蝕位（止蝕單應該已經成交）");
     if (s && s.close < s.sma200) r.push("收市跌穿 200 日線");
     if (SCAN.week_end && (!s || !s.rank || s.rank > lim)) r.push(s && s.rank ? `排名第 ${s.rank}（要頭 ${Math.floor(lim)}）` : "跌出股票池頭 50");
     out[p.sym] = r;
@@ -186,7 +202,9 @@ function header(){
   if (ERR) return `<div class="alert"><b>讀唔到數據</b><p class="small">${esc(ERR)}。去「設定」檢查數據網址，或者遲啲再試。</p></div>`;
   if (!SCAN) return "";
   const g = SCAN.green;
-  return `<div class="card">
+  // 下一個交易日收市數據應該喺 22:30 UTC 掃描；過咗幾個鐘都未有，即係自動掃描出咗事
+  const stale = Date.now() > Date.parse(SCAN.next_day + "T22:30:00Z") + 8 * 3600e3;
+  return (stale ? `<div class="alert"><b>數據舊咗</b><p class="small">仲係 ${SCAN.date} 收市數據，${SCAN.next_day} 嘅應該已經出咗：每日自動掃描可能失敗。唔好照下面掛單，去 GitHub 嘅 Actions 頁睇「每日掃描」。</p></div>` : "") + `<div class="card">
     <div class="row spread"><div class="light"><span class="dot ${g?"g":"r"}"></span><h1>${g?"大市綠燈":"大市紅燈"}</h1></div>
       <span class="tag ${SCAN.week_end?"t-warn":"t-skip"}">${SCAN.week_end?"週尾：今日要檢查排名出場":"平日"}</span></div>
     <p class="small muted">數據：<span class="num">${SCAN.date}</span> 收市 · 下一個交易日 <span class="num">${SCAN.next_day}</span> · 更新於 ${esc(SCAN.generated)}</p>
