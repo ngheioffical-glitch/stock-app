@@ -120,7 +120,8 @@ const RULE = { cap: 5, capBrake: 2, frac: 0.20, boost: 1.5, rankExit: 12.5, rank
 const KEY = "v21-app";
 const defaults = { capital: 100000, cash: 100000, positions: [], trades: [], navs: {}, peak: null,
                    braking: false, lastScan: null, notes: {}, dataUrl: "scan.json",
-                   feedUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/feeds/" };
+                   feedUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/feeds/",
+                   liveUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/live/intraday.json" };
 
 // ───────────────────────── 儲存
 function load(){ try { const s = JSON.parse(localStorage.getItem(KEY)); return s ? Object.assign({}, defaults, s) : {...defaults}; } catch(e){ return {...defaults}; } }
@@ -239,6 +240,43 @@ function header(){
   </div>`;
 }
 
+// ───────────────────────── 盤中 5 分鐘（測試）：GitHub Actions 開市期間每 5 分鐘更新 live 分支
+let LIVE = null;
+const nyToday = () => parts(NY, new Date()).date;
+async function fetchLive(){
+  try {
+    const r = await fetch(S.liveUrl + "?t=" + Math.floor(Date.now() / 30e3), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    LIVE = await r.json();
+  } catch(e){ LIVE = null; }
+  if (TAB === "today") render();
+}
+
+function liveCard(o){
+  if (!LIVE || LIVE.day !== nyToday() || !o.list.length) return "";
+  const byS = Object.fromEntries((LIVE.cands || []).map(c => [c.sym, c]));
+  const runs = (LIVE.runs || []).filter(r => !r.skip);
+  const last = runs[runs.length - 1];
+  const gaps = runs.slice(1).map((r, i) => (Date.parse(r.run_utc) - Date.parse(runs[i].run_utc)) / 60e3);
+  const avg = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null;
+  const ago = last ? Math.round((Date.now() - Date.parse(last.run_utc)) / 60e3) : null;
+  const rows = o.list.map(r => {
+    const c = byS[r.sym];
+    if (!c) return `<p class="small"><b class="mono">${r.sym}</b>：冇盤中數據</p>`;
+    if (c.err) return `<p class="small"><b class="mono">${r.sym}</b>：${esc(c.err)}</p>`;
+    let st;
+    if (c.c5) st = `<span class="tag t-buy">5 分鐘收市企穩</span> ${c.c5.t} 收市 <b class="num">${f2(c.c5.px)}</b>`;
+    else if (c.bs) st = `<span class="tag t-warn">升穿咗但未企穩</span> buy-stop ${c.bs.t} 觸發 <b class="num">${f2(c.bs.px)}</b>`;
+    else st = `<span class="tag t-skip">未到</span> 距前高 <b class="num">${pct(c.dist)}</b>`;
+    return `<p class="small"><b class="mono">${r.sym}</b> 而家 <span class="num">${f2(c.last)}</span>（前高 ${f2(c.pivot)}）：${st}</p>`;
+  }).join("");
+  return `<div class="card"><div class="row spread"><h2>盤中 5 分鐘（測試）</h2><span class="tag t-skip">${LIVE.in_session ? "開市中" : "已收市"}</span></div>
+    ${LIVE.stale_scan ? `<div class="alert small">盤中掃描用緊 ${esc(LIVE.scan_date)} 收市數據，唔係今日嘅掛單名單。</div>` : ""}
+    ${rows}
+    <p class="small muted">最後掃描 ${last ? `${esc(last.run_hk)}（${ago} 分鐘前）` : "—"}${last?.last_bar_end ? `；最新完成嘅 K ${last.last_bar_end}（美東），延遲 ${last.delay_min} 分鐘` : ""}；今日掃咗 ${runs.length} 次${avg ? `，平均相隔 ${avg.toFixed(1)} 分鐘` : ""}。
+    測試中：照舊用 buy-stop，呢度只係睇「5 分鐘收市企穩」會唔會好啲。</p></div>`;
+}
+
 function viewToday(){
   const v = nav(), o = orders(), sells = sellReasons();
   const acts = S.positions.filter(p => sells[p.sym].length);
@@ -252,6 +290,7 @@ function viewToday(){
     </div>`;
   if (acts.length) h += `<div class="alert"><b>下一個交易日開市要賣</b>${acts.map(p=>`<p class="small"><b class="mono">${p.sym}</b>：${sells[p.sym].map(esc).join("；")}</p>`).join("")}</div>`;
   if (notes.length) h += `<div class="info"><b>喺券商更新止蝕單</b>${notes.map(n=>`<p class="small"><b class="mono">${n.sym}</b>：${f2(n.from)} → <b class="num">${f2(n.to)}</b>${n.be?"（已保本）":""}</p>`).join("")}</div>`;
+  h += liveCard(o);
   h += `<div class="row spread"><h2>${SCAN?`${SCAN.next_day} 要掛嘅 buy-stop 單`:"掛單"}</h2><span class="small muted">空位 ${o.slots}${o.slots?`，掛 ${o.list.length} 張`:""}</span></div>`;
   if (!o.list.length) h += `<div class="ok"><b>${esc(o.why)}</b></div>`;
   else {
@@ -324,7 +363,8 @@ function viewSet(){
   <div class="card"><div class="grid2">
     <label>現金（美元）<input id="cash" type="number" step="any" inputmode="decimal" value="${S.cash}"></label>
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
-    <label style="grid-column:1/-1">新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label></div>
+    <label style="grid-column:1/-1">新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
+    <label style="grid-column:1/-1">盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label></div>
     <p class="small muted">第一次用：將現金設做你打算投入嘅本金。之後買賣會自動加減。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
   <div class="card"><h2>備份</h2><p class="small muted">資料只存喺呢部手機嘅瀏覽器。換手機或者清瀏覽器資料之前，先複製備份。</p>
@@ -472,7 +512,8 @@ function bind(){
   document.querySelectorAll("[data-add]").forEach(b => b.onclick = () => buyDialog(null));
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on("#saveSet", () => { const c = +$("#cash").value; if (isFinite(c)) S.cash = c; S.dataUrl = $("#dataUrl").value.trim() || "scan.json";
-    S.feedUrl = $("#feedUrl").value.trim() || defaults.feedUrl; save(); FEED.at = 0; fetchScan(); });
+    S.feedUrl = $("#feedUrl").value.trim() || defaults.feedUrl; S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl;
+    save(); FEED.at = 0; fetchScan(); fetchLive(); });
   on("#reload", () => fetchScan());
   on("#feedReload", () => { fetchFeeds(true); render(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render(); });
@@ -496,6 +537,9 @@ async function fetchScan(){
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 fetchScan();
+fetchLive();
+setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);   // 盤中每分鐘睇一次有冇新結果
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
 </script>
 </body>
 </html>
