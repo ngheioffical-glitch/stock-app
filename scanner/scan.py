@@ -124,13 +124,13 @@ def next_trading_day(d):
 def scan(end=None):
     syms, nas_info = nasdaq_universe()
     D = download(syms, end)
-    H, L, C, AC, V = D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
+    O, H, L, C, AC, V = D["Open"], D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
     ndx = C.pop("^NDX").dropna()
-    for X in (H, L, AC, V):
+    for X in (O, H, L, AC, V):
         X.drop(columns="^NDX", inplace=True, errors="ignore")
     C = C.dropna(how="all")
     t = C.index[-1]
-    H, L, AC, V = H.reindex(C.index), L.reindex(C.index), AC.reindex(C.index), V.reindex(C.index)
+    O, H, L, AC, V = O.reindex(C.index), H.reindex(C.index), L.reindex(C.index), AC.reindex(C.index), V.reindex(C.index)
     # 大市
     e21, s50n, s200n = ndx.ewm(span=21, adjust=False).mean(), ndx.rolling(50).mean(), ndx.rolling(200).mean()
     green = bool(ndx[t] > s200n[t] or (ndx[t] > e21[t] and e21[t] > s50n[t]))
@@ -166,7 +166,8 @@ def scan(end=None):
         c1, c2, c3 = bool(close[s] > sma200[s]), bool(sma50[s] > sma200[s]), bool(close[s] >= 0.75 * hi52[s])
         rec = dict(close=round(float(close[s]), 4), sma200=round(float(sma200[s]), 4), swing_low=round(float(swl[s]), 4),
                    atr=round(float(atr[s]), 4), rank=rank.get(s), in_pool=s in rank,
-                   c10=r4(C[s].loc[days]), l10=r4(L[s].loc[days]))
+                   c10=r4(C[s].loc[days]), l10=r4(L[s].loc[days]),
+                   o10=r4(O[s].loc[days]), h10=r4(H[s].loc[days]))       # 開市、最高：模型帳戶判斷 buy-stop 成交
         stocks[s] = rec
         if s in rank:
             status = "唔合格" if not (c1 and c2 and c3) else ("收市高過前高，唔追" if not close[s] < piv[s] else "候選")

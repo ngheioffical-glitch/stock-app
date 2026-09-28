@@ -1,0 +1,105 @@
+{
+ "start": "2026-09-28",
+ "capital": 100000.0,
+ "cash": 100000.0,
+ "positions": [],
+ "trades": [],
+ "nav": [],
+ "peak": 100000.0,
+ "braking": false,
+ "last": "2026-09-25",
+ "ndx0": 30608.13,
+ "pending": {
+  "for": "2026-09-28",
+  "buys": [
+   {
+    "sym": "SNDK",
+    "rank": 1,
+    "trigger": 1909.48,
+    "stop": 1481.8785,
+    "frac": 0.30000000000000004
+   },
+   {
+    "sym": "LITE",
+    "rank": 4,
+    "trigger": 1002.0,
+    "stop": 819.7921,
+    "frac": 0.2
+   },
+   {
+    "sym": "DELL",
+    "rank": 5,
+    "trigger": 595.51,
+    "stop": 499.9315,
+    "frac": 0.2
+   },
+   {
+    "sym": "STX",
+    "rank": 8,
+    "trigger": 936.94,
+    "stop": 748.4708,
+    "frac": 0.2
+   },
+   {
+    "sym": "NBIS",
+    "rank": 13,
+    "trigger": 254.74,
+    "stop": 200.5466,
+    "frac": 0.2
+   },
+   {
+    "sym": "PANW",
+    "rank": 15,
+    "trigger": 383.12,
+    "stop": 352.4445,
+    "frac": 0.2
+   },
+   {
+    "sym": "ASML",
+    "rank": 20,
+    "trigger": 1790.0,
+    "stop": 1562.3749,
+    "frac": 0.2
+   },
+   {
+    "sym": "XOM",
+    "rank": 21,
+    "trigger": 169.64,
+    "stop": 155.1073,
+    "frac": 0.2
+   },
+   {
+    "sym": "CRM",
+    "rank": 23,
+    "trigger": 262.34,
+    "stop": 228.025,
+    "frac": 0.2
+   },
+   {
+    "sym": "AAPL",
+    "rank": 25,
+    "trigger": 345.34,
+    "stop": 308.5049,
+    "frac": 0.2
+   }
+  ],
+  "sells": []
+ },
+ "slots": 5,
+ "view": {
+  "generated": "2026-09-27 17:21 HKT",
+  "data_date": "2026-09-25",
+  "next_day": "2026-09-28",
+  "green": true,
+  "nav": 100000.0,
+  "ret": 0.0,
+  "ndx_ret": 0.0,
+  "cash_frac": 1.0,
+  "holdings": [],
+  "actions": {
+   "fills": [],
+   "stops": [],
+   "warn": []
+  }
+ }
+}

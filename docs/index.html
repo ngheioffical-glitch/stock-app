@@ -119,7 +119,7 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(4,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(5,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 nav button{border:0;background:none;padding:9px 4px 8px;font-size:12px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -166,6 +166,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 
 <nav id="tabs" aria-label="分頁">
   <button data-tab="today" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>訊號</button>
+  <button data-tab="model"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>模型</button>
   <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
   <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
   <button data-tab="set"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>設定</button>
@@ -310,6 +311,66 @@ function viewToday(){
   return h;
 }
 
+// ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.1 行虛擬帳戶（scanner/model.py），用戶照抄
+let MODEL = null, MODEL_ERR = null;
+async function fetchModel(){
+  try {
+    const u = S.dataUrl.replace(/scan\.json(\?.*)?$/, "model.json");
+    const r = await fetch(u + "?t=" + Date.now(), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    MODEL = await r.json(); MODEL_ERR = null;
+  } catch(e){ MODEL_ERR = e.message; }
+  if (TAB === "model") render();
+}
+
+function navChart(nav){
+  if (!nav || nav.length < 2) return "";
+  const v = nav.map(x => x.nav), lo = Math.min(...v), hi = Math.max(...v), W = 300, Hh = 60;
+  const pts = v.map((y, i) => `${(i / (v.length - 1) * W).toFixed(1)},${(Hh - (y - lo) / ((hi - lo) || 1) * (Hh - 4) - 2).toFixed(1)}`).join(" ");
+  const up = v[v.length - 1] >= v[0];
+  return `<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;height:60px" preserveAspectRatio="none" aria-label="帳戶走勢">
+    <polyline points="${pts}" fill="none" stroke="${up ? "var(--buy)" : "var(--stop)"}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function viewModel(){
+  let h = topbar();
+  if (!MODEL) return h + (MODEL_ERR ? `<div class="alert"><b>讀唔到模型帳戶</b><p class="small">${esc(MODEL_ERR)}</p></div>` : `<p class="muted">載入中…</p>`);
+  const M = MODEL, v = M.view, A = v.actions || {}, P = M.pending || {};
+  const cap = M.braking ? 2 : 5, own = S.capital > 0;
+  const sh = (frac, px) => own ? ` · ${f0(Math.floor(S.capital * frac / px))} 股` : "";
+  h += `<div class="card"><div class="row spread"><div><div class="lbl">模型帳戶 · ${esc(M.start)} 起全現金</div>
+      <div class="price">${f0(v.nav)}</div></div><span class="tag ${v.green ? "t-buy" : "t-stop"}">${v.green ? "綠燈" : "紅燈"}</span></div>
+    <div class="kv"><div><span>回報</span><b>${chg(v.ret)}</b></div><div><span>NDX 同期</span><b>${chg(v.ndx_ret)}</b></div>
+      <div><span>持股 · 現金</span><b>${v.holdings.length}/${cap} · ${Math.round(v.cash_frac * 100)}%</b></div></div>
+    ${navChart(M.nav)}
+    <p class="small muted">照 V2.1 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>`;
+  for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
+
+  h += `<h2>${esc(P.for || v.next_day)} 要做</h2>`;
+  const todo = [];
+  if ((P.sells || []).length) todo.push(`<div class="alert"><b>開市賣出</b>${P.sells.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${esc(x.reason)}</p>`).join("")}</div>`);
+  if ((A.stops || []).length) todo.push(`<div class="info"><b>喺券商改止蝕單</b>${A.stops.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${f2(x.old)} → <b class="num up">${f2(x.new)}</b>${x.be ? "（已保本）" : ""}</p>`).join("")}</div>`);
+  if ((P.buys || []).length) todo.push(`<div class="tablewrap"><table><tr><th>掛 buy-stop</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">注碼</th></tr>
+      ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b><span class="ind">RS #${b.rank}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
+        <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
+      <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺「設定」填資金就會計埋股數。"}</p>`);
+  h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
+
+  if ((A.fills || []).length) h += `<h2>最近成交（模型）</h2><div class="card" style="gap:4px">${A.fills.map(x =>
+    `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
+
+  h += `<h2>模型持倉</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th><th class="r">止蝕</th></tr>
+    ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b><span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
+      <td class="r mono">${f2(p.entry)}</td><td class="r mono">${f2(p.close)}<span class="ind">${chg(p.day_chg)}</span></td><td class="r mono">${chg(p.ret)}</td>
+      <td class="r mono dn">${f2(p.stop)}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">未有持倉（全現金）</p></div>`);
+
+  const T = (M.trades || []).slice().reverse().slice(0, 20);
+  if (T.length) h += `<h2>已完成交易</h2><div class="tablewrap"><table><tr><th>股票</th><th>買入 → 賣出</th><th class="r">回報</th></tr>
+    ${T.map(t => `<tr><td class="mono"><b>${t.sym}</b><span class="ind">${esc(t.reason)}</span></td><td class="mono small">${esc(t.date.slice(5))} → ${esc(t.sell_date.slice(5))}</td>
+      <td class="r mono">${chg(t.ret)}</td></tr>`).join("")}</table></div>`;
+  return h;
+}
+
 function viewRank(){
   if (!SCAN) return topbar() + header();
   const tag = r => r.status === "候選" ? `<span class="tag t-buy">候選</span>` : r.status === "唔合格" ? `<span class="tag t-stop">唔合格</span>` : `<span class="tag t-dim">高過前高</span>`;
@@ -410,7 +471,7 @@ function viewNews(){
 }
 
 function render(){
-  $("#app").innerHTML = {today:viewToday, rank:viewRank, news:viewNews, set:viewSet}[TAB]();
+  $("#app").innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, set:viewSet}[TAB] || viewToday)();
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   bind();
   if (TAB === "news" && NT === "econ" && FEED.econ && !FEED.scrolled){      // 第一次打開：跳去今日或者下一個數據
@@ -445,6 +506,7 @@ async function fetchScan(){
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 fetchScan();
+fetchModel();
 fetchLive();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
