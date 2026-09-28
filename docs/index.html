@@ -25,7 +25,8 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%}
+html,body{margin:0;min-height:100%;max-width:100%;overflow-x:hidden}   /* 頁面淨係上下捲，唔可以左右拉 */
+@supports (overflow-x:clip){html,body{overflow-x:clip}}
 body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.6;
   padding-top:env(safe-area-inset-top,0px);
   background-image:
@@ -42,10 +43,12 @@ h2{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--muted);text-t
 .muted{color:var(--muted)} .small{font-size:13px}
 .up{color:var(--buy)} .dn{color:var(--stop)}
 
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px}
-.brand{font-family:var(--brand);font-weight:800;font-size:15px;letter-spacing:.18em;color:var(--cyan);text-shadow:0 0 14px rgba(0,229,255,.45)}
+main>*{min-width:0;max-width:100%}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px;min-width:0}
+.brand{font-family:var(--brand);font-weight:800;font-size:14px;letter-spacing:.14em;color:var(--cyan);text-shadow:0 0 14px rgba(0,229,255,.45);white-space:nowrap;flex:none}
 .brand span{color:var(--ink);opacity:.55}
-.chip{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel2);white-space:nowrap}
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel2);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
 .card{position:relative;background:var(--panel);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;
   box-shadow:var(--glow);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
@@ -64,7 +67,7 @@ h2{font-size:13px;font-weight:700;letter-spacing:.14em;color:var(--muted);text-t
 @keyframes ping{0%{transform:scale(.6);opacity:.7}100%{transform:scale(1.8);opacity:0}}
 .status{font-family:var(--brand);font-size:18px;font-weight:800;letter-spacing:.12em}
 .gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.gauge{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.gauge{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
 .gauge span{display:block;font-size:11px;color:var(--muted);letter-spacing:.04em}
 .gauge b{font-family:var(--mono);font-size:15px}
 .bar{height:4px;border-radius:2px;background:rgba(120,200,255,.12);overflow:hidden;margin-top:6px}
@@ -148,6 +151,14 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .dayhd.now{color:var(--cyan)}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:380px){.kv{grid-template-columns:repeat(2,1fr)} .price{font-size:30px}}
+/* 手機：表格唔好闊過畫面 */
+@media (max-width:600px){
+  .hide-sm{display:none}
+  th,td{padding:8px 6px;font-size:12.5px}
+  td .ind{max-width:110px;white-space:normal}
+  td.st,th.st{white-space:normal;min-width:84px} td.st .tag{white-space:normal;line-height:1.35}
+  .tablewrap{overflow-x:hidden}
+}
 </style>
 </head>
 <body>
@@ -216,7 +227,7 @@ function exitNote(r){
 // ───────────────────────── 畫面
 function topbar(){
   return `<div class="topbar"><div class="brand">LEADER<span>//</span>BREAKOUT</div>
-    ${SCAN ? `<span class="chip">DATA ${esc(SCAN.date)} · ${esc((SCAN.generated || "").slice(5, 16))}</span>` : ""}</div>`;
+    ${SCAN ? `<span class="chip">${esc(SCAN.date.slice(5))} 收市</span>` : ""}</div>`;
 }
 
 function header(){
@@ -305,11 +316,11 @@ function viewRank(){
   return topbar() + `<h2>RS 排名 · 成交額頭 50</h2>
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 12" : "（排名只喺星期五檢查）"}、大市紅燈。</p>
-    <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r">收市</th><th>①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r">止蝕</th><th>狀態</th><th>持有要賣？</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b><span class="ind">${esc(indOf(r))}</span></td><td class="r mono">${f2(r.close)}</td>
-      <td class="mono">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
-      <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono">${f2(r.stop)}</td><td>${tag(r)}</td>
-      <td>${ex.length ? `<span class="tag t-stop">賣：${esc(ex.join("、"))}</span>` : `<span class="muted">—</span>`}</td></tr>`; }).join("")}
+    <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
+      <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
+      <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
+      <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}
     </table></div>`;
 }
 
