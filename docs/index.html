@@ -282,30 +282,46 @@ function viewToday(){
   const acts = S.positions.filter(p => sells[p.sym].length);
   const notes = (SCAN && S.notes && S.notes.date === SCAN.date) ? (S.notes.list || []) : [];
   let h = header();
+  if (acts.length) h += `<div class="alert"><b>下一個交易日開市要賣</b>${acts.map(p=>`<p class="small"><b class="mono">${p.sym}</b>：${sells[p.sym].map(esc).join("；")}</p>`).join("")}</div>`;
+  if (notes.length) h += `<div class="info"><b>喺券商更新止蝕單</b>${notes.map(n=>`<p class="small"><b class="mono">${n.sym}</b>：${f2(n.from)} → <b class="num">${f2(n.to)}</b>${n.be?"（已保本）":""}</p>`).join("")}</div>`;
+
+  // ── 落單：客觀買入價（前高 buy-stop）、股數、止蝕，同券商落單方法
+  const day = SCAN ? SCAN.next_day : "";
+  h += `<div class="row spread"><h2>${day ? `${day} 買入單` : "買入單"}</h2><span class="small muted">空位 ${o.slots}${o.slots ? `，掛 ${o.list.length} 張` : ""}</span></div>`;
+  if (!o.list.length) h += `<div class="ok"><b>${esc(o.why)}</b></div>`;
+  else {
+    h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">股數</th><th class="r">止蝕價</th><th class="r">仲差</th></tr>
+      ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b></td><td class="r mono"><b>${f2(r.pivot)}</b></td><td class="r mono">${f0(r.shares)}</td>
+        <td class="r mono pos-dn">${f2(r.stop)}</td><td class="r mono">${pct(r.pivot / r.close - 1)}</td></tr>`).join("")}</table></div>
+      <p class="small muted">每張都係「<b>升到買入價或以上先自動買</b>」（前高突破）；未升到就唔會成交。排名高嘅排前面；
+        買夠 ${o.slots} 隻就即刻取消其餘單。買入價係 ${esc(SCAN?.date || "")} 收市計，每日收市後更新。</p>`;
+    h += o.list.map(r => `<div class="card order">
+      <div><span class="sym">${r.sym}</span> <span class="tag t-skip">RS 第 ${r.rank}</span>${r.frac>RULE.frac?` <span class="tag t-warn">排第 1：30% 注碼</span>`:""}<span class="ind">${esc(indOf(r.sym))}</span></div>
+      <button class="primary" data-buy="${r.sym}">我買咗</button>
+      <div style="grid-column:1/-1">
+        <span class="small muted">買入價</span>
+        <div class="num" style="font-size:28px;font-weight:700;line-height:1.2">${f2(r.pivot)}</div>
+        <p class="small muted">升到 ${f2(r.pivot)} 或以上就買入；而家 ${f2(r.close)}，仲差 <b>${pct(r.pivot / r.close - 1)}</b></p>
+      </div>
+      <div class="kv" style="grid-column:1/-1">
+        <div><span>股數（${Math.round(r.frac*100)}% 資金）</span><b>${f0(r.shares)}</b></div><div><span>約需金額</span><b>${f0(r.shares * r.pivot)}</b></div>
+        <div><span>止蝕價</span><b class="pos-dn">${f2(r.stop)}</b></div><div><span>最多蝕（每股／%）</span><b>${f2(r.R)} <small>(${(r.R/r.pivot*100).toFixed(1)}%)</small></b></div>
+      </div>
+      <div class="info small" style="grid-column:1/-1"><b>券商落單</b>
+        <p>① 買入：觸價市價單（MIT）· 方向「買入」· 觸發價 <b class="num">${f2(r.pivot)}</b> · 數量 <b class="num">${f0(r.shares)}</b> · 有效期「當日」</p>
+        <p>② 成交之後：觸價市價單（MIT）· 方向「賣出」· 觸發價 <b class="num">${f2(r.stop)}</b> · 全部股數 · 有效期「長期有效（GTC）」</p>
+        <p class="muted">收市升到 ${f2(r.be_trigger)}（2R）之後，止蝕推上成本價；app 會提你改。</p></div>
+      </div>`).join("");
+    const need = o.list.slice(0,o.slots).reduce((a,r)=>a+r.amount,0);
+    if (S.cash < need*0.99) h += `<div class="info small">現金 ${f0(S.cash)}，唔夠買晒 ${o.slots} 隻（約需 ${f0(need)}）：有幾多用幾多。</div>`;
+  }
+  h += liveCard(o);
   h += `<div class="card"><div class="kv">
       <div><span>帳戶總值</span><b>${f0(v)}</b></div><div><span>現金</span><b>${f0(S.cash)}</b></div>
       <div><span>持股</span><b>${S.positions.length} / ${S.braking?2:5}</b></div>
       <div><span>回撤剎車</span><b class="${S.braking?"pos-dn":""}">${S.braking?"生效中":"冇"}</b></div></div>
       ${S.peak ? `<p class="small muted">星期五高位 ${f0(S.peak)}；跌到 ${f0(S.peak*RULE.brakeDown)} 或以下會剎車${S.braking?`；要返到 ${f0(S.peak*RULE.brakeUp)} 先解除`:""}。</p>`:""}
     </div>`;
-  if (acts.length) h += `<div class="alert"><b>下一個交易日開市要賣</b>${acts.map(p=>`<p class="small"><b class="mono">${p.sym}</b>：${sells[p.sym].map(esc).join("；")}</p>`).join("")}</div>`;
-  if (notes.length) h += `<div class="info"><b>喺券商更新止蝕單</b>${notes.map(n=>`<p class="small"><b class="mono">${n.sym}</b>：${f2(n.from)} → <b class="num">${f2(n.to)}</b>${n.be?"（已保本）":""}</p>`).join("")}</div>`;
-  h += liveCard(o);
-  h += `<div class="row spread"><h2>${SCAN?`${SCAN.next_day} 要掛嘅 buy-stop 單`:"掛單"}</h2><span class="small muted">空位 ${o.slots}${o.slots?`，掛 ${o.list.length} 張`:""}</span></div>`;
-  if (!o.list.length) h += `<div class="ok"><b>${esc(o.why)}</b></div>`;
-  else {
-    h += `<p class="small muted">由 RS 排名最高開始。邊隻先升穿 buy-stop 價就先買，買夠 ${o.slots} 隻即刻取消其餘單。成交後即刻喺止蝕位掛 stop 賣單（長期有效）。</p>`;
-    h += o.list.map(r => `<div class="card order">
-      <div><span class="sym">${r.sym}</span> <span class="tag t-skip">RS 第 ${r.rank}</span>${r.frac>RULE.frac?` <span class="tag t-warn">排第 1：30% 注碼</span>`:""}<span class="ind">${esc(indOf(r.sym))}</span></div>
-      <button class="primary" data-buy="${r.sym}">我買咗</button>
-      <div class="kv" style="grid-column:1/-1">
-        <div><span>buy-stop 價</span><b>${f2(r.pivot)}</b></div><div><span>今日收市</span><b>${f2(r.close)}</b></div>
-        <div><span>初始止蝕</span><b class="pos-dn">${f2(r.stop)}</b></div><div><span>R（每股風險）</span><b>${f2(r.R)} <small>(${(r.R/r.pivot*100).toFixed(1)}%)</small></b></div>
-        <div><span>2R 保本觸發</span><b>${f2(r.be_trigger)}</b></div><div><span>股數（${Math.round(r.frac*100)}%）</span><b>${f0(r.shares)}</b></div>
-      </div></div>`).join("");
-    const need = o.list.slice(0,o.slots).reduce((a,r)=>a+r.amount,0);
-    if (S.cash < need*0.99) h += `<div class="info small">現金 ${f0(S.cash)}，唔夠買晒 ${o.slots} 隻（約需 ${f0(need)}）：有幾多用幾多。</div>`;
-  }
   return h;
 }
 
