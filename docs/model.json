@@ -1,103 +1,126 @@
 {
  "start": "2026-09-28",
  "capital": 100000.0,
- "cash": 100000.0,
- "positions": [],
+ "cash": 80000.0,
+ "positions": [
+  {
+   "sym": "PANW",
+   "date": "2026-09-28",
+   "entry": 383.12,
+   "shares": 52.15081431410519,
+   "stop": 352.4445,
+   "R": 30.6755,
+   "be": false,
+   "last_close": 392.09,
+   "frac": 0.2
+  }
+ ],
  "trades": [],
- "nav": [],
+ "nav": [
+  {
+   "date": "2026-09-28",
+   "nav": 100447.81
+  }
+ ],
  "peak": 100000.0,
  "braking": false,
- "last": "2026-09-25",
+ "last": "2026-09-28",
  "ndx0": 30608.13,
  "pending": {
-  "for": "2026-09-28",
+  "for": "2026-09-29",
   "buys": [
-   {
-    "sym": "SNDK",
-    "rank": 1,
-    "trigger": 1909.48,
-    "stop": 1481.8785,
-    "frac": 0.30000000000000004
-   },
    {
     "sym": "LITE",
     "rank": 4,
     "trigger": 1002.0,
-    "stop": 819.7921,
+    "stop": 819.6757,
     "frac": 0.2
    },
    {
     "sym": "DELL",
     "rank": 5,
     "trigger": 595.51,
-    "stop": 499.9315,
+    "stop": 499.9916,
     "frac": 0.2
    },
    {
     "sym": "STX",
-    "rank": 8,
+    "rank": 7,
     "trigger": 936.94,
-    "stop": 748.4708,
+    "stop": 748.2838,
     "frac": 0.2
    },
    {
     "sym": "NBIS",
-    "rank": 13,
+    "rank": 14,
     "trigger": 254.74,
-    "stop": 200.5466,
+    "stop": 200.5415,
     "frac": 0.2
    },
    {
-    "sym": "PANW",
-    "rank": 15,
-    "trigger": 383.12,
-    "stop": 352.4445,
+    "sym": "PLTR",
+    "rank": 18,
+    "trigger": 188.37,
+    "stop": 163.2059,
+    "frac": 0.2
+   },
+   {
+    "sym": "XOM",
+    "rank": 19,
+    "trigger": 169.64,
+    "stop": 155.1182,
     "frac": 0.2
    },
    {
     "sym": "ASML",
     "rank": 20,
     "trigger": 1790.0,
-    "stop": 1562.3749,
-    "frac": 0.2
-   },
-   {
-    "sym": "XOM",
-    "rank": 21,
-    "trigger": 169.64,
-    "stop": 155.1073,
+    "stop": 1562.4216,
     "frac": 0.2
    },
    {
     "sym": "CRM",
     "rank": 23,
     "trigger": 262.34,
-    "stop": 228.025,
-    "frac": 0.2
-   },
-   {
-    "sym": "AAPL",
-    "rank": 25,
-    "trigger": 345.34,
-    "stop": 308.5049,
+    "stop": 227.9691,
     "frac": 0.2
    }
   ],
   "sells": []
  },
- "slots": 5,
+ "slots": 4,
  "view": {
-  "generated": "2026-09-27 17:21 HKT",
-  "data_date": "2026-09-25",
-  "next_day": "2026-09-28",
+  "generated": "2026-09-29 06:37 HKT",
+  "data_date": "2026-09-28",
+  "next_day": "2026-09-29",
   "green": true,
-  "nav": 100000.0,
-  "ret": 0.0,
-  "ndx_ret": 0.0,
-  "cash_frac": 1.0,
-  "holdings": [],
+  "nav": 100447.81,
+  "ret": 0.0045,
+  "ndx_ret": -0.0108,
+  "cash_frac": 0.7964,
+  "holdings": [
+   {
+    "sym": "PANW",
+    "date": "2026-09-28",
+    "entry": 383.12,
+    "close": 392.09,
+    "ret": 0.0234,
+    "stop": 352.44,
+    "be": false,
+    "weight": 0.2036,
+    "day_chg": 0.0463
+   }
+  ],
   "actions": {
-   "fills": [],
+   "fills": [
+    {
+     "date": "2026-09-28",
+     "sym": "PANW",
+     "side": "買入",
+     "px": 383.12,
+     "frac": 0.2
+    }
+   ],
    "stops": [],
    "warn": []
   }
