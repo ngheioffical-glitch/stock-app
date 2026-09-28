@@ -198,7 +198,10 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;
 const f2 = x => (x == null || !isFinite(x)) ? "—" : Number(x).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
 const f0 = x => (x == null || !isFinite(x)) ? "—" : Math.round(x).toLocaleString("en-US");
 const pct = (x, d=1) => (x == null || !isFinite(x)) ? "—" : (x >= 0 ? "+" : "") + (x*100).toFixed(d) + "%";
-const indOf = r => r?.industry ? `${r.industry}${r.sector && r.sector !== r.industry ? " · " + r.sector : ""}` : "";
+// 升 = 綠、跌 = 紅（用戶要求：app 入面所有升跌都咁顯示）
+const chg = (x, d=1) => (x == null || !isFinite(x)) ? "" : `<span class="${x > 0 ? "up" : x < 0 ? "dn" : "muted"}">${x > 0 ? "▲" : x < 0 ? "▼" : ""}${pct(Math.abs(x), d).replace("+", "")}</span>`;
+const dayChg = sym => { const c = SCAN?.stocks?.[sym]?.c10; return c && c.length > 1 ? c[c.length - 1] / c[c.length - 2] - 1 : null; };
+const indOf = r =>r?.industry ? `${r.industry}${r.sector && r.sector !== r.industry ? " · " + r.sector : ""}` : "";
 const HK = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Hong_Kong", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
 const NY = new Intl.DateTimeFormat("en-CA", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
 const parts = (fmt, d) => { const o = {}; fmt.formatToParts(d).forEach(p => o[p.type] = p.value); return {date:`${o.year}-${o.month}-${o.day}`, time:`${o.hour}:${o.minute}`}; };
@@ -266,7 +269,7 @@ function liveTag(sym){
   if (!c || c.err) return "";
   if (c.c5) return `<span class="tag t-buy">● ${c.c5.t} 5 分鐘收市企穩 ${f2(c.c5.px)}</span>`;
   if (c.bs) return `<span class="tag t-warn">● ${c.bs.t} 升穿買入價，未企穩</span>`;
-  return `<span class="tag t-dim">● 盤中 ${f2(c.last)}，仲差 ${pct(c.dist)}</span>`;
+  return `<span class="tag t-dim">● 盤中 ${f2(c.last)} ${chg(c.prev_close ? c.last / c.prev_close - 1 : null)}，仲差 ${pct(c.dist)}</span>`;
 }
 function liveStatus(){
   if (!LIVE || LIVE.day !== nyToday()) return "";
@@ -282,7 +285,7 @@ function viewToday(){
   h += `<div class="row spread"><h2>買入訊號 · ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
-    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
+    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b><span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
       <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
     <p class="small muted">買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
     + liveStatus();
@@ -292,10 +295,10 @@ function viewToday(){
       <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
         ${liveTag(r.sym)}</div>
       <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
-      <div class="dist"><span class="num">收市 ${f2(r.close)}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
+      <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
       <div class="kv">
         <div><span>止蝕價</span><b class="dn">${f2(r.stop)}</b></div>
-        <div><span>最多蝕</span><b>${pct(-r.R / r.pivot)}</b></div>
+        <div><span>最多蝕</span><b class="dn">${pct(-r.R / r.pivot)}</b></div>
         <div><span>注碼${r.shares != null ? " · 股數" : ""}</span><b>${Math.round(r.frac * 100)}%${r.shares != null ? ` · ${f0(r.shares)}` : ""}</b></div>
       </div>
       <details><summary>落單方法</summary>
@@ -317,7 +320,7 @@ function viewRank(){
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 12" : "（排名只喺星期五檢查）"}、大市紅燈。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b><span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
       <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}
