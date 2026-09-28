@@ -2,7 +2,9 @@
 
 全部用公開 RSS／API，唔使任何 key：
 - 新聞：CNBC、MarketWatch、BBC、Al Jazeera、香港電台、聯儲局新聞稿；持倉／候選股用 Yahoo 個股新聞 RSS。
-- 經濟數據：Nasdaq 經濟日曆（實際、預測、上次）；Nasdaq 攞唔到就用 ForexFactory（冇實際值）。
+- 快訊：ForexFactory 新聞頁（交易員快訊，每條有高／中／低影響評級）（2026-09-29 加）。
+- 經濟數據：ForexFactory 日曆網頁（實際、預測、上次 + FF 影響評級，上週／今週／下週）；
+  攞唔到就用 Nasdaq 經濟日曆；再唔得就用 ForexFactory JSON（冇實際值）。
 
 用法：python scanner/feeds.py [輸出資料夾]   → news.json、econ.json
 GitHub Actions 每 30 分鐘跑一次，推去 feeds 分支（每次覆蓋，唔留歷史），app 由 raw.githubusercontent.com 讀。
@@ -46,10 +48,13 @@ FEEDS = {
 YAHOO = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={s}&region=US&lang=en-US"
 NASDAQ_CAL = "https://api.nasdaq.com/api/calendar/economicevents?date={d}"
 FF_CAL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+FF = "https://www.forexfactory.com"
+FF_IMP = {"high": 3, "medium": 2, "low": 1}
 
 # 重要數據（關鍵字 -> 中文名）；冇列出嘅照顯示英文，標做一般
 KEY_EVENTS = [
     (r"gdpnow", "亞特蘭大聯儲 GDPNow", 1),
+    (r"^adp", "ADP 就業", 2),                      # 要喺非農之前（FF 叫 ADP Non-Farm Employment Change）
     (r"nonfarm payrolls|non-farm (employment|payrolls)", "非農就業", 3),
     (r"^unemployment rate", "失業率", 3),
     (r"average hourly earnings", "平均時薪", 2),
@@ -70,12 +75,12 @@ KEY_EVENTS = [
     (r"s&p global .*manufacturing pmi|manufacturing pmi", "製造業 PMI", 2),
     (r"services pmi", "服務業 PMI", 2),
     (r"jolts", "JOLTS 職位空缺", 2),
-    (r"initial jobless claims", "首次申領失業救濟", 2),
+    (r"initial jobless claims|^unemployment claims", "首次申領失業救濟", 2),
     (r"continuing jobless claims", "持續申領失業救濟", 1),
     (r"adp", "ADP 就業", 2),
     (r"(cb|conference board) consumer confidence", "諮商會消費信心", 2),
-    (r"michigan.*(sentiment|consumer)", "密歇根消費信心", 2),
-    (r"michigan.*inflation expectations", "密歇根通脹預期", 2),
+    (r"(michigan|uom).*(sentiment|consumer)", "密歇根消費信心", 2),
+    (r"(michigan|uom).*inflation expectations", "密歇根通脹預期", 2),
     (r"durable goods", "耐用品訂單", 2),
     (r"new home sales", "新屋銷售", 1),
     (r"existing home sales", "成屋銷售", 1),
@@ -150,11 +155,39 @@ def stock_syms():
     return list(dict.fromkeys(r["sym"] for r in sc.get("ranking", [])))
 
 
+def _jstr(s):
+    try:
+        s = json.loads(f'"{s}"')
+    except Exception:
+        s = s.replace("\\/", "/")
+    return _clean(s)
+
+
+def ff_news():
+    """ForexFactory 新聞頁：淨係要有影響評級嘅快訊（@financialjuice、@LiveSquawk 等）。"""
+    try:
+        h = html.unescape(get(FF + "/news").decode("utf-8", "ignore"))
+    except Exception as e:
+        print(f"[news] ForexFactory 快訊攞唔到：{e}")
+        return []
+    out = []
+    pat = re.compile(r'\{"id":(\d+),"dateline":(\d+),"url":"([^"]*)".*?"title":"(.*?)","preview".*?"source":"([^"]*)","impact":"([^"]*)"')
+    for m in pat.finditer(h):
+        _, d, url, title, src, imp = m.groups()
+        if imp not in FF_IMP:
+            continue
+        ts = datetime.fromtimestamp(int(d), timezone.utc)
+        out.append({"t": ts.strftime("%Y-%m-%dT%H:%M:%SZ"), "title": _jstr(title), "link": FF + url.replace("\\/", "/"),
+                    "src": _jstr(src), "cat": "快訊", "sum": "", "imp": FF_IMP[imp]})
+    return out
+
+
 def news(now):
     jobs = [(u, s, c, None) for c, lst in FEEDS.items() for s, u in lst]
     jobs += [(YAHOO.format(s=s), "Yahoo", "個股", s) for s in stock_syms()]
     with ThreadPoolExecutor(8) as ex:
         res = list(ex.map(lambda j: rss(*j), jobs))
+    res.append(ff_news())
     cut = now - timedelta(hours=72)
     items, seen = [], set()
     for lst in res:
@@ -168,7 +201,7 @@ def news(now):
     keep, cnt = [], {}
     for x in items:                                  # 每類最多 60 條、每隻股最多 6 條
         k = x.get("sym") or x["cat"]
-        lim = 6 if x.get("sym") else 60
+        lim = 6 if x.get("sym") else 80
         if cnt.get(k, 0) < lim:
             cnt[k] = cnt.get(k, 0) + 1
             keep.append(x)
@@ -214,6 +247,32 @@ def econ_nasdaq(today):
     return rows, "Nasdaq"
 
 
+def econ_ff_html():
+    """ForexFactory 日曆網頁（上週、今週、下週）：有實際值同 FF 影響評級。"""
+    rows, seen = [], set()
+    pat = re.compile(r'"name":"([^"]*)".*?"dateline":(\d+),"country":"(\w+)".*?"impactName":"(\w+)".*?"timeLabel":"([^"]*)"'
+                     r'.*?"actual":"([^"]*)","previous":"([^"]*)","revision":"([^"]*)".*?"forecast":"([^"]*)"')
+    for w in ("last", "this", "next"):
+        h = get(f"{FF}/calendar?week={w}").decode("utf-8", "ignore")
+        for name, d, ctry, impn, tl, act, prev, rev, fc in pat.findall(h):
+            name = _jstr(name)
+            if ctry != "US" or SKIP.search(name) or (name, d) in seen:
+                continue
+            seen.add((name, d))
+            ffimp = FF_IMP.get(impn, 0)
+            if re.search(r"speaks|testifies", name, re.I) and ffimp < 3 and not re.search(r"powell|fed chair", name, re.I):
+                continue
+            ts = datetime.fromtimestamp(int(d), timezone.utc).astimezone(ET_TZ)
+            zh, imp = _label(name)
+            timed = bool(re.fullmatch(r"\d{1,2}:\d\d[ap]m", tl))
+            rows.append({"t": ts.strftime("%Y-%m-%dT%H:%M") if timed else ts.strftime("%Y-%m-%d"), "name": name, "zh": zh,
+                         "imp": max(imp, ffimp), "actual": _v(_jstr(act)), "forecast": _v(_jstr(fc)),
+                         "previous": _v(_jstr(rev) or _jstr(prev))})
+    if len(rows) < 10:
+        raise RuntimeError(f"ForexFactory 日曆得 {len(rows)} 項")
+    return rows, "ForexFactory"
+
+
 def econ_ff():
     rows = []
     for r in json.loads(get(FF_CAL)):
@@ -230,9 +289,13 @@ def econ_ff():
 def econ(now):
     today = now.astimezone(ET_TZ).date()
     try:
-        rows, src = econ_nasdaq(today)
-    except Exception:
-        rows, src = econ_ff()
+        rows, src = econ_ff_html()
+    except Exception as e:
+        print(f"[econ] ForexFactory 日曆攞唔到：{e}；改用 Nasdaq")
+        try:
+            rows, src = econ_nasdaq(today)
+        except Exception:
+            rows, src = econ_ff()
     rows.sort(key=lambda r: r["t"])
     return {"src": src, "tz": "美東時間", "rows": rows}
 

@@ -448,7 +448,7 @@ function viewEcon(){
 function viewNewsList(){
   const N = FEED.news.items;
   const mine = new Set(SCAN ? signals().list.map(r => r.sym) : []);
-  const cats = ["全部", "買入訊號股", "市場", "經濟", "國際", "科技"];
+  const cats = ["全部", "快訊", "買入訊號股", "市場", "經濟", "國際", "科技"];
   let list = NCAT === "全部" ? N.filter(x => !x.sym) : NCAT === "買入訊號股" ? N.filter(x => x.sym && mine.has(x.sym)) : N.filter(x => x.cat === NCAT);
   const seen = new Set();
   list = list.filter(x => { const k = x.title + (NCAT === "買入訊號股" ? "" : x.sym || ""); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 80);
@@ -456,9 +456,9 @@ function viewNewsList(){
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (list.length ? list.map(x => {
     const syms = NCAT === "買入訊號股" ? N.filter(y => y.title === x.title && y.sym && mine.has(y.sym)).map(y => y.sym) : [];
     return `<div class="news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.title)}</a>
-      <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}</div></div>`;
+      <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}${x.imp >= 3 ? `<span class="tag t-stop">高影響</span>` : x.imp === 2 ? `<span class="tag t-warn">中影響</span>` : ""}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}</div></div>`;
   }).join("") : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
-  return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。</p>`;
+  return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。快訊來自 ForexFactory（影響評級係 FF 嘅）。</p>`;
 }
 
 function viewNews(){
