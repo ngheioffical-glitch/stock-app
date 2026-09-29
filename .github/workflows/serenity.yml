@@ -1,0 +1,32 @@
+name: Serenity 關注
+# 每日一次抓 Serenity（X @aleabitoreddit）近 60 日有 cashtag 嘅推文，更新 docs/serenity.json；app 用嚟標示「S·N」
+# fxtwitter 慢（約 10 分鐘），所以獨立一個 workflow，唔拖慢每日掃描
+on:
+  schedule:
+    - cron: "15 23 * * *"     # 23:15 UTC = 香港時間 07:15
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: serenity
+  cancel-in-progress: false
+jobs:
+  serenity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scanner/serenity.py
+        env:
+          PYTHONIOENCODING: utf-8
+      - name: 提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/serenity.json
+          if git diff --cached --quiet; then echo "冇新數據"; exit 0; fi
+          git commit -q -m "Serenity $(date -u +%F)"
+          for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 10; done

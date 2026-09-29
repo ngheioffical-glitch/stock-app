@@ -82,6 +82,7 @@ main>*{min-width:0;max-width:100%}
 .t-buy{color:var(--buy);background:var(--buy-soft);border-color:rgba(44,245,160,.3)}
 .t-stop{color:var(--stop);background:var(--stop-soft);border-color:rgba(255,77,109,.3)}
 .t-warn{color:var(--warn);background:var(--warn-soft);border-color:rgba(255,200,87,.3)}
+.t-ser{color:#c9a2ff;background:rgba(170,120,255,.12);border-color:rgba(170,120,255,.4)}
 .t-dim{color:var(--muted);background:rgba(120,200,255,.06);border-color:var(--line)}
 .price{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1.1;color:var(--cyan);text-shadow:0 0 18px rgba(0,229,255,.35)}
 .lbl{font-size:11px;letter-spacing:.14em;color:var(--muted)}
@@ -286,17 +287,18 @@ function viewToday(){
   h += `<div class="row spread"><h2>買入訊號 · ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
-    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b><span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
+    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
       <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
     <p class="small muted">買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
     + liveStatus();
   h += o.list.map(r => {
     const gap = r.pivot / r.close - 1, fill = Math.max(3, Math.min(100, (1 - gap / 0.15) * 100));
     return `<div class="card sig">
-      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
+      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${serTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
         ${liveTag(r.sym)}</div>
       <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
+      ${serNote(r.sym)}
       <div class="kv">
         <div><span>止蝕價</span><b class="dn">${f2(r.stop)}</b></div>
         <div><span>最多蝕</span><b class="dn">${pct(-r.R / r.pivot)}</b></div>
@@ -310,6 +312,23 @@ function viewToday(){
   }).join("");
   return h;
 }
+
+// ───────────────────────── Serenity 關注（scanner/serenity.py：每日近 60 日 + feeds 每 30 分鐘近 3 日）
+let SER = null;
+async function fetchSer(){
+  const tw = {}, add = j => ((j && j.tweets) || []).forEach(t => tw[t.id] = t), bust = "?t=" + Math.floor(Date.now() / 60e3);
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "serenity.json") + bust, {cache:"no-store"}); if (r.ok) add(await r.json()); } catch(e){}
+  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "serenity_recent.json" + bust, {cache:"no-store"}); if (r.ok) add(await r.json()); } catch(e){}
+  const now = Date.now() / 1e3, by = {};
+  const list = Object.values(tw).filter(t => now - t.ts <= 30 * 86400).sort((a, b) => b.ts - a.ts);
+  for (const t of list) for (const s of t.syms){ const o = by[s] || (by[s] = {n: 0, n7: 0, last: t}); o.n++; if (now - t.ts <= 7 * 86400) o.n7++; }
+  SER = {by, list};
+  render();
+}
+const serTag = sym => { const o = SER && SER.by[sym]; return o ? ` <span class="tag t-ser" title="Serenity 近 30 日提過 ${o.n} 次">S·${o.n}</span>` : ""; };
+const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
+  return `<p class="small"><span class="tag t-ser">Serenity 關注</span> 近 30 日提過 ${o.n} 次${o.n7 ? `（近 7 日 ${o.n7} 次）` : ""} · 最近 ${ago(new Date(o.last.ts * 1e3).toISOString())}：
+    <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.text)}</a></p>`; };
 
 // ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.1 行虛擬帳戶（scanner/model.py），用戶照抄
 let MODEL = null, MODEL_ERR = null;
@@ -351,7 +370,7 @@ function viewModel(){
   if ((P.sells || []).length) todo.push(`<div class="alert"><b>開市賣出</b>${P.sells.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${esc(x.reason)}</p>`).join("")}</div>`);
   if ((A.stops || []).length) todo.push(`<div class="info"><b>喺券商改止蝕單</b>${A.stops.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${f2(x.old)} → <b class="num up">${f2(x.new)}</b>${x.be ? "（已保本）" : ""}</p>`).join("")}</div>`);
   if ((P.buys || []).length) todo.push(`<div class="tablewrap"><table><tr><th>掛 buy-stop</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">注碼</th></tr>
-      ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b><span class="ind">RS #${b.rank}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
+      ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
         <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
       <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺「設定」填資金就會計埋股數。"}</p>`);
   h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
@@ -360,7 +379,7 @@ function viewModel(){
     `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
 
   h += `<h2>模型持倉</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th><th class="r">止蝕</th></tr>
-    ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b><span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
+    ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
       <td class="r mono">${f2(p.entry)}</td><td class="r mono">${f2(p.close)}<span class="ind">${chg(p.day_chg)}</span></td><td class="r mono">${chg(p.ret)}</td>
       <td class="r mono dn">${f2(p.stop)}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">未有持倉（全現金）</p></div>`);
 
@@ -379,9 +398,9 @@ function viewRank(){
   const secs = Object.entries(cnt).sort((a,b) => b[1] - a[1]);
   return topbar() + `<h2>RS 排名 · 成交額頭 50</h2>
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
-    <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 12" : "（排名只喺星期五檢查）"}、大市紅燈。</p>
+    <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 12" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b><span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
       <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}
@@ -448,7 +467,8 @@ function viewEcon(){
 function viewNewsList(){
   const N = FEED.news.items;
   const mine = new Set(SCAN ? signals().list.map(r => r.sym) : []);
-  const cats = ["全部", "快訊", "買入訊號股", "市場", "經濟", "國際", "科技"];
+  const cats = ["全部", "快訊", "Serenity", "買入訊號股", "市場", "經濟", "國際", "科技"];
+  if (NCAT === "Serenity") return `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>` + viewSerList();
   let list = NCAT === "全部" ? N.filter(x => !x.sym) : NCAT === "買入訊號股" ? N.filter(x => x.sym && mine.has(x.sym)) : N.filter(x => x.cat === NCAT);
   const seen = new Set();
   list = list.filter(x => { const k = x.title + (NCAT === "買入訊號股" ? "" : x.sym || ""); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 80);
@@ -459,6 +479,16 @@ function viewNewsList(){
       <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}${x.imp >= 3 ? `<span class="tag t-stop">高影響</span>` : x.imp === 2 ? `<span class="tag t-warn">中影響</span>` : ""}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}</div></div>`;
   }).join("") : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
   return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。快訊來自 ForexFactory（影響評級係 FF 嘅）。</p>`;
+}
+
+function viewSerList(){
+  if (!SER) return `<p class="muted">載入中…</p>`;
+  const cand = new Set(SCAN ? SCAN.ranking.filter(r => r.status === "候選").map(r => r.sym) : []);
+  const top = Object.entries(SER.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
+  let h = `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.1 候選股）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}">${s} ${o.n}</span>`).join("")}</div></div>`;
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
+    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span></div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
+  return h + `<p class="small muted">Serenity（X @aleabitoreddit）近 30 日有 cashtag 嘅推文。回測：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；唔合格嘅差過 QQQ。只供參考，唔係買入訊號。</p>`;
 }
 
 function viewNews(){
@@ -508,6 +538,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 fetchScan();
 fetchModel();
 fetchLive();
+fetchSer();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
 </script>
