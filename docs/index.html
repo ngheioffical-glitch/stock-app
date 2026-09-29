@@ -82,6 +82,7 @@ main>*{min-width:0;max-width:100%}
 .t-buy{color:var(--buy);background:var(--buy-soft);border-color:rgba(44,245,160,.3)}
 .t-stop{color:var(--stop);background:var(--stop-soft);border-color:rgba(255,77,109,.3)}
 .t-warn{color:var(--warn);background:var(--warn-soft);border-color:rgba(255,200,87,.3)}
+[data-sersym]{cursor:pointer}
 .t-ser{color:#c9a2ff;background:rgba(170,120,255,.12);border-color:rgba(170,120,255,.4)}
 .t-dim{color:var(--muted);background:rgba(120,200,255,.06);border-color:var(--line)}
 .price{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1.1;color:var(--cyan);text-shadow:0 0 18px rgba(0,229,255,.35)}
@@ -325,7 +326,23 @@ async function fetchSer(){
   SER = {by, list};
   render();
 }
-const serTag = sym => { const o = SER && SER.by[sym]; return o ? ` <span class="tag t-ser" title="Serenity 近 30 日提過 ${o.n} 次">S·${o.n}</span>` : ""; };
+const serTag = sym => { const o = SER && SER.by[sym]; return o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : ""; };
+// 全部歷史（docs/serenity_all.json，2025-07 起，約 1.5 MB）：撳股票先載入
+let SERALL = null, SERSYM = "", SERALL_ERR = null;
+async function fetchSerAll(){
+  if (SERALL) return;
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "serenity_all.json") + "?t=" + Math.floor(Date.now() / 3600e3), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status); SERALL = (await r.json()).tweets; SERALL_ERR = null; } catch(e){ SERALL_ERR = e.message; }
+  render();
+}
+function openSer(sym){
+  SERSYM = String(sym || "").trim().toUpperCase().replace(/^\$/, "");
+  TAB = "news"; NT = "news"; NCAT = "Serenity";
+  try { localStorage.setItem(KEY + "-tab", TAB); localStorage.setItem(KEY + "-nt", NT); } catch(e){}
+  if (SERSYM) fetchSerAll();
+  render(); window.scrollTo(0, 0);
+}
+const hkDate = ts => parts(HK, new Date(ts * 1e3)).date;
 const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
   return `<p class="small"><span class="tag t-ser">Serenity 關注</span> 近 30 日提過 ${o.n} 次${o.n7 ? `（近 7 日 ${o.n7} 次）` : ""} · 最近 ${ago(new Date(o.last.ts * 1e3).toISOString())}：
     <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.text)}</a></p>`; };
@@ -481,13 +498,31 @@ function viewNewsList(){
   return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。快訊來自 ForexFactory（影響評級係 FF 嘅）。</p>`;
 }
 
+function viewSerHist(cand){
+  const sym = SERSYM;
+  let h = `<div class="row spread"><h2>${esc(sym)} · Serenity 全部講法</h2><button data-sersym="">返回</button></div>`;
+  if (!SERALL) return h + (SERALL_ERR ? `<div class="alert"><b>讀唔到歷史</b><p class="small">${esc(SERALL_ERR)}</p></div>` : `<p class="muted">載入中…（第一次要下載約 1.5 MB）</p>`);
+  const seen = new Set(), L = [];
+  for (const t of [...((SER && SER.list) || []), ...SERALL]) if (t.syms.includes(sym) && !seen.has(t.id)){ seen.add(t.id); L.push(t); }
+  L.sort((a, b) => b.ts - a.ts);
+  if (!L.length) return h + `<div class="card"><p class="muted">Serenity 由 2025 年 7 月起冇用 $${esc(sym)} 提過呢隻股。</p></div>`;
+  const orig = L.filter(t => !t.reply).length, first = L[L.length - 1];
+  h += `<div class="card"><div class="kv"><div><span>總共提過</span><b>${L.length} 次</b></div><div><span>推文 · 回覆</span><b>${orig} · ${L.length - orig}</b></div>
+    <div><span>第一次</span><b>${hkDate(first.ts)}</b></div></div>${cand.has(sym) ? `<p class="small"><span class="tag t-cyan">而家係 V2.1 候選股</span></p>` : ""}</div>`;
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + L.map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
+    <div class="meta">${t.syms.filter(s => s !== sym).slice(0, 8).map(s => `<span class="tag t-dim" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${hkDate(t.ts)}</span></div></div>`).join("") + `</div>`;
+  return h + `<p class="small muted">只計有 $${esc(sym)} 嘅推文（2025-07 起，每日更新）；文字最多顯示 280 字，撳入去睇原文。</p>`;
+}
+
 function viewSerList(){
   if (!SER) return `<p class="muted">載入中…</p>`;
   const cand = new Set(SCAN ? SCAN.ranking.filter(r => r.status === "候選").map(r => r.sym) : []);
+  const search = `<div class="row" style="flex-wrap:nowrap"><input id="serq" placeholder="輸入代號睇 Serenity 全部講法，例如 LITE" value="${esc(SERSYM)}" autocapitalize="characters"><button id="serGo">搵</button></div>`;
+  if (SERSYM) return search + viewSerHist(cand);
   const top = Object.entries(SER.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
-  let h = `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.1 候選股）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}">${s} ${o.n}</span>`).join("")}</div></div>`;
+  let h = search + `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.1 候選股；撳落去睇全部講法）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>`;
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
-    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span></div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
+    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span></div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
   return h + `<p class="small muted">Serenity（X @aleabitoreddit）近 30 日有 cashtag 嘅推文。回測：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；唔合格嘅差過 QQQ。只供參考，唔係買入訊號。</p>`;
 }
 
@@ -520,6 +555,9 @@ function bind(){
   on("#feedReload", () => { fetchFeeds(true); render(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render(); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render(); });
+  document.querySelectorAll("[data-sersym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openSer(b.dataset.sersym); });
+  on("#serGo", () => openSer($("#serq").value));
+  const q = $("#serq"); if (q) q.onkeydown = e => { if (e.key === "Enter") openSer(q.value); };
   document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render(); });
 }
 
