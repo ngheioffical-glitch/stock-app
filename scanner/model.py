@@ -7,7 +7,7 @@
   4. 收市（只喺最新一日，因為要排名）：2R 保本、跟 swing low 上移；大市紅燈／跌穿 200 日線／星期五排名跌出頭 12 -> 下一日開市賣；
      星期五記帳戶值做回撤剎車（跌 25% 只揸 2 隻，返到 −12.5% 恢復）；有空位就對排名頭嘅候選股掛 buy-stop（空位 × 2 張）
 成本每邊 0.1%。價錢係 Yahoo 拆股調整價（同 app 一樣）；拆股時自動換算持倉。
-輸出 docs/model.json（狀態 + 下一個交易日要做嘅嘢）。
+輸出 docs/model.json（狀態 + 下一個交易日要做嘅嘢 + hist 每日快照：帳戶值、現金、持倉、當日成交，app 用嚟拉條 bar 睇歷史）。
 用法：python scanner/model.py            （每日）
       python scanner/model.py seed       （由而家份 scan.json 嘅下一個交易日開始，全現金）
 """
@@ -30,6 +30,19 @@ def load(p):
 
 def nav_at(st, px):
     return st["cash"] + sum(p["shares"] * px(p) for p in st["positions"])
+
+
+def snap(st, d, fills, green):
+    """每日收市快照（同 stock-strategy/src/model_bt.py 嘅 days 格式一樣）。"""
+    nav = nav_at(st, lambda p: p["last_close"])
+    pos = sorted((dict(s=p["sym"], w=round(p["shares"] * p["last_close"] / nav, 4) if nav else 0,
+                       ret=round(p["last_close"] / p["entry"] - 1, 4), e=round(p["entry"], 2), c=round(p["last_close"], 2),
+                       st=round(p["stop"], 2)) for p in st["positions"]), key=lambda x: -x["w"])
+    f = [dict(s=x["sym"], side=x["side"], px=x["px"], **({"ret": x["ret"]} if x.get("ret") is not None else {}),
+              why=x.get("reason") or "突破買入") for x in fills if x["date"] == d]
+    h = st.setdefault("hist", [])
+    h[:] = [x for x in h if x["d"] != d]
+    h.append(dict(d=d, nav=round(nav, 0), cash=round(st["cash"] / nav, 4) if nav else 1.0, green=green, pos=pos, f=f))
 
 
 def plan(st, sc, actions):
@@ -128,6 +141,7 @@ def step(st, sc, i, actions):
         if c is not None:
             p["last_close"] = c
     st["nav"].append(dict(date=d, nav=round(nav_at(st, lambda p: p["last_close"]), 2)))
+    snap(st, d, actions["fills"], sc["green"] if d == sc["date"] else None)
 
 
 def close_pos(st, p, price, d, reason, actions):
@@ -184,6 +198,9 @@ def main():
     if not OUT.exists():
         return seed()
     st = load(OUT)
+    if "hist" not in st and st["nav"]:                           # 2026-09-29 之前開嘅帳戶：用現況補第一日
+        snap(st, st["last"], (st.get("view") or {}).get("actions", {}).get("fills", []), (st.get("view") or {}).get("green"))
+        OUT.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
     if sc["date"] <= st["last"]:
         print(f"[model] 冇新數據（{sc['date']}）")
         return
@@ -200,6 +217,7 @@ def main():
         step(st, sc, i, actions)
     st["last"] = sc["date"]
     plan(st, sc, actions)
+    snap(st, sc["date"], actions["fills"], sc["green"])          # 收市後止蝕上移都計埋
     save(st, sc, actions)
     v = st["view"]
     print(f"[model] {sc['date']}：帳戶 {v['nav']:,.0f}（{v['ret']:+.1%}，NDX {v['ndx_ret']:+.1%}）持股 {len(st['positions'])} 隻；"
