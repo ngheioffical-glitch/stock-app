@@ -303,7 +303,7 @@ function viewToday(){
         ${liveTag(r.sym)}</div>
       <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
-      ${serNote(r.sym)}
+      ${serNote(r.sym)}${levNote(r.sym)}
       <div class="kv">
         <div><span>止蝕價</span><b class="dn">${f2(r.stop)}</b></div>
         <div><span>最多蝕</span><b class="dn">${pct(-r.R / r.pivot)}</b></div>
@@ -330,6 +330,15 @@ async function fetchSer(){
   SER = {by, list};
   render();
 }
+// 2 倍做多個股 ETF（scanner/lev2x.py → docs/lev2x.json）：只供參考，唔改規則；用戶選擇唔用槓桿（2026-09-30）
+let LEV = null;
+async function fetchLev(){
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "lev2x.json") + "?t=" + Math.floor(Date.now() / 3600e3), {cache:"no-store"});
+    if (r.ok){ LEV = (await r.json()).map || {}; render(); } } catch(e){}
+}
+const levOf = sym => (LEV && LEV[sym]) || [];
+const levNote = sym => { const L = levOf(sym); return L.length ? `<p class="small muted"><span class="tag t-dim">2 倍 ETF</span> ${L.slice(0, 2).join("／")}：唔借錢加槓桿，升跌約正股 2 倍（每日重設，長揸會有耗損）。規則冇用，買唔買自己決定；買入價同止蝕照睇正股。</p>` : ""; };
+const levInd = sym => { const L = levOf(sym); return L.length ? ` · 2倍 ${L[0]}` : ""; };
 const serTag = sym => { const o = SER && SER.by[sym]; return o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : ""; };
 // 全部歷史（docs/serenity_all.json，2025-07 起，約 1.5 MB）：撳股票先載入
 let SERALL = null, SERSYM = "", SERALL_ERR = null;
@@ -601,7 +610,7 @@ function viewModel(){
   if ((P.sells || []).length) todo.push(`<div class="alert"><b>開市賣出</b>${P.sells.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${esc(x.reason)}</p>`).join("")}</div>`);
   if ((A.stops || []).length) todo.push(`<div class="info"><b>喺券商改止蝕單</b>${A.stops.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${f2(x.old)} → <b class="num up">${f2(x.new)}</b>${x.be ? "（已保本）" : ""}</p>`).join("")}</div>`);
   if ((P.buys || []).length) todo.push(`<div class="tablewrap"><table><tr><th>掛 buy-stop</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">注碼</th></tr>
-      ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
+      ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}${levInd(b.sym)}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
         <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
       <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺「設定」填資金就會計埋股數。"}</p>`);
   h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
@@ -800,6 +809,7 @@ fetchScan();
 fetchModel();
 fetchLive();
 fetchSer();
+fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
 </script>
