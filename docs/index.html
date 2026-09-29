@@ -384,7 +384,34 @@ async function fetchBT(m){
   fetchBT[m] = false;
   if (TAB === "model") render();
 }
-const histDays = () => HMODE === "model" ? ((MODEL && MODEL.hist) || []) : (MBT[HMODE] ? MBT[HMODE].days : null);
+const allDays = () => HMODE === "model" ? ((MODEL && MODEL.hist) || []) : (MBT[HMODE] ? MBT[HMODE].days : null);
+// 逐年：HYEAR[模式] = 揀咗嘅年份（放大睇嗰年）；冇揀 = 全部
+let HYEAR = {}, HCACHE = {};
+const hkey = () => HMODE + (HYEAR[HMODE] || "");
+function histDays(){
+  const D = allDays(), y = HYEAR[HMODE];
+  if (!D || !y) return D;
+  const k = hkey();
+  if (!HCACHE[k] || HCACHE[k].src !== D) HCACHE[k] = {src: D, v: D.filter(x => x.d.startsWith(y))};
+  return HCACHE[k].v;
+}
+function yearRows(D, cap){
+  const out = []; let cur = null;
+  for (const x of D){
+    const y = x.d.slice(0, 4);
+    if (!cur || cur.y !== y){
+      const s0 = cur ? cur.n1 : cap, q0 = cur ? cur.q1 : cap;
+      cur = {y, s0, q0, pk: s0, dd: 0, sells: 0, wins: 0}; out.push(cur);
+    }
+    cur.n1 = x.nav; cur.q1 = x.qqq; cur.pk = Math.max(cur.pk, x.nav); cur.dd = Math.min(cur.dd, x.nav / cur.pk - 1);
+    for (const f of x.f) if (f.side === "賣出"){ cur.sells++; if (f.ret > 0) cur.wins++; }
+  }
+  return out.map(c => ({y: c.y, s0: c.s0, q0: c.q0, r: c.n1 / c.s0 - 1, q: c.q1 != null && c.q0 != null ? c.q1 / c.q0 - 1 : null,
+                        dd: c.dd, n: c.sells, w: c.wins}));
+}
+const histYears = () => { const D = allDays(); if (!D) return [];
+  if (HMODE !== "model") return MBT[HMODE].years || (MBT[HMODE].years = yearRows(D, MBT[HMODE].capital));
+  return yearRows(D, MODEL.capital); };
 function histChart(D, i){
   const W = 300, Hh = 80, n = D.length, step = Math.max(1, Math.ceil(n / 600));
   const idx = []; for (let k = 0; k < n; k += step) idx.push(k); if (idx[idx.length - 1] !== n - 1) idx.push(n - 1);
@@ -404,6 +431,8 @@ function histDay(D, i){
   let h = `<div class="row spread"><b class="mono">${esc(x.d)}</b>${x.green == null ? "" : `<span class="tag ${x.green ? "t-buy" : "t-stop"}">${x.green ? "綠燈" : "紅燈"}</span>`}</div>
     <div class="kv"><div><span>帳戶值</span><b>${f0(x.nav)}</b></div><div><span>累計回報</span><b>${chg(x.nav / base - 1)}</b></div>
       <div><span>${x.qqq != null ? "QQQ 同期" : "現金"}</span><b>${x.qqq != null ? chg(x.qqq / base - 1) : Math.round(x.cash * 100) + "%"}</b></div></div>`;
+  const yr = HYEAR[HMODE] && histYears().find(r => r.y === x.d.slice(0, 4));
+  if (yr) h += `<p class="small">${yr.y} 年初至今：策略 ${chg(x.nav / yr.s0 - 1)}${x.qqq != null ? ` · QQQ ${chg(x.qqq / yr.q0 - 1)}` : ""}</p>`;
   if (x.qqq != null) h += `<p class="small muted">現金 ${Math.round(x.cash * 100)}% · 持股 ${x.pos.length} 隻 · 同期買 QQQ 帳戶值 ${f0(x.qqq)}</p>`;
   h += x.pos.length ? `<div class="tablewrap"><table><tr><th>持倉</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th><th class="r">止蝕</th></tr>
     ${x.pos.map(p => `<tr><td class="mono"><b>${p.s}</b><span class="ind">佔 ${Math.round(p.w * 100)}%</span></td><td class="r mono">${f2(p.e)}</td><td class="r mono">${f2(p.c)}</td>
@@ -413,25 +442,20 @@ function histDay(D, i){
 }
 function histPaint(){
   const D = histDays(); if (!D || !D.length) return;
-  const i = HIDX[HMODE];
-  const c = $("#histChart"), d = $("#histDay"), r = $("#histR"), y = $("#histY");
+  const i = HIDX[hkey()];
+  const c = $("#histChart"), d = $("#histDay"), r = $("#histR");
   if (c) c.innerHTML = histChart(D, i);
   if (d) d.innerHTML = histDay(D, i);
   if (r && +r.value !== i) r.value = i;
-  if (y) y.value = D[i].d.slice(0, 4);
 }
 function histMove(k){
   const D = histDays(); if (!D || !D.length) return;
-  let i = HIDX[HMODE];
+  let i = HIDX[hkey()];
   if (k === "pf" || k === "nf"){ const s = k === "nf" ? 1 : -1; for (let j = i + s; j >= 0 && j < D.length; j += s) if (D[j].f.length){ i = j; break; } }
   else i = Math.max(0, Math.min(D.length - 1, i + k));
-  HIDX[HMODE] = i; histPaint();
+  HIDX[hkey()] = i; histPaint();
 }
-function histYear(y){
-  const D = histDays(); if (!D) return;
-  const i = D.findIndex(x => x.d.slice(0, 4) >= y);
-  if (i >= 0){ HIDX[HMODE] = i; histPaint(); }
-}
+function histYear(y){ HYEAR[HMODE] = y || ""; render(); const c = $("#histChart"); if (c) c.scrollIntoView({block: "center"}); }
 function viewHist(){
   if (HMODE !== "model") fetchBT(HMODE);
   const D = histDays(), B = MBT[HMODE];
@@ -439,16 +463,26 @@ function viewHist(){
   let h = `<h2>歷史回看</h2><div class="card"><div class="chips">${chip("model", `模型（${esc(MODEL.start.slice(5))} 起）`)}${chip("bt00", "回測 2000 年起")}${chip("bt26", "回測 2026 年起")}</div>`;
   if (HMODE !== "model" && !B) return h + (MBT_ERR[HMODE] ? `<p class="small dn">讀唔到回測：${esc(MBT_ERR[HMODE])}</p>` : `<p class="muted">載入中…${HMODE === "bt00" ? "（約 1.2 MB）" : ""}</p>`) + `</div>`;
   if (!D.length) return h + `<p class="muted">未有歷史：第一個交易日收市後先有。</p></div>`;
-  if (HIDX[HMODE] == null || HIDX[HMODE] >= D.length) HIDX[HMODE] = D.length - 1;
-  const i = HIDX[HMODE];
+  if (!D.length){ HYEAR[HMODE] = ""; return viewHist(); }
+  const K = hkey();
+  if (HIDX[K] == null || HIDX[K] >= D.length) HIDX[K] = D.length - 1;
+  const i = HIDX[K], Y = HYEAR[HMODE] || "", YR = histYears();
   if (B && B.sum) h += `<div class="kv"><div><span>策略 ${B.sum.lab} · 最大回撤</span><b>${chg(B.sum.cagr)} · <span class="dn">${pct(B.sum.dd, 0)}</span></b></div>
     <div><span>QQQ ${B.sum.lab} · 最大回撤</span><b>${chg(B.sum.qcagr)} · <span class="dn">${pct(B.sum.qdd, 0)}</span></b></div></div>`;
-  const years = [...new Set(D.map(x => x.d.slice(0, 4)))];
-  h += `<div id="histChart">${histChart(D, i)}</div>
+  if (YR.length > 1){
+    const beat = YR.filter(r => r.q != null && r.r > r.q).length;
+    h += `<details ${Y ? "" : "open"}><summary>逐年表現（贏 QQQ ${beat}/${YR.length} 年）· 撳年份放大睇</summary><div class="tablewrap"><table>
+      <tr><th>年</th><th class="r">策略</th><th class="r">QQQ</th><th class="r">年內回撤</th><th class="r">賣出 · 勝率</th></tr>
+      ${YR.map(r => `<tr data-hyear="${r.y}" role="button" style="cursor:pointer${r.y === Y ? ";background:var(--cyan-soft)" : ""}"><td class="mono"><b>${r.y}</b></td><td class="r mono">${chg(r.r)}</td>
+        <td class="r mono">${r.q != null ? chg(r.q) : "—"}</td><td class="r mono dn">${pct(r.dd, 0)}</td>
+        <td class="r mono">${r.n ? `${r.n} · ${Math.round(r.w / r.n * 100)}%` : "—"}</td></tr>`).join("")}</table></div></details>`;
+  }
+  const years = YR.map(r => r.y);
+  h += `${Y ? `<div class="row spread"><b>${Y} 年</b><button data-hyear="">睇返全部年份</button></div>` : ""}<div id="histChart">${histChart(D, i)}</div>
     <input type="range" id="histR" min="0" max="${D.length - 1}" value="${i}" aria-label="揀日子">
-    <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="跳去年份">${years.map(y => `<option${y === D[i].d.slice(0, 4) ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
+    <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="揀年份"><option value="">全部年份</option>${years.map(y => `<option${y === Y ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
     <div id="histDay" style="display:flex;flex-direction:column;gap:6px">${histDay(D, i)}</div>
-    <p class="small muted">${HMODE !== "model" ? `V2.1 由 ${esc(B.start)} 全現金、10 萬起步嘅回測（全美股連退市，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}拉條 bar、揀年份或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
+    <p class="small muted">${HMODE !== "model" ? `V2.1 由 ${esc(B.start)} 全現金、10 萬起步嘅回測（全美股連退市，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表或者揀年份放大睇嗰年；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
   return h;
 }
 
@@ -652,7 +686,8 @@ function bind(){
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render(); });
   const hy = $("#histY"); if (hy) hy.onchange = () => histYear(hy.value);
   document.querySelectorAll("[data-hmv]").forEach(b => b.onclick = () => histMove(b.dataset.hmv.endsWith("f") ? b.dataset.hmv : +b.dataset.hmv));
-  const hr = $("#histR"); if (hr) hr.oninput = () => { HIDX[HMODE] = +hr.value; histPaint(); };
+  const hr = $("#histR"); if (hr) hr.oninput = () => { HIDX[hkey()] = +hr.value; histPaint(); };
+  document.querySelectorAll("[data-hyear]").forEach(b => b.onclick = () => histYear(b.dataset.hyear));
   document.querySelectorAll("[data-sersym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openSer(b.dataset.sersym); });
   on("#serGo", () => openSer($("#serq").value));
   const q = $("#serq"); if (q) q.onkeydown = e => { if (e.key === "Enter") openSer(q.value); };
