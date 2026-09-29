@@ -1,10 +1,13 @@
-"""模型帳戶（2026-09-29 用戶要求）：照 V2.1 規則自動行一個虛擬帳戶，新手照抄就得。[quant-risk]
+"""模型帳戶（2026-09-29 用戶要求）：照 V2.2 規則自動行一個虛擬帳戶，新手照抄就得。[quant-risk]
+
+V2.2（2026-09-30 用戶採用，stock-strategy/LAB_GRID2.md 嘅 B3）= V2.1 + 排名跌出頭 15 先賣（剎車時頭 6）
++ 現金用途：綠燈時未用嘅現金買短期國債（SGOV／BIL，按 ^IRX 計息）；紅燈時現金買 IEF（7–10 年國債）；轉換扣 0.1%。
 
 每日收市後（daily-scan.yml 喺 scan.py 之後跑）讀 docs/scan.json，按次序處理新交易日：
   1. 開市：執行上一日收市決定嘅賣出（開市價）
   2. 盤中：上一日掛嘅 buy-stop，最高 >= 買入價就買（成交 = max(開市, 買入價)），排名高先用現金，每隻 20%（排第 1 用 30%）
   3. 盤中：最低 <= 止蝕就賣（開市已穿用開市價，否則止蝕價；當日先買嘅用止蝕價）
-  4. 收市（只喺最新一日，因為要排名）：2R 保本、跟 swing low 上移；大市紅燈／跌穿 200 日線／星期五排名跌出頭 12 -> 下一日開市賣；
+  4. 收市（只喺最新一日，因為要排名）：2R 保本、跟 swing low 上移；大市紅燈／跌穿 200 日線／星期五排名跌出頭 15 -> 下一日開市賣；
      星期五記帳戶值做回撤剎車（跌 25% 只揸 2 隻，返到 −12.5% 恢復）；有空位就對排名頭嘅候選股掛 buy-stop（空位 × 2 張）
 成本每邊 0.1%。價錢係 Yahoo 拆股調整價（同 app 一樣）；拆股時自動換算持倉。
 輸出 docs/model.json（狀態 + 下一個交易日要做嘅嘢 + hist 每日快照：帳戶值、現金、持倉、當日成交，app 用嚟拉條 bar 睇歷史）。
@@ -19,7 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCAN, OUT = ROOT / "docs" / "scan.json", ROOT / "docs" / "model.json"
-RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=12.5, rank_exit_brake=5, be_R=2.0, atr_buf=0.2,
+RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=15.0, rank_exit_brake=6.0, sleeve_cost=0.001, be_R=2.0, atr_buf=0.2,
             brake_down=0.75, brake_up=0.875, cost=0.001, mult=2)
 CAPITAL = 100_000.0
 
@@ -140,8 +143,29 @@ def step(st, sc, i, actions):
         c = arr(p["sym"], "c10")
         if c is not None:
             p["last_close"] = c
+    cash_sleeve(st, sc, i)
     st["nav"].append(dict(date=d, nav=round(nav_at(st, lambda p: p["last_close"]), 2)))
     snap(st, d, actions["fills"], sc["green"] if d == sc["date"] else None)
+
+
+def cash_sleeve(st, sc, i):
+    """V2.2 現金：上一日收市綠燈 -> 收短期國債息（^IRX ÷ 252）；紅燈 -> 跟 IEF 升跌。轉換嗰日扣 0.1%。"""
+    cs = sc.get("cash") or {}
+    g10, ief, irx = cs.get("green10"), cs.get("ief10"), cs.get("irx10")
+    if not g10:
+        return
+    prev_green = g10[i - 1] if i > 0 else st.get("last_green", g10[i])
+    mode = "bill" if prev_green else "ief"
+    r = 0.0
+    if mode == "bill" and irx and irx[i - 1 if i > 0 else i] is not None:
+        r = irx[i - 1 if i > 0 else i] / 100 / 252
+    elif mode == "ief" and ief and i > 0 and ief[i] and ief[i - 1]:
+        r = ief[i] / ief[i - 1] - 1
+    if st["cash"] > 0:
+        if st.get("sleeve") and st["sleeve"] != mode:
+            st["cash"] -= st["cash"] * RULE["sleeve_cost"]
+        st["cash"] *= 1 + r
+    st["sleeve"], st["last_green"] = mode, g10[i]
 
 
 def close_pos(st, p, price, d, reason, actions):
@@ -180,6 +204,7 @@ def save(st, sc, actions):
     stocks = sc["stocks"]
     nav = nav_at(st, lambda p: p["last_close"])
     view = dict(generated=sc.get("generated"), data_date=sc["date"], next_day=sc["next_day"], green=sc["green"],
+                sleeve="bill" if sc["green"] else "ief",
                 nav=round(nav, 2), ret=round(nav / st["capital"] - 1, 4), ndx_ret=round(sc["ndx"] / st["ndx0"] - 1, 4),
                 cash_frac=round(st["cash"] / nav, 4) if nav else 1.0,
                 holdings=[dict(sym=p["sym"], date=p["date"], entry=round(p["entry"], 2), close=round(p["last_close"], 2),

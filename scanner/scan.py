@@ -80,6 +80,9 @@ def sectors(syms, nasdaq_info, max_age=180):
     return {s: zh(cache[s]["sector"], cache[s]["industry"]) if s in cache else ("", "") for s in syms}
 
 
+CASH_SYMS = ["IEF", "^IRX"]     # V2.2 現金：紅燈揸 IEF（7–10 年國債）、綠燈收短期國債息（^IRX = 13 週國債孳息，%）
+
+
 def download(syms, end=None):
     """Yahoo 日線。auto_adjust=False：開高低收只做拆股調整（同圖表一樣，用嚟定前高、止蝕）；Adj Close 連派息調整（用嚟計 RS）。"""
     import yfinance as yf
@@ -89,7 +92,7 @@ def download(syms, end=None):
                   end=(pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
     else:
         kw.update(period="2y")
-    raw = yf.download(syms + ["^NDX"], **kw)
+    raw = yf.download(syms + ["^NDX"] + CASH_SYMS, **kw)
     f = {k: raw.xs(k, axis=1, level=1) for k in ["Open", "High", "Low", "Close", "Adj Close", "Volume"]}
     return {k: v.dropna(how="all") for k, v in f.items()}
 
@@ -126,8 +129,9 @@ def scan(end=None):
     D = download(syms, end)
     O, H, L, C, AC, V = D["Open"], D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
     ndx = C.pop("^NDX").dropna()
+    cash_px = {k: C.pop(k) for k in CASH_SYMS if k in C.columns}
     for X in (O, H, L, AC, V):
-        X.drop(columns="^NDX", inplace=True, errors="ignore")
+        X.drop(columns=["^NDX"] + CASH_SYMS, inplace=True, errors="ignore")
     C = C.dropna(how="all")
     t = C.index[-1]
     O, H, L, AC, V = O.reindex(C.index), H.reindex(C.index), L.reindex(C.index), AC.reindex(C.index), V.reindex(C.index)
@@ -182,6 +186,9 @@ def scan(end=None):
                generated=pd.Timestamp.now(tz="Asia/Hong_Kong").strftime("%Y-%m-%d %H:%M HKT"),
                ndx=round(float(ndx[t]), 2), ndx_e21=round(float(e21[t]), 2), ndx_s50=round(float(s50n[t]), 2),
                ndx_s200=round(float(s200n[t]), 2), green=green, rank1=ranking[0]["sym"] if ranking else None,
+               cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
+                         ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
+                         irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
                universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
                stocks=stocks)
     # 安全檢查：數據唔完整就唔覆蓋舊檔，令 app 繼續顯示上一份

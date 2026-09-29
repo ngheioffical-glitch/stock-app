@@ -180,7 +180,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 <script>
 "use strict";
 // ───────────────────────── 規則（RULES_V2.md v2.1）：app 淨係顯示訊號，買唔買由用戶自己決定
-const RULE = { cap: 5, frac: 0.20, boost: 1.5, rankExit: 12, beR: 2, show: 10 };
+const RULE = { cap: 5, frac: 0.20, boost: 1.5, rankExit: 15, beR: 2, show: 10 };
 const KEY = "signals-app";                // 舊版（v21-app）嘅持倉紀錄唔郁，淨係唔再用
 const defaults = { capital: 0, dataUrl: "scan.json",
                    feedUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/feeds/",
@@ -255,6 +255,7 @@ function header(){
       <div class="gauge"><span>NDX vs 21 日 EMA</span><b class="${d21 >= 0 ? "up" : "dn"}">${pct(d21)}</b><div class="bar"><i style="width:${w(d21)}%"></i></div></div>
       <div class="gauge"><span>21 EMA vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
     </div>
+    <p class="small"><b>現金點擺：</b>${g ? "未用嘅現金買短期國債 ETF（<b>SGOV</b> 或 <b>BIL</b>）收息，要買股時先賣" : "賣晒股之後，現金買 <b>IEF</b>（7–10 年美國國債），轉返綠燈先賣"}</p>
     <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
   </div>`;
 }
@@ -311,7 +312,7 @@ function viewToday(){
       <details><summary>落單方法</summary>
         <p>買入：觸價市價單（MIT）· 買入 · 觸發價 <b>${f2(r.pivot)}</b> · 有效期「當日」</p>
         <p>成交後：觸價市價單（MIT）· 賣出 · 觸發價 <b>${f2(r.stop)}</b> · 長期有效（GTC）</p>
-        <p>收市升到 <b>${f2(r.be_trigger)}</b>（2R）之後，止蝕推上成本價；之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 12、大市紅燈就賣。</p></details>
+        <p>收市升到 <b>${f2(r.be_trigger)}</b>（2R）之後，止蝕推上成本價；之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈就賣。</p></details>
     </div>`;
   }).join("");
   return h;
@@ -350,7 +351,7 @@ const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
   return `<p class="small"><span class="tag t-ser">Serenity 關注</span> 近 30 日提過 ${o.n} 次${o.n7 ? `（近 7 日 ${o.n7} 次）` : ""} · 最近 ${ago(new Date(o.last.ts * 1e3).toISOString())}：
     <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.text)}</a></p>`; };
 
-// ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.1 行虛擬帳戶（scanner/model.py），用戶照抄
+// ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.2 行虛擬帳戶（scanner/model.py），用戶照抄
 let MODEL = null, MODEL_ERR = null;
 async function fetchModel(){
   try {
@@ -362,7 +363,7 @@ async function fetchModel(){
   if (TAB === "model") render();
 }
 
-// 歷史回看：模型（model.json 嘅 hist，9/28 起每日快照）｜回測（V2.1 全現金：model_bt2000.json 由 2000 年、model_bt.json 由 2026 年）
+// 歷史回看：模型（model.json 嘅 hist，9/28 起每日快照）｜回測（V2.2 全現金：model_bt2000.json 由 2000 年、model_bt.json 由 2026 年）
 let HMODE = "model", HIDX = {}, MBT = {}, MBT_ERR = {};
 try { HMODE = localStorage.getItem(KEY + "-hmode") || "model"; } catch(e){}
 const BTFILE = {bt00: "model_bt2000.json", bt26: "model_bt.json"};
@@ -568,7 +569,7 @@ function viewHist(){
     <input type="range" id="histR" min="0" max="${D.length - 1}" value="${i}" aria-label="揀日子">
     <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="揀年份"><option value="">全部年份</option>${years.map(y => `<option${y === Y ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
     <div id="histDay" style="display:flex;flex-direction:column;gap:6px">${histDay(D, i)}</div>
-    <p class="small muted">${HMODE !== "model" ? `V2.1 由 ${esc(B.start)} 全現金、10 萬起步嘅回測（全美股連退市，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
+    <p class="small muted">${HMODE !== "model" ? `V2.2 由 ${esc(B.start)} 全現金、10 萬起步嘅回測（全美股連退市，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
   return h;
 }
 
@@ -592,7 +593,7 @@ function viewModel(){
     <div class="kv"><div><span>回報</span><b>${chg(v.ret)}</b></div><div><span>NDX 同期</span><b>${chg(v.ndx_ret)}</b></div>
       <div><span>持股 · 現金</span><b>${v.holdings.length}/${cap} · ${Math.round(v.cash_frac * 100)}%</b></div></div>
     ${navChart(M.nav)}
-    <p class="small muted">照 V2.1 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>`;
+    <p class="small muted">照 V2.2 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>`;
   for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
 
   h += `<h2>${esc(P.for || v.next_day)} 要做</h2>`;
@@ -604,6 +605,7 @@ function viewModel(){
         <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
       <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺「設定」填資金就會計埋股數。"}</p>`);
   h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
+  h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
   h += viewHist();
 
   if ((A.fills || []).length) h += `<h2>最近成交（模型）</h2><div class="card" style="gap:4px">${A.fills.map(x =>
@@ -629,7 +631,7 @@ function viewRank(){
   const secs = Object.entries(cnt).sort((a,b) => b[1] - a[1]);
   return topbar() + `<h2>RS 排名 · 成交額頭 50</h2>
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
-    <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 12" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
+    <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 15" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
     ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
@@ -722,7 +724,7 @@ function viewSerHist(cand){
   if (!L.length) return h + `<div class="card"><p class="muted">Serenity 由 2025 年 7 月起冇用 $${esc(sym)} 提過呢隻股。</p></div>`;
   const orig = L.filter(t => !t.reply).length, first = L[L.length - 1];
   h += `<div class="card"><div class="kv"><div><span>總共提過</span><b>${L.length} 次</b></div><div><span>推文 · 回覆</span><b>${orig} · ${L.length - orig}</b></div>
-    <div><span>第一次</span><b>${hkDate(first.ts)}</b></div></div>${cand.has(sym) ? `<p class="small"><span class="tag t-cyan">而家係 V2.1 候選股</span></p>` : ""}</div>`;
+    <div><span>第一次</span><b>${hkDate(first.ts)}</b></div></div>${cand.has(sym) ? `<p class="small"><span class="tag t-cyan">而家係 V2.2 候選股</span></p>` : ""}</div>`;
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + L.map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
     <div class="meta">${t.syms.filter(s => s !== sym).slice(0, 8).map(s => `<span class="tag t-dim" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${hkDate(t.ts)}</span></div></div>`).join("") + `</div>`;
   return h + `<p class="small muted">只計有 $${esc(sym)} 嘅推文（2025-07 起，每日更新）；文字最多顯示 280 字，撳入去睇原文。</p>`;
@@ -734,7 +736,7 @@ function viewSerList(){
   const search = `<div class="row" style="flex-wrap:nowrap"><input id="serq" placeholder="輸入代號睇 Serenity 全部講法，例如 LITE" value="${esc(SERSYM)}" autocapitalize="characters"><button id="serGo">搵</button></div>`;
   if (SERSYM) return search + viewSerHist(cand);
   const top = Object.entries(SER.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
-  let h = search + `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.1 候選股；撳落去睇全部講法）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>`;
+  let h = search + `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.2 候選股；撳落去睇全部講法）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>`;
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
     <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span></div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
   return h + `<p class="small muted">Serenity（X @aleabitoreddit）近 30 日有 cashtag 嘅推文。回測：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；唔合格嘅差過 QQQ。只供參考，唔係買入訊號。</p>`;
