@@ -169,34 +169,45 @@ def load(p):
         return None
 
 
-def translate(key, N, S, P, PS):
-    """新聞標題同 Serenity 推文：沿用舊翻譯，新嘅一次過譯。"""
-    cache = {x["title"]: x["zh"] for x in P.get("items", []) if x.get("zh")}
+def translate(key, N, S, P, PS, T=None, PT=None):
+    """新聞標題、Serenity 推文、Trump 貼文：沿用舊翻譯，新嘅一次過譯。"""
+    cache = {x["title"]: (x["zh"], x.get("zm")) for x in P.get("items", []) if x.get("zh")}
     for x in N["items"]:
         if x["title"] in cache:
-            x["zh"] = cache[x["title"]]
+            x["zh"], x["zm"] = cache[x["title"]]
     tw = (S or {}).get("tweets", [])
-    scache = {t["id"]: t["zh"] for t in PS.get("tweets", []) if t.get("zh")}
+    scache = {t["id"]: (t["zh"], t.get("zm")) for t in PS.get("tweets", []) if t.get("zh")}
     for t in tw:
         if t["id"] in scache:
-            t["zh"] = scache[t["id"]]
+            t["zh"], t["zm"] = scache[t["id"]]
+    tp = (T or {}).get("posts", [])
+    tcache = {t["id"]: (t["zh"], t.get("zm")) for t in (PT or {}).get("posts", []) if t.get("zh")}
+    for t in tp:
+        if t["id"] in tcache:
+            t["zh"], t["zm"] = tcache[t["id"]]
     todo_n = [x for x in N["items"] if x["cat"] in CATS and not x.get("zh")][:100]
     todo_s = [t for t in tw if not t.get("zh")][:40]
-    if not todo_n and not todo_s:
+    todo_t = [t for t in tp if not t.get("zh") and t.get("text")][:25]
+    if not todo_n and not todo_s and not todo_t:
         return "冇新嘢要譯"
-    prompt = (f"將以下英文翻譯成中文。{STYLE}唔好加內容、唔好評論、唔好刪走 $股票代號。\n"
-              "news = 財經新聞標題（譯做簡潔標題）；tweets = 美股分析師 Serenity 嘅推文（照意思譯晒，保持原本語氣）。\n"
-              "回覆 JSON：{\"news\": [..], \"tweets\": [..]}，每個陣列次序同數量同輸入一樣。\n"
-              + json.dumps({"news": [x["title"] for x in todo_n], "tweets": [t["text"] for t in todo_s]}, ensure_ascii=False))
+    prompt = (f"將以下英文翻譯成中文。{STYLE}唔好加內容、唔好評論、唔好刪走 $股票代號同網址。\n"
+              "news = 財經新聞標題（譯做簡潔標題）；tweets = 美股分析師 Serenity 嘅推文（照意思譯晒，保持原本語氣）；"
+              "trump = 美國總統 Trump 喺 Truth Social 嘅貼文（照意思譯晒，保留佢誇張、大楷嘅語氣）。\n"
+              "回覆 JSON：{\"news\": [..], \"tweets\": [..], \"trump\": [..]}，每個陣列次序同數量同輸入一樣。\n"
+              + json.dumps({"news": [x["title"] for x in todo_n], "tweets": [t["text"] for t in todo_s],
+                            "trump": [t["text"][:900] for t in todo_t]}, ensure_ascii=False))
     res, model = gemini(key, prompt, MODELS_T)
-    zn, zs = res.get("news", []), res.get("tweets", [])
+    zn, zs, zt = res.get("news", []), res.get("tweets", []), res.get("trump", [])
+    for t, z in zip(todo_t, zt):
+        if isinstance(z, str) and z.strip():
+            t["zh"], t["zm"] = z.strip(), model
     for x, z in zip(todo_n, zn):
         if isinstance(z, str) and z.strip():
-            x["zh"] = z.strip()
+            x["zh"], x["zm"] = z.strip(), model
     for t, z in zip(todo_s, zs):
         if isinstance(z, str) and z.strip():
-            t["zh"] = z.strip()
-    return f"新聞 {len(zn)}／{len(todo_n)} 條、Serenity {len(zs)}／{len(todo_s)} 條（{model}）"
+            t["zh"], t["zm"] = z.strip(), model
+    return f"新聞 {len(zn)}／{len(todo_n)} 條、Serenity {len(zs)}／{len(todo_s)} 條、Trump {len(zt)}／{len(todo_t)} 條（{model}）"
 
 
 def hi_titles(N, now, hours=6):
@@ -237,6 +248,56 @@ def reaction(t_utc):
     return "、".join(out) or "（攞唔到市場數據）"
 
 
+# ---------------------------------------------------------------- 今日市場實際數字同事實核對（2026-09-30 用戶：AI 講美元回落，但實際美元升）
+SNAP = [("QQQ", "QQQ", "%"), ("^TNX", "10 年債息", "bp"), ("DX-Y.NYB", "美元指數", "%"), ("CL=F", "紐約原油", "%"), ("GC=F", "金價", "%")]
+YQ = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?range=1d&interval=5m&includePrePost=false"
+
+
+def snapshot():
+    """最近一個美股交易日：最新價 vs 上一日收市。回傳 [{s, name, chg, unit, at}]。"""
+    out = []
+    for s, nm, unit in SNAP:
+        try:
+            d = json.loads(urllib.request.urlopen(urllib.request.Request(YQ.format(s=urllib.request.quote(s)), headers=UA), timeout=20).read())
+            m = d["chart"]["result"][0]["meta"]
+            pc, px = m.get("chartPreviousClose") or m.get("previousClose"), m.get("regularMarketPrice")
+            if not pc or not px:
+                continue
+            chg = (px - pc) * 100 if unit == "bp" else (px / pc - 1) * 100
+            out.append(dict(s=s, name=nm, chg=round(chg, 2), unit=unit,
+                            at=datetime.fromtimestamp(m.get("regularMarketTime", 0), timezone.utc).astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%m-%d %H:%M")))
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] {s} 市場數字攞唔到：{e}")
+    return out
+
+
+def snap_text(sn):
+    return "、".join(f"{x['name']} {x['chg']:+.1f} 基點" if x["unit"] == "bp" else f"{x['name']} {x['chg']:+.2f}%" for x in sn) or "（攞唔到）"
+
+
+FC_KEYS = {"DX-Y.NYB": r"美元指數|美元|美金|美匯", "^TNX": r"債息|孳息|收益率", "QQQ": r"納指|納斯達克|QQQ", "CL=F": r"油價|原油", "GC=F": r"金價|黃金"}
+FC_UP = r"上升|抽升|攀升|走強|造好|上揚|反彈|上漲|升|漲|彈"
+FC_DN = r"回落|下跌|下降|走弱|回軟|受壓|下滑|挫|跌|落"
+FC_MIN = {"%": 0.05, "bp": 1.0}
+
+
+def factcheck(texts, sn):
+    """AI 文字入面講嘅市場方向，同實際數字核對；回傳唔符合嘅說明。"""
+    act = {x["s"]: x for x in sn}
+    bad = []
+    for t in texts:
+        for s, pat in FC_KEYS.items():
+            x = act.get(s)
+            if not x or abs(x["chg"]) < FC_MIN[x["unit"]]:
+                continue
+            for m in re.finditer(rf"({pat})[^，。；、,.;]{{0,8}}?({FC_UP}|{FC_DN})", t):
+                up = re.fullmatch(FC_UP, m.group(2)) is not None
+                if up != (x["chg"] > 0):
+                    val = f"{x['chg']:+.1f} 基點" if x["unit"] == "bp" else f"{x['chg']:+.2f}%"
+                    bad.append(f"寫咗「{m.group(0)}」，但實際{x['name']} {val}")
+    return sorted(set(bad))
+
+
 def econ_ai(key, N, E, PE, now, light, watch):
     """已公佈嘅重要數據：公佈後第一次見到就解讀；45 分鐘後（6 個鐘內）再解讀一次，等市場反應明朗。"""
     old = {f"{r['t']}|{r['name']}": r for r in PE.get("rows", []) if r.get("ai")}
@@ -251,7 +312,7 @@ def econ_ai(key, N, E, PE, now, light, watch):
             continue
         o = old.get(k)
         if o:
-            r["ai"], r["ai_at"], r["ai_stage"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1)
+            r["ai"], r["ai_at"], r["ai_stage"], r["ai_model"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1), o.get("ai_model")
             try:
                 age = now - datetime.fromisoformat(o["ai_at"])
             except Exception:  # noqa: BLE001
@@ -288,6 +349,7 @@ def econ_ai(key, N, E, PE, now, light, watch):
             r["ai"] = it["text"].strip()
             r["ai_stage"] = (r.get("ai_stage") or 0) + 1 if r.get("ai_at") else 1
             r["ai_at"] = now.isoformat(timespec="seconds")
+            r["ai_model"] = model
             n += 1
     return f"經濟數據解讀 {n}／{len(due)} 項（{model}）"
 
@@ -358,34 +420,48 @@ def fed_ai(key, N, P, now):
     return f"聯儲局文件總結 新 {len(done)}／候選 {len(new)}，共 {len(N['fed'])} 份"
 
 
-def digest(key, N, E, P, now):
+def digest(key, N, E, P, now, force=False, T=None):
     items = N["items"]
     recent = [x for x in items if x["cat"] in CATS and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=18)]
     recent.sort(key=lambda x: x["t"], reverse=True)                  # 新嘅先，再按影響排（穩定排序）
     recent.sort(key=lambda x: -(x.get("imp") or 0))
     heads = [f"[{x['cat']}{'・高影響' if x.get('imp') == 3 else ''}] {x['title']}" for x in recent[:40]]
+    heads += [f"[Trump Truth Social 貼文] {t['text'][:220]}" for t in (T or {}).get("posts", [])
+              if t.get("text") and now.timestamp() - t["ts"] < 18 * 3600 and len(t["text"]) > 40][:8]
     done = [r for r in E.get("rows", []) if r.get("actual") and r.get("imp", 0) >= 2][-12:]
     econ = [f"{r['t']} {r.get('zh') or r['name']}：實際 {r['actual']}／預測 {r.get('forecast') or '—'}／上次 {r.get('previous') or '—'}" for r in done]
     light, watch = context()
+    sn = snapshot()
     sig = hashlib.sha1(json.dumps([heads, econ, watch], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
-    if old.get("sig") == sig or not (heads or econ):
+    if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
-    prompt = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
-              f"大市燈號而家係{light}；佢關注嘅股：{', '.join(watch) or '（冇）'}。\n"
-              "根據下面最近 18 小時嘅新聞標題同已公佈經濟數據，寫：\n"
-              "1. points：3–6 點今日最重要嘅事，每點一句講「發生咩 → 對美股／科技股可能有咩影響」；有提到佢關注嘅股就講埋；\n"
-              "2. econ：一至兩句總結已公佈經濟數據對息口預期嘅意思（冇數據就寫空字串）。\n"
-              "只根據提供嘅資料，唔好估未發生嘅事，唔好叫人買賣。回覆 JSON：{\"points\": [..], \"econ\": \"..\"}。\n"
-              "新聞：\n" + "\n".join(heads) + "\n經濟數據：\n" + ("\n".join(econ) or "（冇）"))
-    res, model = gemini(key, prompt, MODELS_D)
-    pts = [p for p in res.get("points", []) if isinstance(p, str) and p.strip()][:6]
-    if not pts:
-        raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
+    base = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
+            f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
+            f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
+            "根據下面最近 18 小時嘅新聞標題、Trump 貼文（如有，只揀對市場有影響嘅，例如關稅、公司、聯儲局、股市）同已公佈經濟數據，寫：\n"
+            "1. points：3–6 點今日最重要嘅事，每點一句講「發生咩 → 對美股／科技股可能有咩影響」；有提到佢留意嘅股就講埋；\n"
+            "2. econ：一至兩句總結已公佈經濟數據對息口預期嘅意思（冇數據就寫空字串）。\n"
+            "事實規則：講到美元、債息、納指、油價、金價嘅升跌，只可以用上面嘅實際數字；新聞標題可能係幾個鐘前嘅走勢，同實際數字唔同就以實際數字為準，"
+            "唔好寫相反方向。只根據提供嘅資料，唔好估未發生嘅事，唔好叫人買賣。回覆 JSON：{\"points\": [..], \"econ\": \"..\"}。\n"
+            "新聞：\n" + "\n".join(heads) + "\n經濟數據：\n" + ("\n".join(econ) or "（冇）"))
+    prompt, bad, tries = base, [], 0
+    while True:
+        res, model = gemini(key, prompt, MODELS_D)
+        pts = [p for p in res.get("points", []) if isinstance(p, str) and p.strip()][:6]
+        if not pts:
+            raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
+        ec = str(res.get("econ") or "").strip()
+        bad = factcheck(pts + [ec], sn)
+        tries += 1
+        if not bad or tries >= 2:
+            break
+        print(f"[ai] 事實核對唔符合，重寫：{bad}")
+        prompt = base + "\n\n你上一版有錯，要改正：" + "；".join(bad) + "。"
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
-             "model": model, "points": pts, "econ": str(res.get("econ") or "").strip(), "sig": sig, "hi": hi_titles(N, now),
-             "econ_done": [r["name"] for r in fresh_econ(E, now)]},
-            f"今日重點 {len(pts)} 點（{model}）")
+             "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
+             "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries},
+            f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
 def fresh_econ(E, now):
@@ -421,12 +497,13 @@ def main():
     N = load(out / "news.json")
     E = load(out / "econ.json") or {}
     S = load(out / "serenity_recent.json")
-    P, PS = prev("news.json"), prev("serenity_recent.json")
+    T = load(out / "trump_recent.json")
+    P, PS, PT = prev("news.json"), prev("serenity_recent.json"), prev("trump_recent.json")
     now = datetime.now(timezone.utc)
     errs = []
     # 1. 翻譯：每次都做（有新嘢先會用 Gemini）
     try:
-        print("[ai] 翻譯：" + translate(key, N, S, P, PS))
+        print("[ai] 翻譯：" + translate(key, N, S, P, PS, T, PT))
     except Exception as e:  # noqa: BLE001
         print(f"[ai] 翻譯失敗：{e}")
         errs.append(f"翻譯：{str(e)[:300]}")
@@ -442,7 +519,7 @@ def main():
         for r in E.get("rows", []):                      # 失敗就沿用上一份解讀
             o = old.get(f"{r['t']}|{r['name']}")
             if o and not r.get("ai"):
-                r["ai"], r["ai_at"], r["ai_stage"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1)
+                r["ai"], r["ai_at"], r["ai_stage"], r["ai_model"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1), o.get("ai_model")
     # 2b. 聯儲局文件總結：一出就做
     try:
         print("[ai] " + fed_ai(key, N, P, now))
@@ -465,6 +542,10 @@ def main():
     if new_econ and last_ai:
         print(f"[ai] 新公佈經濟數據 {new_econ}，即刻重寫今日重點")
         last_ai = None
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"   # app 撳「重新整理」叫嘅：即刻重寫
+    if manual:
+        print("[ai] 手動更新：即刻重寫今日重點")
+        last_ai = None
     if last_ai and now - last_ai < timedelta(minutes=GAP):
         if P.get("digest"):
             N["digest"] = P["digest"]
@@ -473,7 +554,7 @@ def main():
     else:
         N["ai_at"] = now.isoformat(timespec="seconds")
         try:
-            d, msg = digest(key, N, E, P, now)
+            d, msg = digest(key, N, E, P, now, force=manual, T=T)
             if d:
                 N["digest"] = d
             print("[ai] " + msg)
@@ -487,6 +568,8 @@ def main():
     (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")
     if E:
         (out / "econ.json").write_text(json.dumps(E, ensure_ascii=False), encoding="utf-8")
+    if T is not None:
+        (out / "trump_recent.json").write_text(json.dumps(T, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     if S is not None:
         (out / "serenity_recent.json").write_text(json.dumps(S, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 

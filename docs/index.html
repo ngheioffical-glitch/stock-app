@@ -84,6 +84,8 @@ main>*{min-width:0;max-width:100%}
 .t-warn{color:var(--warn);background:var(--warn-soft);border-color:rgba(255,200,87,.3)}
 [data-sersym]{cursor:pointer}
 .t-ser{color:#c9a2ff;background:rgba(170,120,255,.12);border-color:rgba(170,120,255,.4)}
+.t-tr{color:#ffb38a;background:rgba(255,120,60,.12);border-color:rgba(255,120,60,.45)}
+[data-trsym]{cursor:pointer}
 .t-dim{color:var(--muted);background:rgba(120,200,255,.06);border-color:var(--line)}
 .price{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1.1;color:var(--cyan);text-shadow:0 0 18px rgba(0,229,255,.35)}
 .lbl{font-size:11px;letter-spacing:.14em;color:var(--muted)}
@@ -193,6 +195,9 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 @keyframes blink{50%{opacity:0}}
 .sp-bar{width:180px;height:2px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
 .sp-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--buy));box-shadow:0 0 12px var(--cyan);transition:width .45s var(--ease)}
+.snap{display:flex;flex-wrap:wrap;gap:4px 12px;padding:8px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
+.snap>.muted{flex-basis:100%;font-size:11.5px}
+.zm{font-size:11px;color:var(--dim);font-family:var(--mono)}
 /* 動畫（2026-09-30）：分頁滑入、卡片逐張浮入、底部指示條、撳落回饋、載入骨架 */
 :root{--ease:cubic-bezier(.22,.9,.24,1)}
 .rise{animation:rise .4s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms)}
@@ -265,7 +270,7 @@ function load(){
     const cur = JSON.parse(localStorage.getItem(KEY));
     const s = cur || JSON.parse(localStorage.getItem("v21-app")) || {};       // 第一次：沿用舊版嘅數據網址
     return {...defaults, ...Object.fromEntries(Object.entries({capital: cur ? +cur.capital || 0 : 0,   // 舊版「現金」係餘額，唔當資金
-      dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl}).filter(([, v]) => v))};
+      dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl, ghToken: cur ? cur.ghToken : ""}).filter(([, v]) => v))};
   } catch(e){ return {...defaults}; }
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
@@ -274,6 +279,7 @@ try { TAB = localStorage.getItem(KEY + "-tab") || "today"; } catch(e){}
 
 // ───────────────────────── 工具
 const $ = s => document.querySelector(s);
+const mdl = m => m ? `<span class="tag t-dim" title="用咗呢個 AI 型號">${esc(String(m).replace(/^github:/, "GitHub · "))}</span>` : "";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const f2 = x => (x == null || !isFinite(x)) ? "—" : Number(x).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
 const f0 = x => (x == null || !isFinite(x)) ? "—" : Math.round(x).toLocaleString("en-US");
@@ -447,7 +453,58 @@ async function fetchLev(){
 const levOf = sym => (LEV && LEV[sym]) || [];
 const levNote = sym => { const L = levOf(sym); return L.length ? `<p class="small muted"><span class="tag t-dim">2 倍 ETF</span> ${L.slice(0, 2).join("／")}：唔借錢加槓桿，升跌約正股 2 倍（每日重設，長揸會有耗損）。規則冇用，買唔買自己決定；買入價同止蝕照睇正股。</p>` : ""; };
 const levInd = sym => { const L = levOf(sym); return L.length ? ` · 2倍 ${L[0]}` : ""; };
-const serTag = sym => { const o = SER && SER.by[sym]; return o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : ""; };
+const serTag = sym => { const o = SER && SER.by[sym]; return (o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : "") + trTag(sym); };
+// Trump（Truth Social）：2026-09-30 用戶要求追蹤佢提過嘅公司同講股市嘅貼文；只供參考，唔改規則
+let TR = null, TRALL = null, TRSYM = "", TRALL_ERR = null;
+async function fetchTrump(){
+  const bust = "?t=" + Math.floor(Date.now() / 60e3), m = {}, recent = [];
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "trump.json") + bust, {cache:"no-store"}); if (r.ok) (await r.json()).posts.forEach(x => m[x.id] = x); } catch(e){}
+  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "trump_recent.json" + bust, {cache:"no-store"});
+    if (r.ok) (await r.json()).posts.forEach(x => { recent.push(x); if ((x.syms || []).length || x.kind) m[x.id] = Object.assign({}, m[x.id], x); }); } catch(e){}
+  const now = Date.now() / 1e3, by = {};
+  const ment = Object.values(m).sort((a, b) => b.ts - a.ts);
+  for (const t of ment) if (now - t.ts <= 30 * 86400) for (const s of t.syms || []){ const o = by[s] || (by[s] = {n: 0, last: t}); o.n++; }
+  TR = {by, ment, recent: recent.sort((a, b) => b.ts - a.ts)};
+  render();
+}
+async function fetchTrAll(){
+  if (TRALL) return;
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "trump_all.json") + "?t=" + Math.floor(Date.now() / 3600e3), {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status); TRALL = (await r.json()).posts; TRALL_ERR = null; } catch(e){ TRALL_ERR = e.message; }
+  render();
+}
+const trTag = sym => { const o = TR && TR.by[sym]; return o ? ` <span class="tag t-tr" data-trsym="${sym}" role="button" title="Trump 近 30 日提過 ${o.n} 次：撳落去睇">T·${o.n}</span>` : ""; };
+function openTr(sym){
+  TRSYM = String(sym || "").trim().toUpperCase().replace(/^\$/, "");
+  TAB = "news"; NT = "news"; NCAT = "Trump";
+  try { localStorage.setItem(KEY + "-tab", TAB); localStorage.setItem(KEY + "-nt", NT); } catch(e){}
+  if (TRSYM) fetchTrAll();
+  render("r"); window.scrollTo(0, 0);
+}
+const trPost = (t, cand, skip) => `<div class="news"><a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
+  <div class="meta">${t.kind ? `<span class="tag ${t.kind === "講 BUY" ? "t-stop" : "t-warn"}">${esc(t.kind)}</span>` : ""}${(t.syms || []).filter(s => s !== skip).map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-trsym="${s}" role="button">${s}</span>`).join("")}<span>${hkDate(t.ts)}</span>${t.zm ? `<span class="zm">譯：${esc(String(t.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`;
+function viewTrList(){
+  if (!TR) return `<p class="muted">載入中…</p>`;
+  const cand = new Set(SCAN ? SCAN.ranking.filter(r => r.status === "候選").map(r => r.sym) : []);
+  const search = `<div class="row" style="flex-wrap:nowrap"><input id="trq" placeholder="輸入代號睇 Trump 由 2022 年起提過乜，例如 NVDA" value="${esc(TRSYM)}" autocapitalize="characters"><button id="trGo">搵</button></div>`;
+  if (TRSYM) return search + viewTrHist(cand);
+  const top = Object.entries(TR.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
+  let h = search + (top.length ? `<div class="card"><span class="small muted">近 30 日提過嘅公司（撳落去睇 2022 年起全部）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-tr"}" data-trsym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>` : "");
+  const L = TR.recent.filter(t => t.text && t.text.length > 3).slice(0, 60);
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px"><span class="small muted" style="padding-top:8px">最新貼文（近 3 日）</span>` + (L.length ? L.map(t => trPost(t, cand)).join("") : `<p class="muted" style="padding:10px 0">暫時冇</p>`) + `</div>`;
+  return h + `<p class="small muted">Trump 嘅 Truth Social（佢喺 X 大多只轉片）。來源：trumpstruth.org 同公開存檔；每 5 分鐘更新，AI 即時翻譯。只列有文字嘅貼文；公司用名稱對照代號，可能有漏或者誤判。只供參考，唔係買入訊號。</p>`;
+}
+function viewTrHist(cand){
+  const sym = TRSYM;
+  let h = `<div class="row spread"><h2>${esc(sym)} · Trump 講過乜</h2><button data-trsym="">返回</button></div>`;
+  if (!TRALL) return h + (TRALL_ERR ? `<div class="alert"><b>讀唔到歷史</b><p class="small">${esc(TRALL_ERR)}</p></div>` : `<p class="muted">載入中…</p>`);
+  const seen = new Set(), L = [];
+  for (const t of [...((TR && TR.ment) || []), ...TRALL]) if ((t.syms || []).includes(sym) && !seen.has(t.id)){ seen.add(t.id); L.push(t); }
+  L.sort((a, b) => b.ts - a.ts);
+  if (!L.length) return h + `<div class="card"><p class="muted">由 2022 年 2 月起，冇見 Trump 喺 Truth Social 提過 ${esc(sym)}（按公司名對照，唔包括佢口頭講嘅）。</p></div>`;
+  h += `<div class="card"><div class="kv"><div><span>總共提過</span><b>${L.length} 次</b></div><div><span>第一次</span><b>${hkDate(L[L.length - 1].ts)}</b></div><div><span>最近</span><b>${hkDate(L[0].ts)}</b></div></div></div>`;
+  return h + `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + L.map(t => trPost(t, cand, sym)).join("") + `</div>`;
+}
 // 全部歷史（docs/serenity_all.json，2025-07 起，約 1.5 MB）：撳股票先載入
 let SERALL = null, SERSYM = "", SERALL_ERR = null;
 async function fetchSerAll(){
@@ -763,7 +820,9 @@ function viewSet(){
     <label>資金（美元，可以唔填；填咗先計股數）<input id="capital" type="number" step="any" inputmode="decimal" value="${S.capital || ""}" placeholder="例如 100000"></label>
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
     <label>新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
-    <label>盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label></div>
+    <label>盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label>
+    <label>GitHub token（可選：撳新聞「重新整理」即刻叫雲端更新 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
+    <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
   <div class="card small muted"><p>規則 V2.2（RULES_V2.md）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高就買。每隻 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈（下一日開市清倉）就賣。帳戶由星期五高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到 −12.5% 以內恢復。現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
     <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></div>`;
@@ -781,6 +840,29 @@ const WD = "日一二三四五六";
 const dayLabel = ds => { const d = new Date(ds + "T12:00:00Z"); return `${ds.slice(5).replace("-", "/")} 星期${WD[d.getUTCDay()]}`; };
 const ago = t => { const m = (Date.now() - Date.parse(t)) / 60e3; return m < 60 ? `${Math.max(1, Math.round(m))} 分鐘前` : m < 1440 ? `${Math.round(m / 60)} 小時前` : `${Math.round(m / 1440)} 日前`; };
 
+// 撳「重新整理」：有 GitHub token 就即刻觸發雲端更新（feeds.yml workflow_dispatch），之後每 15 秒睇下有冇新數據（最多 5 分鐘）
+const repoOf = () => { const m = /githubusercontent\.com\/([^/]+\/[^/]+)\//.exec(S.feedUrl || ""); return m ? m[1] : "ngheioffical-glitch/stock-app"; };
+async function cloudRefresh(){
+  if (!S.ghToken){ fetchFeeds(true); return; }
+  const before = FEED.news && FEED.news.generated;
+  FEED.cloud = "觸發緊雲端更新…"; render();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/feeds.yml/dispatches`, {method: "POST",
+      headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
+      body: JSON.stringify({ref: "main"})});
+    if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : ""));
+  } catch(e){ FEED.cloud = "觸發唔到：" + e.message; render(); fetchFeeds(true); return; }
+  const t0 = Date.now();
+  const tick = async () => {
+    await fetchFeeds(true);
+    const now = FEED.news && FEED.news.generated;
+    if (now && now !== before){ FEED.cloud = "已更新（" + now + "）"; render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news") render(); }, 8000); return; }
+    if (Date.now() - t0 > 5 * 60e3){ FEED.cloud = "雲端仲未更新完，遲啲再撳"; render(); return; }
+    FEED.cloud = `雲端更新中（約 1–2 分鐘）… ${Math.round((Date.now() - t0) / 1e3)} 秒`; render();
+    setTimeout(tick, 15e3);
+  };
+  setTimeout(tick, 20e3);
+}
 async function fetchFeeds(force){
   if (FEED.busy || (!force && Date.now() - FEED.at < 5 * 60e3 && FEED.news)) return;
   FEED.busy = true;
@@ -847,7 +929,7 @@ function fedDoc(f, open){
     <span class="small muted">· ${esc(parts(HK, new Date(f.t)).date)}</span></summary>
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${f.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
     ${f.change ? `<p class="small"><b>同上次比：</b>${esc(f.change)}</p>` : ""}${f.impact ? `<p class="small"><b>對市場：</b>${esc(f.impact)}</p>` : ""}
-    <p class="small muted"><a href="${esc(f.link)}" target="_blank" rel="noopener">聯儲局原文</a> · AI 總結，可能有錯漏</p></details>`;
+    <p class="small muted"><a href="${esc(f.link)}" target="_blank" rel="noopener">聯儲局原文</a> · AI 總結（${esc(f.model || "AI")}），可能有錯漏</p></details>`;
 }
 function fedCard(){
   const F = (FEED.news && FEED.news.fed) || [];
@@ -867,7 +949,7 @@ function fedFor(r){           // 經濟數據行：議息／會議紀錄／主�
 function econNote(r, cmp){
   const I = ECON_INFO[r.zh];
   // AI 即時解讀（scanner/ai.py：公佈後第一次更新就寫、45 分鐘後按市場反應再寫一次）
-  const ai = (r.ai ? `<div class="exp aiexp"><b>AI 解讀</b><span class="small muted">（${r.ai_stage >= 2 ? "市場反應後更新" : "初步"}${r.ai_at ? " · " + esc(parts(HK, new Date(r.ai_at)).time) : ""}）</span><p>${esc(r.ai)}</p></div>` : "") + fedFor(r);
+  const ai = (r.ai ? `<div class="exp aiexp"><b>AI 解讀</b> ${mdl(r.ai_model)}<span class="small muted">（${r.ai_stage >= 2 ? "市場反應後更新" : "初步"}${r.ai_at ? " · " + esc(parts(HK, new Date(r.ai_at)).time) : ""}；市場反應 = 公佈後至今）</span><p>${esc(r.ai)}</p></div>` : "") + fedFor(r);
   if (!I) return ai;
   const eff = cmp === "高過預測" ? I.up : cmp === "低過預測" ? I.dn : "";
   return ai + `<details class="exp"><summary>${r.ai ? "基本解釋：係咩？點影響？" : eff ? `<b>解讀</b>：${esc(eff)}` : "係咩？點影響？"}</summary>
@@ -905,7 +987,8 @@ function viewEcon(){
 function viewNewsList(){
   const N = FEED.news.items;
   const mine = new Set(SCAN ? signals().list.map(r => r.sym) : []);
-  const cats = ["全部", "快訊", "Serenity", "買入訊號股", "市場", "經濟", "國際", "科技"];
+  const cats = ["全部", "快訊", "Serenity", "Trump", "買入訊號股", "市場", "經濟", "國際", "科技"];
+  if (NCAT === "Trump") return `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>` + viewTrList();
   if (NCAT === "Serenity") return `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>` + viewSerList();
   let list = NCAT === "全部" ? N.filter(x => !x.sym) : NCAT === "買入訊號股" ? N.filter(x => x.sym && mine.has(x.sym)) : N.filter(x => x.cat === NCAT);
   const seen = new Set();
@@ -914,7 +997,7 @@ function viewNewsList(){
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (list.length ? list.map(x => {
     const syms = NCAT === "買入訊號股" ? N.filter(y => y.title === x.title && y.sym && mine.has(y.sym)).map(y => y.sym) : [];
     return `<div class="news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
-      <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}${x.imp >= 3 ? `<span class="tag t-stop">高影響</span>` : x.imp === 2 ? `<span class="tag t-warn">中影響</span>` : ""}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}</div></div>`;
+      <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}${x.imp >= 3 ? `<span class="tag t-stop">高影響</span>` : x.imp === 2 ? `<span class="tag t-warn">中影響</span>` : ""}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`;
   }).join("") : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
   return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。快訊來自 ForexFactory（影響評級係 FF 嘅）。</p>`;
 }
@@ -943,7 +1026,7 @@ function viewSerList(){
   const top = Object.entries(SER.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
   let h = search + `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.2 候選股；撳落去睇全部講法）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>`;
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
-    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span></div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
+    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span>${t.zm ? `<span class="zm">譯：${esc(String(t.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
   return h + `<p class="small muted">Serenity（X @aleabitoreddit）近 30 日有 cashtag 嘅推文。回測：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；唔合格嘅差過 QQQ。只供參考，唔係買入訊號。</p>`;
 }
 
@@ -951,13 +1034,20 @@ function viewNews(){
   if (!FEED.news && !FEED.err) fetchFeeds();
   let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button></div>
     <button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`;
+  if (FEED.cloud) h += `<p class="small" style="color:var(--cyan)">${esc(FEED.cloud)}</p>`;
   if (FEED.err) h += `<div class="alert"><b>讀唔到新聞數據</b><p class="small">${esc(FEED.err)}</p></div>`;
   if (!FEED.news || !FEED.econ) return h + (FEED.err ? "" : `<p class="muted">載入中…</p>`);
   const D = FEED.news.digest;           // Gemini「今日重點」（scanner/ai.py，GitHub 每 30 分鐘；冇 key 就冇）
-  if (D && (D.points || []).length) h += `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>AI 今日重點</b> <span class="small muted">· ${esc(D.generated)}</span></summary>
+  if (D && (D.points || []).length){
+    const sn = (D.snap || []).map(x => `<span>${esc(x.name)} <b class="${x.chg >= 0 ? "up" : "dn"}">${x.unit === "bp" ? (x.chg >= 0 ? "+" : "") + x.chg.toFixed(1) + " 基點" : pct(x.chg / 100, 2)}</b></span>`).join("");
+    const fc = D.checked ? ((D.warn || []).length ? `<div class="alert small"><b>事實核對：有 ${D.warn.length} 處同實際數字唔符</b>${D.warn.map(w => `<div>· ${esc(w)}</div>`).join("")}</div>`
+                                               : `<p class="small up">✓ 市場升跌已同實際數字核對${D.tries > 1 ? "（第一版有錯，已自動重寫）" : ""}</p>`) : "";
+    h += `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>AI 今日重點</b> <span class="small muted">· ${esc(D.generated)}</span> ${mdl(D.model)}</summary>
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${D.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
     ${D.econ ? `<p class="small" style="margin-top:6px"><b>經濟數據：</b>${esc(D.econ)}</p>` : ""}
-    <p class="small muted">Gemini 根據最近 18 小時新聞標題同已公佈數據自動生成，可能有錯漏，唔係投資建議；撳新聞睇原文。</p></details>`;
+    ${sn ? `<div class="snap small"><span class="muted">全日實際（最新 vs 上日收市${D.snap[0] && D.snap[0].at ? "，" + esc(D.snap[0].at) : ""}）</span>${sn}</div>` : ""}${fc}
+    <p class="small muted">${esc(D.model || "AI")} 根據最近 18 小時新聞標題、已公佈數據同上面實際市場數字自動生成，可能有錯漏，唔係投資建議；撳新聞睇原文。注意：經濟數據解讀嘅市場反應係「公佈後至今」，同呢度嘅「全日」可以方向唔同。</p></details>`;
+  }
   h += fedCard();
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
@@ -982,9 +1072,9 @@ function bind(){
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on("#saveSet", () => { const c = +$("#capital").value; S.capital = isFinite(c) && c > 0 ? c : 0;
     S.dataUrl = $("#dataUrl").value.trim() || defaults.dataUrl; S.feedUrl = $("#feedUrl").value.trim() || defaults.feedUrl;
-    S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl; save(); FEED.at = 0; fetchScan(); fetchLive(); });
+    S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl; S.ghToken = $("#ghToken").value.trim(); save(); FEED.at = 0; fetchScan(); fetchLive(); });
   on("#reload", () => fetchScan());
-  on("#feedReload", () => { fetchFeeds(true); render(); });
+  on("#feedReload", () => { cloudRefresh(); render(); });
   on("#goToday", () => jumpToday(true));
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { if (b.dataset.nt === "econ") FEED.scrolled = false; NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
@@ -996,6 +1086,9 @@ function bind(){
   document.querySelectorAll("[data-hsrc]").forEach(b => b.onclick = () => { HSRC = b.dataset.hsrc; render("f"); });
   on("#hGo", () => histRange($("#hA").value, $("#hB").value));
   document.querySelectorAll("[data-sersym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openSer(b.dataset.sersym); });
+  document.querySelectorAll("[data-trsym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openTr(b.dataset.trsym); });
+  on("#trGo", () => openTr($("#trq").value));
+  const tq = $("#trq"); if (tq) tq.onkeydown = e => { if (e.key === "Enter") openTr(tq.value); };
   on("#serGo", () => openSer($("#serq").value));
   const q = $("#serq"); if (q) q.onkeydown = e => { if (e.key === "Enter") openSer(q.value); };
   document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render("f"); });
@@ -1060,6 +1153,7 @@ fetchScan();
 fetchModel();
 fetchLive();
 fetchSer();
+fetchTrump();
 fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });

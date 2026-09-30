@@ -22,11 +22,17 @@ jobs:
       - run: python scanner/serenity.py
         env:
           PYTHONIOENCODING: utf-8
+      - name: Trump 歷史（Truth Social 提過嘅公司、講股市）：補最近 10 日
+        run: python scanner/trump.py all
+        continue-on-error: true
+        timeout-minutes: 8
+        env:
+          PYTHONIOENCODING: utf-8
       - name: 提交
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/serenity.json docs/serenity_all.json
+          git add docs/serenity.json docs/serenity_all.json docs/trump.json docs/trump_all.json
           if git diff --cached --quiet; then echo "冇新數據"; exit 0; fi
-          git commit -q -m "Serenity $(date -u +%F)"
+          git commit -q -m "Serenity + Trump $(date -u +%F)"
           for i in 1 2 3; do git pull -q --rebase && git push -q && break; sleep 10; done
