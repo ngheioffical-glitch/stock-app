@@ -12,8 +12,10 @@ key 只由環境變數 GEMINI_API_KEY 讀（GitHub Secrets）；冇 key、額度
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -154,7 +156,7 @@ def econ_ai(key, N, E, PE, now, light, watch):
     et = ZoneInfo("America/New_York")
     due = []
     for r in E.get("rows", []):
-        if not r.get("actual") or (r.get("imp") or 0) < 2 or len(r["t"]) <= 10:
+        if not r.get("actual") or (r.get("imp") or 0) < 1 or len(r["t"]) <= 10:
             continue
         k = f"{r['t']}|{r['name']}"
         rel = datetime.fromisoformat(r["t"]).replace(tzinfo=et).astimezone(timezone.utc)
@@ -181,8 +183,10 @@ def econ_ai(key, N, E, PE, now, light, watch):
                      f"／上次 {r.get('previous') or '—'}｜公佈至今市場：{reaction(rel)}")
     prompt = (f"你係美股宏觀分析助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶解讀啱啱公佈嘅經濟數據。{STYLE}\n"
               f"大市燈號而家係{light}；佢關注嘅股：{', '.join(watch) or '（冇）'}。\n"
-              "每項數據寫 2–4 句：①同預測同上次比，代表咩（例如通脹熱／就業轉弱）；②市場實際反應（只用提供嘅 QQQ、債息、美元數字）："
-              "如果數據偏離預測但市場反應細或者相反，要講可能已經 price in 或者市場睇緊其他嘢；③對息口預期同美股科技股嘅含意。"
+              "每項數據寫 2–4 句：①同預測同上次比，代表咩（按數據本身嘅類別講：通脹、就業、消費、製造業、服務業、樓市、能源、貿易等，"
+              "例如樓市數據講建築同按揭、原油庫存講油價同能源股、消費信心同零售講消費股同企業盈利、PMI 講工業同晶片需求）；"
+              "②市場實際反應（只用提供嘅 QQQ、債息、美元數字）：如果數據偏離預測但市場反應細或者相反，要講可能已經 price in 或者市場睇緊其他嘢；"
+              "③對美股（特別係科技股）同相關板塊嘅含意；息口預期只喺相關時先講，唔好每項都扯去加減息。細影響數據寫短啲。"
               "公佈唔夠 15 分鐘就講明反應未明朗。只根據提供資料，唔好作新聞，唔好叫人買賣。\n"
               "回覆 JSON：{\"items\": [{\"i\": 編號, \"text\": \"..\"}]}。\n數據：\n" + "\n".join(lines)
               + "\n近 4 個鐘相關快訊：\n" + ("\n".join(heads) or "（冇）"))
@@ -199,6 +203,72 @@ def econ_ai(key, N, E, PE, now, light, watch):
             r["ai_at"] = now.isoformat(timespec="seconds")
             n += 1
     return f"經濟數據解讀 {n}／{len(due)} 項（{model}）"
+
+
+# ---------------------------------------------------------------- 聯儲局文件總結（2026-09-30 用戶要求：FOMC minutes 講咗咩）
+FED_PRESS = re.compile(r"FOMC|Federal Open Market Committee|monetary policy|Beige Book|discount rate", re.I)
+
+
+def fed_text(url):
+    """讀聯儲局網頁全文（去 HTML），最多 60,000 字。"""
+    raw = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30).read().decode("utf-8", "ignore")
+    full = re.search(r'href="(/monetarypolicy/(?:fomcminutes\d+|beigebook\d+)\.htm)"', raw)
+    if full and "pressreleases" in url:          # 新聞稿只係公佈：跟連結去讀會議紀錄／褐皮書全文
+        raw = urllib.request.urlopen(urllib.request.Request("https://www.federalreserve.gov" + full.group(1), headers=UA),
+                                     timeout=30).read().decode("utf-8", "ignore")
+    m = re.search(r'<div[^>]+id="article"[^>]*>(.*)', raw, re.S) or re.search(r"<main[^>]*>(.*)", raw, re.S)
+    body = m.group(1) if m else raw
+    body = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", body, flags=re.S)
+    txt = html.unescape(re.sub(r"<[^>]+>", " ", body))
+    return re.sub(r"\s+", " ", txt).strip()[:60000]
+
+
+def fed_ai(key, N, P, now):
+    """新嘅聯儲局文件（FOMC 聲明／會議紀錄／褐皮書／官員講話）：讀全文做廣東話總結；舊嘅沿用（保留 45 日）。"""
+    old = {f["link"]: f for f in P.get("fed", []) if f.get("link")}
+    try:                                              # 直接讀聯儲局 RSS（新聞頁只留 72 個鐘，呢度要 45 日）
+        from feeds import rss
+        cands = rss("https://www.federalreserve.gov/feeds/press_all.xml", "聯儲局", "經濟") \
+            + rss("https://www.federalreserve.gov/feeds/speeches.xml", "聯儲局講話", "經濟")
+    except Exception:  # noqa: BLE001
+        cands = [x for x in N["items"] if x.get("src") in ("聯儲局", "聯儲局講話")]
+    cut = now - timedelta(days=45)
+    cands = [x for x in cands if x.get("link") and (x["src"] == "聯儲局講話" or FED_PRESS.search(x["title"]))
+             and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > cut]
+    pri = lambda x: 0 if re.search(r"Minutes of the Federal Open|FOMC statement|Beige Book", x["title"]) else (1 if x["src"] == "聯儲局" else 2)
+    cands.sort(key=lambda x: x["t"], reverse=True)
+    cands.sort(key=pri)                               # 會議紀錄／聲明／褐皮書優先，其次其他新聞稿，再到講話
+    new = [x for x in cands if x["link"] not in old][:2]          # 每次最多兩份（慳額度）
+    done = []
+    for x in new:
+        try:
+            txt = fed_text(x["link"])
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 讀唔到 {x['link']}：{e}")
+            continue
+        if len(txt) < 300:
+            continue
+        kind = "講話" if x["src"] == "聯儲局講話" else ("會議紀錄" if "Minutes" in x["title"] else ("褐皮書" if "Beige" in x["title"] else "聲明／公佈"))
+        prompt = (f"總結以下美國聯儲局文件（類別：{kind}），俾做美股大型科技股嘅香港散戶睇。{STYLE}\n"
+                  "回覆 JSON：{\"title\": \"中文標題\", \"tone\": \"鷹派／偏鷹／中性／偏鴿／鴿派 之一\", "
+                  "\"points\": [4–8 點重點，每點一句，包括對通脹、就業、經濟、息口路徑嘅睇法同委員之間嘅分歧], "
+                  "\"change\": \"同上次比有咩唔同（文件冇講就寫空字串）\", \"impact\": \"對息口預期、美元、美股科技股嘅含意（一至兩句）\"}。"
+                  "只根據文件內容，唔好加外面資料，唔好叫人買賣。\n文件標題：" + x["title"] + "\n全文：\n" + txt)
+        try:
+            res, model = gemini(key, prompt, MODELS_D)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 聯儲局總結失敗：{e}")
+            break
+        pts = [p for p in res.get("points", []) if isinstance(p, str) and p.strip()][:8]
+        if not pts:
+            continue
+        done.append({"link": x["link"], "t": x["t"], "kind": kind, "src_title": x["title"], "title": str(res.get("title") or x["title"]),
+                     "tone": str(res.get("tone") or ""), "points": pts, "change": str(res.get("change") or ""),
+                     "impact": str(res.get("impact") or ""), "model": model})
+    keep = done + [f for f in old.values() if datetime.fromisoformat(f["t"].replace("Z", "+00:00")) > now - timedelta(days=45)]
+    keep.sort(key=lambda f: f["t"], reverse=True)
+    N["fed"] = keep[:20]
+    return f"聯儲局文件總結 新 {len(done)}／候選 {len(new)}，共 {len(N['fed'])} 份"
 
 
 def digest(key, N, E, P, now):
@@ -272,6 +342,14 @@ def main():
             o = old.get(f"{r['t']}|{r['name']}")
             if o and not r.get("ai"):
                 r["ai"], r["ai_at"], r["ai_stage"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1)
+    # 2b. 聯儲局文件總結：一出就做
+    try:
+        print("[ai] " + fed_ai(key, N, P, now))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 聯儲局總結失敗：{e}")
+        errs.append(f"聯儲局：{str(e)[:300]}")
+        if P.get("fed"):
+            N["fed"] = P["fed"]
     # 3. 今日重點：最少隔 GAP 分鐘；有新嘅高影響快訊（而且上次係 5 分鐘前）就即刻重寫
     try:
         last_ai = datetime.fromisoformat(P["ai_at"])

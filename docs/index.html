@@ -736,10 +736,34 @@ const ECON_INFO = {
   "聯儲局主席講話": {what: "聯儲局主席公開講話。", why: "一句「仲未有信心通脹回落」都可以令市場即時大上落。"},
   "國債拍賣": {what: "美國財政部拍賣國債。", why: "需求差（得標息率高過預期）會推高長債息率，壓住股市估值。"},
 };
+// 聯儲局文件 AI 總結（scanner/ai.py 讀聯儲局官網全文：FOMC 聲明、會議紀錄、褐皮書、官員講話）
+const toneTag = t => !t ? "" : `<span class="tag ${/鷹/.test(t) ? "t-warn" : /鴿/.test(t) ? "t-buy" : "t-dim"}">${esc(t)}</span>`;
+function fedDoc(f, open){
+  return `<details class="exp fed" ${open ? "open" : ""}><summary><span class="tag t-cyan">${esc(f.kind)}</span> ${toneTag(f.tone)} <b>${esc(f.title)}</b>
+    <span class="small muted">· ${esc(parts(HK, new Date(f.t)).date)}</span></summary>
+    <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${f.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
+    ${f.change ? `<p class="small"><b>同上次比：</b>${esc(f.change)}</p>` : ""}${f.impact ? `<p class="small"><b>對市場：</b>${esc(f.impact)}</p>` : ""}
+    <p class="small muted"><a href="${esc(f.link)}" target="_blank" rel="noopener">聯儲局原文</a> · AI 總結，可能有錯漏</p></details>`;
+}
+function fedCard(){
+  const F = (FEED.news && FEED.news.fed) || [];
+  if (!F.length) return "";
+  return `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>聯儲局文件總結</b> <span class="small muted">· 最近 ${F.length} 份</span></summary>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${F.slice(0, 8).map((f, i) => fedDoc(f, i === 0)).join("")}</div></details>`;
+}
+function fedFor(r){           // 經濟數據行：議息／會議紀錄／主席講話 → 同日（前後一日）嘅聯儲局文件
+  const F = (FEED.news && FEED.news.fed) || [];
+  const want = {"聯儲局會議紀錄": /會議紀錄/, "聯儲局議息": /聲明/, "聯儲局主席講話": /講話/}[r.zh];
+  if (!want) return "";
+  const d0 = Date.parse(r.t.slice(0, 10) + "T12:00:00Z");
+  const f = F.find(f => want.test(f.kind) && Math.abs(Date.parse(f.t) - d0) < 1.5 * 86400e3);
+  return f ? fedDoc(f, true) : "";
+}
+
 function econNote(r, cmp){
   const I = ECON_INFO[r.zh];
   // AI 即時解讀（scanner/ai.py：公佈後第一次更新就寫、45 分鐘後按市場反應再寫一次）
-  const ai = r.ai ? `<div class="exp aiexp"><b>AI 解讀</b><span class="small muted">（${r.ai_stage >= 2 ? "市場反應後更新" : "初步"}${r.ai_at ? " · " + esc(parts(HK, new Date(r.ai_at)).time) : ""}）</span><p>${esc(r.ai)}</p></div>` : "";
+  const ai = (r.ai ? `<div class="exp aiexp"><b>AI 解讀</b><span class="small muted">（${r.ai_stage >= 2 ? "市場反應後更新" : "初步"}${r.ai_at ? " · " + esc(parts(HK, new Date(r.ai_at)).time) : ""}）</span><p>${esc(r.ai)}</p></div>` : "") + fedFor(r);
   if (!I) return ai;
   const eff = cmp === "高過預測" ? I.up : cmp === "低過預測" ? I.dn : "";
   return ai + `<details class="exp"><summary>${r.ai ? "基本解釋：係咩？點影響？" : eff ? `<b>解讀</b>：${esc(eff)}` : "係咩？點影響？"}</summary>
@@ -824,6 +848,7 @@ function viewNews(){
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${D.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
     ${D.econ ? `<p class="small" style="margin-top:6px"><b>經濟數據：</b>${esc(D.econ)}</p>` : ""}
     <p class="small muted">Gemini 根據最近 18 小時新聞標題同已公佈數據自動生成，可能有錯漏，唔係投資建議；撳新聞睇原文。</p></details>`;
+  h += fedCard();
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
