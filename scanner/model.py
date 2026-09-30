@@ -20,14 +20,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCAN, OUT = ROOT / "docs" / "scan.json", ROOT / "docs" / "model.json"
 CONT = ROOT / "docs" / "model_cont.json"
 RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=15.0, rank_exit_brake=6.0, sleeve_cost=0.001, be_R=2.0, atr_buf=0.2,
-            brake_down=0.75, brake_up=0.875, cost=0.001, mult=2)
+            brake_down=0.75, brake_up=0.875, cost=0.001, mult=2,
+            delist_days=5,       # 持倉連續 5 個交易日冇價：當退市／被收購，按最後收市價賣（同回測引擎一樣）；停牌幾日唔會誤判
+            split_tol=0.03)      # 同一日收市價被 Yahoo 追溯改咗 > 3% = 拆股／合股（大升大跌唔會改舊收市價）
 CAPITAL = 100_000.0
 
 
@@ -39,8 +44,8 @@ def nav_at(st, px):
     return st["cash"] + sum(p["shares"] * px(p) for p in st["positions"])
 
 
-def snap(st, d, fills, green):
-    """每日收市快照（同 stock-strategy/src/model_bt.py 嘅 days 格式一樣）。"""
+def snap(st, d, fills, green, q=None):
+    """每日收市快照（同 stock-strategy/src/model_bt.py 嘅 days 格式一樣）；q = 當日 QQQ 收市（比較用）。"""
     nav = nav_at(st, lambda p: p["last_close"])
     pos = sorted((dict(s=p["sym"], w=round(p["shares"] * p["last_close"] / nav, 4) if nav else 0,
                        ret=round(p["last_close"] / p["entry"] - 1, 4), e=round(p["entry"], 2), c=round(p["last_close"], 2),
@@ -48,8 +53,11 @@ def snap(st, d, fills, green):
     f = [dict(s=x["sym"], side=x["side"], px=x["px"], **({"ret": x["ret"]} if x.get("ret") is not None else {}),
               why=x.get("reason") or "突破買入") for x in fills if x["date"] == d]
     h = st.setdefault("hist", [])
+    old = next((x for x in h if x["d"] == d), None)
     h[:] = [x for x in h if x["d"] != d]
-    h.append(dict(d=d, nav=round(nav, 0), cash=round(st["cash"] / nav, 4) if nav else 1.0, green=green, pos=pos, f=f))
+    if q is None and old:
+        q = old.get("q")
+    h.append(dict(d=d, nav=round(nav, 0), cash=round(st["cash"] / nav, 4) if nav else 1.0, green=green, pos=pos, f=f, **({"q": q} if q else {})))
 
 
 def plan(st, sc, actions):
@@ -59,8 +67,8 @@ def plan(st, sc, actions):
     sells = []
     for p in st["positions"]:
         s = stocks.get(p["sym"])
-        if not s:
-            actions["warn"].append(f"{p['sym']} 冇數據，請自己檢查")
+        if not s or s.get("close") is None:
+            actions["warn"].append(f"{p['sym']} 今日冇數據（已連續 {p.get('miss', 0)} 日）：連續 {R['delist_days']} 日冇數據就當退市，按最後收市價自動賣出")
             continue
         c, old = s["close"], p["stop"]
         if not p["be"] and p["R"] > 0 and c >= p["entry"] + R["be_R"] * p["R"]:
@@ -143,13 +151,51 @@ def step(st, sc, i, actions):
         if lo is not None and lo <= p["stop"]:
             px = o if (o is not None and o <= p["stop"] and p["date"] != d) else p["stop"]
             close_pos(st, p, px, d, "打止蝕", actions)
-    for p in st["positions"]:                                  # 4. 收市
+    for p in list(st["positions"]):                            # 4. 收市（冇價就數日子；連續 delist_days 日 = 退市）
         c = arr(p["sym"], "c10")
         if c is not None:
-            p["last_close"] = c
+            p["last_close"], p["miss"] = c, 0
+        else:
+            p["miss"] = p.get("miss", 0) + 1
+            if p["miss"] >= R["delist_days"]:
+                delisted(st, p, d, actions)
     cash_sleeve(st, sc, i)
     st["nav"].append(dict(date=d, nav=round(nav_at(st, lambda p: p["last_close"]), 2)))
-    snap(st, d, actions["fills"], sc["green"] if d == sc["date"] else None)
+    snap(st, d, actions["fills"], sc["green"] if d == sc["date"] else None, qqq_at(sc, i))
+
+
+def qqq_at(sc, i):
+    q = ((sc.get("bench") or {}).get("qqq10") or [None] * 10)
+    return q[i] if i < len(q) else None
+
+
+def delisted(st, p, d, actions):
+    """持倉連續冇數據：AI（Google 搜尋）查咩事。收購 → 收購價；改代號 → 轉新代號；停牌 → 等（最多 20 日）；其他 → 最後收市價。"""
+    if p.get("ai_checked") == d:
+        return
+    p["ai_checked"] = d
+    r, src = ai_search(f"美股代號 {p['sym']}（最後有價：{p['last_close']:.2f} 美元）由 {d} 前幾日開始冇交易數據。查下發生咩事："
+                       '回覆 JSON：{"status": "acquired" 或 "renamed" 或 "halted" 或 "delisted" 或 "bankrupt" 或 "trading" 或 "unknown", '
+                       '"cash_per_share": 收購現金價（每股美元，冇就 null）, "new_ticker": 新代號（改名先有，冇就 null）, "note": "一句中文講發生咩事"}')
+    st_ = (r or {}).get("status")
+    note = (r or {}).get("note", "")
+    if st_ == "renamed" and r.get("new_ticker"):
+        old, p["sym"], p["miss"] = p["sym"], str(r["new_ticker"]).upper().strip("$ "), 0
+        actions["warn"].append(f"{old} 改咗代號做 {p['sym']}（{src}：{note}），模型已轉用新代號繼續揸")
+        return
+    if st_ in ("halted", "trading") and p["miss"] < 20:
+        actions["warn"].append(f"{p['sym']} 連續 {p['miss']} 日冇數據，AI 查到係「{'停牌' if st_ == 'halted' else '仲有交易'}」（{src}：{note}），繼續揸住等；20 日都冇數據先會按最後收市價賣")
+        return
+    px, why = p["last_close"], f"連續 {p['miss']} 日冇數據"
+    if st_ == "acquired" and r.get("cash_per_share"):
+        try:
+            px, why = float(r["cash_per_share"]), "被收購（現金收購價）"
+        except (TypeError, ValueError):
+            pass
+    elif st_ in ("delisted", "bankrupt"):
+        why = "退市" if st_ == "delisted" else "破產"
+    close_pos(st, p, px, d, f"{why}，按 {px:.2f} 賣", actions)
+    actions["warn"].append(f"{p['sym']}：{why}（{src if r else 'AI 查唔到：' + src}{'：' + note if note else ''}），模型已按 {px:.2f} 賣出；你實際戶口通常會由券商自動處理（收購會轉現金）")
 
 
 def cash_sleeve(st, sc, i):
@@ -182,14 +228,77 @@ def close_pos(st, p, price, d, reason, actions):
     actions["fills"].append(dict(date=d, sym=p["sym"], side="賣出", px=round(price, 2), ret=round(ret, 4), reason=reason))
 
 
-def fix_splits(st, sc, i0):
-    """拆股：新數據前一日收市同存低嘅收市差好遠 -> 按比例換算持倉。"""
-    if i0 < 1:
+# ---------------------------------------------------------------- 查證（2026-10-01 用戶：拆股、退市要查清楚，唔好靠估）
+# 拆股：先睇 Yahoo 官方拆股紀錄；冇紀錄先問 Gemini（開 Google 搜尋，真係上網查），兩樣都確認唔到就唔調整，出警告
+# 退市：連續冇數據就問 Gemini（Google 搜尋）：被收購（用收購價賣）、改代號（轉新代號）、停牌（繼續等，最多 20 日）、退市／破產（最後收市價賣）
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
+
+
+def yahoo_splits(sym, days=45):
+    """Yahoo 官方拆股紀錄：回傳 [(日期, 價錢倍數)]；2 拆 1 = 0.5（價錢減半），1 合 10 = 10。"""
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?range={'3mo' if days <= 80 else '5y'}&interval=1d&events=split"
+    try:
+        d = json.loads(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=20).read())
+        ev = ((d["chart"]["result"][0].get("events") or {}).get("splits") or {}).values()
+        cut = datetime.now(timezone.utc).timestamp() - days * 86400
+        return [(datetime.fromtimestamp(e["date"], timezone.utc).date().isoformat(), e["denominator"] / e["numerator"])
+                for e in ev if e.get("date", 0) >= cut and e.get("numerator")]
+    except Exception as e:  # noqa: BLE001
+        print(f"[model] Yahoo 拆股紀錄攞唔到 {sym}：{e}")
+        return []
+
+
+def ai_search(prompt):
+    """Gemini + Google 搜尋（grounding）：真係上網查；回傳 dict（JSON）同來源，冇 key／出錯回 (None, 原因)。"""
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not key:
+        return None, "冇 GEMINI_API_KEY"
+    body = {"contents": [{"parts": [{"text": prompt + "\n用 Google 搜尋查證，只根據搜尋結果答；唔肯定就答 unknown。最後只回覆一個 JSON object，唔好加其他文字。"}]}],
+            "tools": [{"google_search": {}}], "generationConfig": {"temperature": 0.1}}
+    last = ""
+    for m in ("gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"):
+        req = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent", data=json.dumps(body).encode(),
+                                     method="POST", headers={"Content-Type": "application/json", "x-goog-api-key": key})
+        try:
+            d = json.loads(urllib.request.urlopen(req, timeout=120).read())
+            c = d["candidates"][0]
+            txt = "".join(x.get("text", "") for x in c["content"]["parts"])
+            j = re.search(r"\{.*\}", txt, re.S)
+            src = [w.get("web", {}).get("title", "") for w in (c.get("groundingMetadata") or {}).get("groundingChunks", [])][:3]
+            if j:
+                return json.loads(j.group(0)), f"{m}（Google 搜尋：{'、'.join(s for s in src if s) or '冇列出來源'}）"
+            last = f"{m} 冇 JSON"
+        except Exception as e:  # noqa: BLE001
+            last = f"{m}：{str(e)[:80]}"
+    return None, last
+
+
+def fix_splits(st, sc, i0, actions=None):
+    """拆股／合股：Yahoo 會追溯調整舊價。新數據入面「上次處理嗰日」嘅收市，同存低嘅收市唔同 -> 按比例換算持倉。
+    只比較同一日：大升大跌唔會改舊收市價，所以唔會誤判。"""
+    if i0 < 1 or sc["days"][i0 - 1] != st["last"]:
         return
     for p in st["positions"]:
         c = (sc["stocks"].get(p["sym"]) or {}).get("c10", [None] * 10)[i0 - 1]
-        if c and p["last_close"] and abs(c / p["last_close"] - 1) > 0.25:
+        if c and p["last_close"] and not p.get("miss") and abs(c / p["last_close"] - 1) > RULE["split_tol"]:
             k = c / p["last_close"]
+            near = lambda f: abs(f / k - 1) < 0.05
+            ok, src = any(near(f) for _, f in yahoo_splits(p["sym"])), "Yahoo 官方拆股紀錄"
+            if not ok:
+                r, src = ai_search(f"美股 {p['sym']} 喺 {st['last']} 前後 30 日內有冇拆股或者合股（reverse split）？"
+                                   '回覆 JSON：{"split": true/false/"unknown", "ratio_new_per_old": 每 1 股舊股變幾多股新股（例如 2 拆 1 = 2，1 合 10 = 0.1）, "date": "YYYY-MM-DD", "note": "一句中文"}')
+                if r and r.get("split") is True and r.get("ratio_new_per_old"):
+                    ok = near(1 / float(r["ratio_new_per_old"]))
+                    src = f"AI 查證 {src}：{r.get('note', '')}"
+            msg = f"{p['sym']} 同一日收市由 {p['last_close']:.2f} 變 {c:.2f}（× {k:.4f}）"
+            if not ok:
+                print(f"[model] {msg}：Yahoo 同 AI 都確認唔到係拆股，唔調整")
+                if actions is not None:
+                    actions["warn"].append(f"{msg}，但 Yahoo 同 AI 都確認唔到係拆股，模型冇調整持倉；可能係數據修正")
+                continue
+            print(f"[model] {msg}：拆股／合股（{src}），換算持倉")
+            if actions is not None:
+                actions["warn"].append(f"{msg}：確認係拆股／合股（{src}），已自動換算股數、入場價同止蝕；你券商戶口會自動換算，止蝕單記得睇下")
             p["entry"], p["stop"], p["R"], p["last_close"] = p["entry"] * k, p["stop"] * k, p["R"] * k, c
             p["shares"] /= k
 
@@ -241,12 +350,12 @@ def main():
     actions = dict(fills=[], stops=[], warn=[])
     if days[0] > st["last"]:
         actions["warn"].append(f"隔咗超過 10 個交易日先更新，{st['last']} 之後部分日子冇計")
-    fix_splits(st, sc, new[0])
+    fix_splits(st, sc, new[0], actions)
     for i in new:
         step(st, sc, i, actions)
     st["last"] = sc["date"]
     plan(st, sc, actions)
-    snap(st, sc["date"], actions["fills"], sc["green"])          # 收市後止蝕上移都計埋
+    snap(st, sc["date"], actions["fills"], sc["green"], qqq_at(sc, len(sc["days"]) - 1))   # 收市後止蝕上移都計埋
     save(st, sc, actions)
     v = st["view"]
     print(f"[model] {sc['date']}：帳戶 {v['nav']:,.0f}（{v['ret']:+.1%}，NDX {v['ndx_ret']:+.1%}）持股 {len(st['positions'])} 隻；"

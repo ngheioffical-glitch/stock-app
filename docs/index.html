@@ -201,6 +201,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .gear{padding:5px;border-radius:999px;line-height:0;flex:none}
 .gear svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.7;stroke-linecap:round}
 .gear.on svg{stroke:var(--cyan);filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
+.qcmp{border-top:1px dashed var(--line2);padding-top:8px}
 /* 動畫（2026-09-30）：分頁滑入、卡片逐張浮入、底部指示條、撳落回饋、載入骨架 */
 :root{--ease:cubic-bezier(.22,.9,.24,1)}
 .rise{animation:rise .4s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms)}
@@ -579,8 +580,10 @@ let BT00X = null;
 function bt00Days(){
   const B = MBT.bt00; if (!B) return null;
   if (!MCONT) return B.days;
-  if (!BT00X){ const end = B.days[B.days.length - 1].d;
-    BT00X = B.days.concat((MCONT.hist || []).filter(x => x.d > end).map(x => ({d: x.d, nav: x.nav, cash: x.cash, green: !!x.green, qqq: null, pos: x.pos || [], f: x.f || []}))); }
+  if (!BT00X){ const L = B.days[B.days.length - 1], end = L.d, H = MCONT.hist || [];
+    const q0 = (H.find(x => x.d === end) || {}).q;              // 回測最後一日嘅 Yahoo QQQ 收市：用嚟接駁
+    BT00X = B.days.concat(H.filter(x => x.d > end).map(x => ({d: x.d, nav: x.nav, cash: x.cash, green: !!x.green,
+      qqq: (q0 && x.q && L.qqq != null) ? L.qqq * x.q / q0 : null, pos: x.pos || [], f: x.f || []}))); }
   return BT00X;
 }
 const allDays = () => HMODE === "model" ? ((MODEL && MODEL.hist) || []) : (HMODE === "bt00" ? bt00Days() : (MBT[HMODE] ? MBT[HMODE].days : null));
@@ -789,7 +792,9 @@ function followState(M){
   if (F.start >= live0){                                   // 新帳戶開始之後：直接用新帳戶淨值
     const i = N.findIndex(x => x.date >= F.start), k = i < 0 ? N.length - 1 : i;
     const path = N.slice(k).map(x => F.capital * x.nav / N[k].nav);
-    return {acct: "new", capital: F.capital, start: N[k].date, val: path[path.length - 1], ret: path[path.length - 1] / F.capital - 1, dd: mdd(path)};
+    const H = (MNEW.hist || []).filter(x => x.d >= N[k].date && x.q), qp = H.length ? H.map(x => F.capital * x.q / H[0].q) : null;
+    return {acct: "new", capital: F.capital, start: N[k].date, val: path[path.length - 1], ret: path[path.length - 1] / F.capital - 1, dd: mdd(path),
+            q: qp && {val: qp[qp.length - 1], dd: mdd(qp)}};
   }
   // 早過新帳戶：回測帳戶（2000 年起連續行）嘅每日淨值，到數據尾之後接延續帳戶（同一個帳戶、同一套持倉）
   const B = MBT.bt00;
@@ -797,7 +802,8 @@ function followState(M){
   const D = bt00Days();
   let k = 0; for (let i = 0; i < D.length; i++){ if (D[i].d <= F.start) k = i; else break; }
   const path = D.slice(k).map(x => F.capital * x.nav / D[k].nav), val = path[path.length - 1];
-  return {acct: "cont", capital: F.capital, start: D[k].d, val, ret: val / F.capital - 1, dd: mdd(path), btEnd: B.days[B.days.length - 1].d, last: D[D.length - 1].d};
+  const QD = D.slice(k).filter(x => x.qqq != null), qp = QD.length > 1 ? QD.map(x => F.capital * x.qqq / QD[0].qqq) : null;
+  return {q: qp && {val: qp[qp.length - 1], dd: mdd(qp)}, acct: "cont", capital: F.capital, start: D[k].d, val, ret: val / F.capital - 1, dd: mdd(path), btEnd: B.days[B.days.length - 1].d, last: D[D.length - 1].d};
 }
 const mdd = a => { let pk = -Infinity, m = 0; for (const x of a){ pk = Math.max(pk, x); m = Math.min(m, x / pk - 1); } return m; };
 function followCard(M){
@@ -815,6 +821,10 @@ function followCard(M){
       <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
     <div class="kv"><div><span>本金</span><b>${f0(fs.capital)}</b></div><div><span>賺蝕</span><b class="${fs.val >= fs.capital ? "up" : "dn"}">${(fs.val >= fs.capital ? "+" : "") + f0(fs.val - fs.capital)}</b></div>
       <div><span>期間最大回撤</span><b class="dn">${pct(fs.dd)}</b></div><div><span>現金（${Math.round(v.cash_frac * 100)}%）</span><b>${f0(fs.val * v.cash_frac)}</b></div></div>
+    ${fs.q ? `<div class="qcmp"><div class="lbl">同一日、同一筆錢買 QQQ 揸住唔郁</div><div class="kv">
+      <div><span>QQQ 而家</span><b>${f0(fs.q.val)}</b></div><div><span>QQQ 回報</span><b>${chg(fs.q.val / fs.capital - 1)}</b></div>
+      <div><span>QQQ 最大回撤</span><b class="dn">${pct(fs.q.dd)}</b></div>
+      <div><span>策略 − QQQ</span><b class="${fs.val >= fs.q.val ? "up" : "dn"}">${(fs.val >= fs.q.val ? "+" : "") + f0(fs.val - fs.q.val)}</b></div></div></div>` : ""}
     ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">金額</th><th class="r">股數</th></tr>${rows}</table></div>` : ""}
     <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
     <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.2 回測（2000 年起連續行、Tiingo 全美股），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
@@ -880,8 +890,36 @@ function viewRank(){
     </table></div>`;
 }
 
+// 系統健康（2026-10-01 用戶：唔想有後顧之憂）：每個自動更新嘅部分最後幾時更新、有冇出錯
+const hkt = t => t ? Date.parse(String(t).replace(" HKT", "+08:00").replace(" ", "T")) : NaN;
+function healthCard(){
+  if (!FEED.news && !FEED.err) fetchFeeds();
+  const now = Date.now(), H = [];
+  const add = (name, ok, when, tip) => H.push({name, ok, when, tip});
+  if (SCAN){
+    const stale = now > Date.parse(SCAN.next_day + "T22:30:00Z") + 8 * 3600e3;
+    add("每日掃描（排名、燈號、訊號）", !stale, SCAN.date + " 收市", stale ? "超過一日冇更新：GitHub 每日排程可能停咗" : "");
+  } else add("每日掃描（排名、燈號、訊號）", false, "讀唔到", ERR || "");
+  if (MNEW) add("模型帳戶（新）", !SCAN || MNEW.last >= SCAN.date, MNEW.last, MNEW.last < (SCAN && SCAN.date) ? "落後過每日掃描" : "");
+  if (MCONT) add("延續帳戶（2000 年起）", !SCAN || MCONT.last >= SCAN.date, MCONT.last, MCONT.last < (SCAN && SCAN.date) ? "落後過每日掃描" : "");
+  const warns = [...((MNEW && MNEW.view && MNEW.view.actions && MNEW.view.actions.warn) || []), ...((MCONT && MCONT.view && MCONT.view.actions && MCONT.view.actions.warn) || [])];
+  if (warns.length) add("模型提示（拆股／退市等，已自動處理）", true, `${warns.length} 條`, warns.join("；"));
+  if (FEED.news){
+    const g = hkt(FEED.news.generated), age = (now - g) / 60e3;
+    add("新聞、經濟數據、Trump、Serenity 最新", age < 90, FEED.news.generated, age >= 90 ? `已經 ${Math.round(age)} 分鐘冇更新（正常每 5–15 分鐘）` : "");
+    const D = FEED.news.digest;
+    add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
+  } else add("新聞", false, "讀唔到", FEED.err || "");
+  if (TR) add("Trump 來源", !(TR.errs || []).length, `${TR.recent.length} 條近 3 日`, (TR.errs || []).join("；"));
+  const bad = H.filter(x => !x.ok).length;
+  return `<div class="card"><div class="row spread"><b>系統健康</b><span class="tag ${bad ? "t-stop" : "t-buy"}">${bad ? bad + " 項要留意" : "全部正常"}</span></div>
+    ${H.map(x => `<div class="small" style="display:flex;gap:8px;align-items:flex-start"><span class="${x.ok ? "up" : "dn"}">${x.ok ? "✓" : "⚠"}</span>
+      <div><b>${esc(x.name)}</b> <span class="muted">${esc(x.when || "")}</span>${x.tip ? `<div class="muted">${esc(x.tip)}</div>` : ""}</div></div>`).join("")}
+    <p class="small muted">全部自動：數據晚咗會自動補（10 日內）、持倉退市／拆股會自動處理。見到 ⚠ 超過一日都冇恢復，先需要搵人跟進。</p></div>`;
+}
+
 function viewSet(){
-  return topbar() + `<h2>設定</h2>
+  return topbar() + `<h2>設定</h2>` + healthCard() + `
   <div class="card"><div class="grid2">
     <label>資金（美元，可以唔填；填咗先計股數）<input id="capital" type="number" step="any" inputmode="decimal" value="${S.capital || ""}" placeholder="例如 100000"></label>
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>

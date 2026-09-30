@@ -53,7 +53,7 @@ def main(seed_path):
     nav0 = M.nav_at(st, lambda p: p["last_close"])
     st["nav"].append(dict(date=seed["date"], nav=round(nav0, 2)))
     actions = dict(fills=[], stops=[], warn=[])
-    M.snap(st, seed["date"], [], sc["green"])
+    M.snap(st, seed["date"], [], sc["green"], M.qqq_at(sc, len(sc["days"]) - 1))
     M.plan(st, sc, actions)
     M.OUT = M.CONT
     M.save(st, sc, actions)

@@ -33,11 +33,13 @@ jobs:
         run: python scanner/model.py
         env:
           PYTHONIOENCODING: utf-8
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}   # 拆股／退市用 AI（Google 搜尋）查證
       - name: 延續帳戶（2000 年起回測喺 2026-09-22 嘅狀態，雲端照 V2.2 繼續行）
         run: python scanner/model.py cont
         continue-on-error: true
         env:
           PYTHONIOENCODING: utf-8
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: 提交新數據
         run: |
           git config user.name "github-actions[bot]"

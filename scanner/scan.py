@@ -80,7 +80,7 @@ def sectors(syms, nasdaq_info, max_age=180):
     return {s: zh(cache[s]["sector"], cache[s]["industry"]) if s in cache else ("", "") for s in syms}
 
 
-CASH_SYMS = ["IEF", "^IRX"]     # V2.2 現金：紅燈揸 IEF（7–10 年國債）、綠燈收短期國債息（^IRX = 13 週國債孳息，%）
+CASH_SYMS = ["IEF", "^IRX", "QQQ"]     # V2.2 現金：紅燈揸 IEF（7–10 年國債）、綠燈收短期國債息（^IRX = 13 週國債孳息，%）；QQQ = 比較基準（唔入股票池）
 
 
 def download(syms, end=None):
@@ -187,8 +187,25 @@ def bounce_info(ndx, ndx_lo, C, sma50, sma200, hi52, adv, piv, stop, rank, rs_al
     return out
 
 
+def must_have():
+    """兩個模型帳戶嘅持倉同掛緊嘅 buy-stop：就算跌出成交額／市值頭 300 都要有數據（止蝕、出場、退市判斷靠佢）。"""
+    out = set()
+    for f in ("model.json", "model_cont.json"):
+        try:
+            m = json.loads((ROOT / "docs" / f).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        out |= {p["sym"] for p in m.get("positions", [])}
+        out |= {b["sym"] for b in (m.get("pending") or {}).get("buys", [])}
+    return out
+
+
 def scan(end=None):
     syms, nas_info = nasdaq_universe()
+    extra = sorted(must_have() - set(syms))
+    if extra:
+        print("持倉／掛單唔喺預選名單，照樣下載：", extra)
+    syms = syms + extra
     D = download(syms, end)
     O, H, L, C, AC, V = D["Open"], D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
     ndx = C.pop("^NDX").dropna()
@@ -265,6 +282,7 @@ def scan(end=None):
                cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
                          ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
+               bench=dict(qqq10=r4(cash_px["QQQ"].reindex(days).ffill()) if "QQQ" in cash_px else None),   # 模型帳戶記低 QQQ 收市，app 比較「同期買 QQQ」
                bounce=bnc, universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
                stocks=stocks)
     # 安全檢查：數據唔完整就唔覆蓋舊檔，令 app 繼續顯示上一份
