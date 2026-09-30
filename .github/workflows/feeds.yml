@@ -1,8 +1,8 @@
 name: 新聞同經濟數據
-# 每 30 分鐘抓新聞同經濟日曆，推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
+# 每 5 分鐘抓新聞同經濟日曆，推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/5 * * * *"      # 2026-09-30：新聞改每 5 分鐘（GitHub 實際會遲幾分鐘）；Gemini 喺 ai.py 限制每 28 分鐘先用一次
   workflow_dispatch:
 permissions:
   contents: write
@@ -28,8 +28,11 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      - name: Serenity 近 3 日（失敗唔影響新聞）
-        run: python scanner/serenity.py recent out
+      - name: Serenity 近 3 日（每半個鐘先抓一次，其餘沿用上一份；失敗唔影響新聞）
+        run: |
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/serenity_recent.json" -o out/serenity_recent.json || true
+          M=$(date -u +%M)
+          if [ $((10#$M % 30)) -lt 8 ] || [ ! -s out/serenity_recent.json ]; then python scanner/serenity.py recent out; else echo "沿用上一份 Serenity"; fi
         continue-on-error: true
         timeout-minutes: 4
         env:

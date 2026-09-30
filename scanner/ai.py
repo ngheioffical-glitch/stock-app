@@ -3,7 +3,7 @@
 喺 feeds.py 之後跑：讀 out/news.json、out/econ.json，寫返同一個檔：
   - 快訊／市場／經濟新聞加 "zh"（廣東話標題）；舊標題嘅翻譯由上一份 feeds 分支 news.json 沿用，慳額度
   - news.json 加 "digest"：{"generated", "model", "points": [..], "econ": ".."}；新聞冇變就沿用上一份
-key 只由環境變數 GEMINI_API_KEY 讀（GitHub Secrets）；冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
+新聞每 5 分鐘更新，Gemini 最少隔 28 分鐘先用一次（中間沿用）。key 只由環境變數 GEMINI_API_KEY 讀（GitHub Secrets）；冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
 用法：python scanner/ai.py out
 """
 from __future__ import annotations
@@ -24,6 +24,7 @@ PREV = "https://raw.githubusercontent.com/{repo}/feeds/news.json"
 MODELS = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash") if m]
 API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
 CATS = ("快訊", "市場", "經濟")
+GAP = int(os.environ.get("GEMINI_GAP_MIN", "28"))   # 分鐘：最少隔幾耐先再用 Gemini（慳免費額度）
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名）保留英文或通用中譯。"
 
 
@@ -81,6 +82,20 @@ def main():
     for x in items:
         if x["title"] in cache:
             x["zh"] = cache[x["title"]]
+    # 新聞每 5 分鐘更新，Gemini 最少隔 GAP 分鐘先用一次；中間嗰幾次沿用上一份翻譯同重點（2026-09-30）
+    now = datetime.now(timezone.utc)
+    try:
+        last_ai = datetime.fromisoformat(P["ai_at"])
+    except Exception:  # noqa: BLE001
+        last_ai = None
+    if last_ai and now - last_ai < timedelta(minutes=GAP):
+        for k in ("digest", "ai_at", "ai_err"):
+            if P.get(k):
+                N[k] = P[k]
+        (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")
+        print(f"[ai] 上次用 Gemini 係 {int((now - last_ai).total_seconds() // 60)} 分鐘前，今次沿用")
+        return
+    N["ai_at"] = now.isoformat(timespec="seconds")
     # 1. 翻譯（淨係未翻過、屬於快訊／市場／經濟嘅，最多 100 條一次）
     todo = [x for x in items if x["cat"] in CATS and not x.get("zh")][:100]
     model = None
@@ -99,7 +114,6 @@ def main():
             print(f"[ai] 翻譯失敗：{e}")
             N["ai_err"] = f"翻譯：{str(e)[:300]}"
     # 2. 今日重點（新聞同已公佈數據冇變就沿用上一份）
-    now = datetime.now(timezone.utc)
     recent = [x for x in items if x["cat"] in CATS and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=18)]
     recent.sort(key=lambda x: x["t"], reverse=True)                  # 新嘅先，再按影響排（穩定排序）
     recent.sort(key=lambda x: -(x.get("imp") or 0))
