@@ -158,6 +158,24 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .imp.i3 i{background:var(--stop);box-shadow:0 0 6px var(--stop)} .imp.i2 i:nth-child(-n+2){background:var(--warn)} .imp.i1 i:first-child{background:var(--muted)}
 .dayhd{font-family:var(--mono);font-size:12px;letter-spacing:.08em;padding:10px 0 3px;color:var(--muted);border-bottom:1px solid var(--line2)}
 .dayhd.now{color:var(--cyan)}
+/* 動畫（2026-09-30）：分頁滑入、卡片逐張浮入、底部指示條、撳落回饋、載入骨架 */
+:root{--ease:cubic-bezier(.22,.9,.24,1)}
+.rise{animation:rise .4s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms)}
+@keyframes rise{from{opacity:0;transform:translate3d(var(--dx,0px),12px,0)}to{opacity:1;transform:none}}
+.fadein{animation:fadein .22s ease-out both}
+@keyframes fadein{from{opacity:.35}to{opacity:1}}
+button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
+button:active{transform:scale(.95)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:20%;padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
+  box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
+nav button{position:relative;z-index:1}
+nav button:active{transform:scale(.9)}
+nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
+@keyframes pop{0%{transform:scale(.75) translateY(3px)}55%{transform:scale(1.18) translateY(-2px)}100%{transform:none}}
+.skel{height:118px;border-radius:14px;background:linear-gradient(100deg,var(--panel) 30%,rgba(0,229,255,.07) 50%,var(--panel) 70%);background-size:220% 100%;animation:shim 1.3s linear infinite}
+.skel.s2{height:220px}.skel.s3{height:160px}
+@keyframes shim{from{background-position:120% 0}to{background-position:-100% 0}}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:380px){.kv{grid-template-columns:repeat(2,1fr)} .price{font-size:30px}}
 /* 手機：表格唔好闊過畫面 */
@@ -171,9 +189,9 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 </style>
 </head>
 <body>
-<main id="app"><p class="muted">載入中…</p></main>
+<main id="app"><div class="skel"></div><div class="skel s2"></div><div class="skel s3"></div></main>
 
-<nav id="tabs" aria-label="分頁">
+<nav id="tabs" aria-label="分頁"><span class="pill" aria-hidden="true"></span>
   <button data-tab="today" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>訊號</button>
   <button data-tab="model"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>模型</button>
   <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
@@ -261,6 +279,40 @@ function header(){
     </div>
     <p class="small"><b>現金點擺：</b>${g ? "未用嘅現金買短期國債 ETF（<b>SGOV</b> 或 <b>BIL</b>）收息，要買股時先賣" : "賣晒股之後，現金買 <b>IEF</b>（7–10 年美國國債），轉返綠燈先賣"}</p>
     <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
+  </div>` + bounceCard();
+}
+
+// 牛市回調見底提示 + 抗跌領導股（只係提示，模型唔會自動買；回測見 LAB_REBOUND.md）
+function bounceCard(){
+  const b = SCAN && SCAN.bounce;
+  if (!b || !b.zone) return "";
+  const s = b.signal, live = s && s.active;
+  let head, body;
+  if (live){
+    head = `<span class="tag t-buy">見底訊號 · ${esc(s.date.slice(5))}</span>`;
+    body = `NDX 當日升 <b>${pct(s.up)}</b>，之前 10 日曾經跌到 200 日線附近，而 200 日線仲向上、50 日線仲高過 200 日線（牛市回調，唔係熊市）。`
+      + (s.green_now ? ` 大市已經綠燈，模型照常突破買入；下面係回調期間最抗跌嘅領導股，可以考慮補倉。`
+                     : ` <b>模型仲係紅燈，唔會自動買</b>；想提早入市就喺下面領導股揀，建議細注（回測用最多 2 隻）。`)
+      + ` NDX 收市跌穿 <b>${f0(s.floor)}</b> 訊號就作廢。`;
+  } else {
+    head = s ? `<span class="tag t-dim">訊號已作廢 · ${esc(s.date.slice(5))}</span>` : `<span class="tag t-warn">回調到 200 日線附近</span>`;
+    body = `NDX 由 ${esc(b.peak.slice(5))} 高位最多跌咗 <b>${pct(b.ndx_dd)}</b>，而家離低位 ${pct(b.ndx_off_low)}。`
+      + (s ? ` NDX 收市跌穿 ${f0(s.floor)}，之前嘅見底訊號作廢。` : ` 未有見底訊號（要 NDX 一日升 ≥ 2.5%）。`) + ` 下面係抗跌領導股，可以先留意。`;
+  }
+  const L = b.leaders || [];
+  const rows = L.map(r => {
+    const piv = r.above_piv ? `<span class="small muted">已過前高</span>` : f2(r.pivot);
+    const risk = (!r.above_piv && r.pivot && r.stop) ? pct(r.stop / r.pivot - 1) : "—";
+    return `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${r.rank ? ` <span class="tag t-cyan">#${r.rank}</span>` : ""}<span class="ind">${esc(r.industry || "")}</span></td>
+      <td class="r mono">${Math.round(r.rs_pct * 100)}</td><td class="r mono ${r.dd > b.ndx_dd ? "up" : ""}">${pct(r.dd)}</td><td class="r mono">${pct(r.off_hi)}</td>
+      <td class="r mono hl">${piv}</td><td class="r mono dn">${f2(r.stop)}</td><td class="r mono dn hide-sm">${risk}</td></tr>`;
+  }).join("");
+  return `<div class="card">
+    <div class="row spread"><b>牛市回調 · 抗跌領導股</b>${head}</div>
+    <p class="small">${body}</p>
+    ${L.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">RS</th><th class="r">回調跌幅</th><th class="r">距高位</th><th class="r">前高</th><th class="r">止蝕</th><th class="r hide-sm">最多蝕</th></tr>${rows}</table></div>
+    <p class="small muted">領導股 = 回調前 RS 喺預選股頭 20%、回調期間跌得少過 NDX（${pct(b.ndx_dd)}）、仲企喺 200 日線上面同 50 &gt; 200 日線；共 ${b.n_leaders} 隻，顯示頭 ${L.length} 隻，按 RS 排。#數字 = 模型排名。前高 = 突破買入價；止蝕 = swing low − 0.2 ATR。
+    歷史（2000–今，31 次見底訊號）：頭 15 隻之後 60 日平均 +7.1%（NDX +2.6%），65% 次數跑贏 NDX；但熊市（例如 2000、2022）嗰 9 次，120 日平均仍然 −21%，跟止蝕就收窄到 −6%，<b>一定要跟止蝕</b>。</p>` : `<p class="small muted">暫時冇符合條件嘅領導股。</p>`}
   </div>`;
 }
 
@@ -357,7 +409,7 @@ function openSer(sym){
   TAB = "news"; NT = "news"; NCAT = "Serenity";
   try { localStorage.setItem(KEY + "-tab", TAB); localStorage.setItem(KEY + "-nt", NT); } catch(e){}
   if (SERSYM) fetchSerAll();
-  render(); window.scrollTo(0, 0);
+  render("r"); window.scrollTo(0, 0);
 }
 const hkDate = ts => parts(HK, new Date(ts * 1e3)).date;
 const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
@@ -852,9 +904,18 @@ function viewNews(){
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
-function render(){
-  $("#app").innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, set:viewSet}[TAB] || viewToday)();
+const ORDER = ["today", "model", "rank", "news", "set"];
+// anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
+function render(anim){
+  const app = $("#app");
+  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, set:viewSet}[TAB] || viewToday)();
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  const pill = $("#tabs .pill"); if (pill) pill.style.transform = `translateX(${Math.max(0, ORDER.indexOf(TAB)) * 100}%)`;
+  if (anim === "r" || anim === "l"){
+    [...app.children].slice(0, 12).forEach((el, i) => { el.style.setProperty("--i", i); el.style.setProperty("--dx", anim === "r" ? "26px" : "-26px"); el.classList.add("rise"); });
+  } else if (anim === "f"){
+    app.classList.remove("fadein"); void app.offsetWidth; app.classList.add("fadein");
+  }
   bind();
   if (TAB === "news" && NT === "econ" && FEED.econ && !FEED.scrolled){      // 第一次打開：跳去今日或者下一個數據
     const el = $(".dayhd.now") || $(".ev.next");
@@ -870,22 +931,45 @@ function bind(){
     S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl; save(); FEED.at = 0; fetchScan(); fetchLive(); });
   on("#reload", () => fetchScan());
   on("#feedReload", () => { fetchFeeds(true); render(); });
-  document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render(); });
-  document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render(); });
-  document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render(); });
+  document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
+  document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
+  document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
   const hy = $("#histY"); if (hy) hy.onchange = () => histYear(hy.value);
   document.querySelectorAll("[data-hmv]").forEach(b => b.onclick = () => histMove(b.dataset.hmv.endsWith("f") ? b.dataset.hmv : +b.dataset.hmv));
   const hr = $("#histR"); if (hr) hr.oninput = () => { HIDX[hkey()] = +hr.value; histPaint(); };
   document.querySelectorAll("[data-hyear]").forEach(b => b.onclick = () => histYear(b.dataset.hyear));
-  document.querySelectorAll("[data-hsrc]").forEach(b => b.onclick = () => { HSRC = b.dataset.hsrc; render(); });
+  document.querySelectorAll("[data-hsrc]").forEach(b => b.onclick = () => { HSRC = b.dataset.hsrc; render("f"); });
   on("#hGo", () => histRange($("#hA").value, $("#hB").value));
   document.querySelectorAll("[data-sersym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openSer(b.dataset.sersym); });
   on("#serGo", () => openSer($("#serq").value));
   const q = $("#serq"); if (q) q.onkeydown = e => { if (e.key === "Enter") openSer(q.value); };
-  document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render(); });
+  document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render("f"); });
 }
 
-document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => { TAB = b.dataset.tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){} render(); window.scrollTo(0,0); });
+function go(tab){
+  if (tab === TAB){ window.scrollTo({top:0, behavior:"smooth"}); return; }
+  const dir = ORDER.indexOf(tab) > ORDER.indexOf(TAB) ? "r" : "l";
+  TAB = tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){}
+  try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch(e){}
+  window.scrollTo(0,0); render(dir);
+}
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => go(b.dataset.tab));
+$("#app").addEventListener("animationend", e => { if (e.target.classList.contains("rise")) e.target.classList.remove("rise"); else if (e.target.id === "app") e.target.classList.remove("fadein"); });
+// 左右掃切換分頁（喺可以橫向捲動嘅地方、輸入框、拉桿上面唔會觸發）
+let SWP = null;
+const hscroll = el => { for (; el && el !== document.body; el = el.parentElement){ if (el.scrollWidth > el.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowX)) return true; } return false; };
+document.addEventListener("touchstart", e => {
+  if (e.touches.length !== 1 || e.target.closest("input,select,textarea,nav") || hscroll(e.target)) { SWP = null; return; }
+  SWP = {x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now()};
+}, {passive:true});
+document.addEventListener("touchend", e => {
+  if (!SWP) return;
+  const c = e.changedTouches[0], dx = c.clientX - SWP.x, dy = c.clientY - SWP.y, dt = Date.now() - SWP.t; SWP = null;
+  if (Math.abs(dx) > 70 && Math.abs(dy) < Math.abs(dx) * 0.5 && dt < 600){
+    const i = ORDER.indexOf(TAB) + (dx < 0 ? 1 : -1);
+    if (i >= 0 && i < ORDER.length) go(ORDER[i]);
+  }
+}, {passive:true});
 
 async function fetchScan(){
   try {

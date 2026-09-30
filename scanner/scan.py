@@ -124,11 +124,75 @@ def next_trading_day(d):
     return d
 
 
+def bounce_info(ndx, ndx_lo, C, sma50, sma200, hi52, adv, piv, stop, rank, rs_all):
+    """牛市回調見底提示（2026-09-30 用戶揀方案 3：只做提示，唔改模型；回測見 stock-strategy/LAB_REBOUND.md）。
+
+    見底訊號（收市確認）：NDX 近 10 日最低曾經去到 200 日線上面 2% 以內（或跌穿）+ 當日升 ≥ 2.5%
+                        + 200 日線比 20 日前高（仲向上）+ 50 日線 > 200 日線（牛市回調，唔係熊市）。
+    有效：訊號後 10 個交易日內，而 NDX 收市未跌穿訊號前 10 日最低位（跌穿 = 作廢）。
+    回調區（zone）：近 20 日 NDX 最低去到 200 日線 2% 以內，而由 60 日高位跌咗 ≥ 5%：列出抗跌領導股。
+    領導股（O'Neil：回調時抗跌、之前已經強）：成交額 ≥ 2,000 萬、收市 ≥ 5，RS 喺預選股頭 20%（回調前高位嗰日計），
+    回調期間最大跌幅細過 NDX，仲企喺 200 日線上面、50 > 200 日線；按 RS 排。
+    """
+    s200, s50 = ndx.rolling(200).mean(), ndx.rolling(50).mean()
+    e21 = ndx.ewm(span=21, adjust=False).mean()
+    green = (ndx > s200) | ((ndx > e21) & (e21 > s50))
+    lo = ndx_lo.reindex(ndx.index).fillna(ndx)
+    near = (lo / s200 - 1).rolling(10, min_periods=1).min() <= 0.02
+    low10 = lo.rolling(10, min_periods=1).min()
+    fire = (ndx.pct_change() >= 0.025) & near & (s200 > s200.shift(20)) & (s50 > s200)
+    n = len(ndx)
+    sig = None
+    for k in range(max(0, n - 10), n):
+        if fire.iloc[k]:
+            sig = k                                               # 最近一次（10 個交易日內）
+    out = dict(signal=None, zone=False)
+    if sig is not None:
+        floor = float(low10.iloc[sig])
+        dead = bool((ndx.iloc[sig + 1:] < floor).any())
+        out["signal"] = dict(date=str(ndx.index[sig].date()), days=n - 1 - sig, up=round(float(ndx.pct_change().iloc[sig]), 4),
+                             floor=round(floor, 2), active=not dead, green_at=bool(green.iloc[sig]),
+                             green_now=bool(green.iloc[-1]))
+    t = ndx.index[-1]
+    lo20 = lo.iloc[-20:]
+    trough = lo20.idxmin()
+    peak = ndx.loc[:trough].iloc[-60:].idxmax()
+    ndx_dd = float(ndx.loc[peak:].min() / ndx.loc[peak] - 1)
+    zone = bool((lo20 / s200.iloc[-20:] - 1).min() <= 0.02 and ndx_dd <= -0.05)
+    out.update(zone=zone or bool(out["signal"] and out["signal"]["active"]), peak=str(peak.date()), trough=str(trough.date()),
+               ndx_dd=round(ndx_dd, 4), ndx_off_low=round(float(ndx.iloc[-1] / ndx.loc[trough:].min() - 1), 4))
+    if not out["zone"]:
+        return out
+    close = C.loc[t]
+    ok = (close >= 5) & (adv >= 20e6) & (close > sma200) & (sma50 > sma200)
+    rs0 = rs_all.loc[peak][(C.loc[t] >= 5) & (adv >= 20e6)].dropna()
+    pct = rs0.rank(pct=True)
+    strong = pct[pct >= 0.8].index.intersection(ok[ok].index)
+    seg = C.loc[peak:, strong]
+    dd = seg.min() / seg.iloc[0] - 1
+    lead = dd[dd > ndx_dd].index
+    rows = []
+    for s in lead:
+        h = hi52.get(s, np.nan)
+        if not np.isfinite(h) or not np.isfinite(dd[s]):
+            continue
+        rows.append(dict(sym=s, dd=round(float(dd[s]), 4), off_hi=round(float(close[s] / h - 1), 4),
+                         bounce=round(float(close[s] / seg[s].min() - 1), 4), rank=rank.get(s), rs_pct=round(float(pct[s]), 3),
+                         pivot=round(float(piv[s]), 4) if np.isfinite(piv[s]) else None,
+                         stop=round(float(stop[s]), 4) if np.isfinite(stop[s]) else None,
+                         above_piv=bool(np.isfinite(piv[s]) and close[s] >= piv[s])))
+    rows.sort(key=lambda r: -r["rs_pct"])
+    out["leaders"] = rows[:15]
+    out["n_leaders"] = len(rows)
+    return out
+
+
 def scan(end=None):
     syms, nas_info = nasdaq_universe()
     D = download(syms, end)
     O, H, L, C, AC, V = D["Open"], D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
     ndx = C.pop("^NDX").dropna()
+    ndx_lo = L["^NDX"].reindex(ndx.index) if "^NDX" in L.columns else ndx
     cash_px = {k: C.pop(k) for k in CASH_SYMS if k in C.columns}
     for X in (O, H, L, AC, V):
         X.drop(columns=["^NDX"] + CASH_SYMS, inplace=True, errors="ignore")
@@ -146,7 +210,8 @@ def scan(end=None):
     atr = wilder_atr(H, L, C).loc[t]
     low20 = L.rolling(20).min().loc[t]
     q = lambda a, b: AC.shift(a) / AC.shift(b) - 1
-    rs_all = (0.4 * q(0, 63) + 0.2 * q(63, 126) + 0.2 * q(126, 189) + 0.2 * q(189, 252)).loc[t]
+    rs_hist = 0.4 * q(0, 63) + 0.2 * q(63, 126) + 0.2 * q(126, 189) + 0.2 * q(189, 252)
+    rs_all = rs_hist.loc[t]
     close = C.loc[t]
     # 股票池：收市 ≥ 5、ADV50 ≥ 2,000 萬，ADV50 頭 50；排名：有 253 日歷史先有 RS
     ok = (close >= 5) & (adv >= 20e6)
@@ -181,6 +246,17 @@ def scan(end=None):
                                 R=round(float(piv[s] - stop), 4), be_trigger=round(float(piv[s] + 2 * (piv[s] - stop)), 4),
                                 sector=sect[s][0], industry=sect[s][1], status=status))
     ranking.sort(key=lambda r: r["rank"])
+    stops = pd.Series({s: (swl[s] - 0.2 * atr[s]) if np.isfinite(swl[s] - 0.2 * atr[s]) and swl[s] - 0.2 * atr[s] < piv[s]
+                       else low20[s] - 0.2 * atr[s] for s in C.columns})
+    try:
+        bnc = bounce_info(ndx, ndx_lo, C, sma50, sma200, hi52, adv, piv, stops, rank, rs_hist)
+        if bnc.get("leaders"):
+            sl = sectors([r["sym"] for r in bnc["leaders"]], nas_info)
+            for r in bnc["leaders"]:
+                r["industry"] = sl[r["sym"]][1]
+    except Exception as e:                                      # 提示出錯唔好影響主掃描
+        print("見底提示計唔到：", e)
+        bnc = None
     out = dict(date=str(t.date()), next_day=str(nxt.date()), week_end=days_we[-1],
                days=[str(d.date()) for d in days], days_we=days_we,
                generated=pd.Timestamp.now(tz="Asia/Hong_Kong").strftime("%Y-%m-%d %H:%M HKT"),
@@ -189,7 +265,7 @@ def scan(end=None):
                cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
                          ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
-               universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
+               bounce=bnc, universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
                stocks=stocks)
     # 安全檢查：數據唔完整就唔覆蓋舊檔，令 app 繼續顯示上一份
     if len(ranking) < 40 or len(stocks) < 200:
