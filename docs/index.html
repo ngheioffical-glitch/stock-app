@@ -361,7 +361,7 @@ function openSer(sym){
 const hkDate = ts => parts(HK, new Date(ts * 1e3)).date;
 const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
   return `<p class="small"><span class="tag t-ser">Serenity 關注</span> 近 30 日提過 ${o.n} 次${o.n7 ? `（近 7 日 ${o.n7} 次）` : ""} · 最近 ${ago(new Date(o.last.ts * 1e3).toISOString())}：
-    <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.text)}</a></p>`; };
+    <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.zh || o.last.text)}</a></p>`; };
 
 // ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.2 行虛擬帳戶（scanner/model.py），用戶照抄
 let MODEL = null, MODEL_ERR = null;
@@ -793,7 +793,7 @@ function viewSerHist(cand){
   const orig = L.filter(t => !t.reply).length, first = L[L.length - 1];
   h += `<div class="card"><div class="kv"><div><span>總共提過</span><b>${L.length} 次</b></div><div><span>推文 · 回覆</span><b>${orig} · ${L.length - orig}</b></div>
     <div><span>第一次</span><b>${hkDate(first.ts)}</b></div></div>${cand.has(sym) ? `<p class="small"><span class="tag t-cyan">而家係 V2.2 候選股</span></p>` : ""}</div>`;
-  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + L.map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + L.map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
     <div class="meta">${t.syms.filter(s => s !== sym).slice(0, 8).map(s => `<span class="tag t-dim" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${hkDate(t.ts)}</span></div></div>`).join("") + `</div>`;
   return h + `<p class="small muted">只計有 $${esc(sym)} 嘅推文（2025-07 起，每日更新）；文字最多顯示 280 字，撳入去睇原文。</p>`;
 }
@@ -805,7 +805,7 @@ function viewSerList(){
   if (SERSYM) return search + viewSerHist(cand);
   const top = Object.entries(SER.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
   let h = search + `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.2 候選股；撳落去睇全部講法）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>`;
-  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.text)}</a>
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
     <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span></div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
   return h + `<p class="small muted">Serenity（X @aleabitoreddit）近 30 日有 cashtag 嘅推文。回測：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；唔合格嘅差過 QQQ。只供參考，唔係買入訊號。</p>`;
 }
