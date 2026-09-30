@@ -3,7 +3,9 @@
 喺 feeds.py 同 serenity.py recent 之後跑（每 5 分鐘），讀／寫 out/news.json、out/serenity_recent.json：
   - 翻譯：快訊／市場／經濟新聞標題加 "zh"；Serenity 推文加 "zh"。一有新嘢就即刻譯（用 Flash-Lite，獨立免費額度）；
     舊嘅由上一份 feeds 分支沿用，唔會重複譯
-  - 今日重點：news.json 加 "digest"，最少隔 GAP 分鐘（預設 28）先重新寫；新聞冇變就沿用
+  - 經濟數據：重要數據一公佈就 AI 解讀（加埋公佈後 QQQ／10 年債息／美元嘅實際反應，判斷係咪已經 price in），
+    45 分鐘後（6 個鐘內）再解讀一次；寫入 econ.json 每行嘅 "ai"
+  - 今日重點：news.json 加 "digest"，最少隔 GAP 分鐘（預設 28）先重新寫；有新嘅高影響快訊就即刻重寫；新聞冇變就沿用
 key 只由環境變數 GEMINI_API_KEY 讀（GitHub Secrets）；冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
 用法：python scanner/ai.py out
 """
@@ -108,6 +110,97 @@ def translate(key, N, S, P, PS):
     return f"新聞 {len(zn)}／{len(todo_n)} 條、Serenity {len(zs)}／{len(todo_s)} 條（{model}）"
 
 
+def hi_titles(N, now, hours=6):
+    """最近幾個鐘嘅高影響快訊標題（有新嘅就即刻重寫今日重點）。"""
+    return sorted({x["title"] for x in N["items"] if x["cat"] == "快訊" and (x.get("imp") or 0) >= 3
+                   and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=hours)})
+
+
+# ---------------------------------------------------------------- 經濟數據：AI 即時解讀（2026-09-30 用戶要求）
+YH = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?range=5d&interval=5m&includePrePost=true"
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
+MKT = {"QQQ": "QQQ", "^TNX": "10 年美債孳息", "DX-Y.NYB": "美元指數"}
+_YC = {}
+
+
+def yseries(sym):
+    if sym not in _YC:
+        try:
+            d = json.loads(urllib.request.urlopen(urllib.request.Request(YH.format(s=urllib.request.quote(sym)), headers=UA), timeout=20).read())
+            r = d["chart"]["result"][0]
+            _YC[sym] = [(t, c) for t, c in zip(r["timestamp"], r["indicators"]["quote"][0]["close"]) if c is not None]
+        except Exception:  # noqa: BLE001
+            _YC[sym] = []
+    return _YC[sym]
+
+
+def reaction(t_utc):
+    """公佈之後到而家：QQQ %、10 年債息（基點）、美元指數 %。"""
+    ts = t_utc.timestamp()
+    out = []
+    for s, nm in MKT.items():
+        ser = yseries(s)
+        before = [c for t, c in ser if t <= ts]
+        if not before or not ser:
+            continue
+        b, n = before[-1], ser[-1][1]
+        out.append(f"{nm} {(n - b) * 100:+.1f} 基點" if s == "^TNX" else f"{nm} {(n / b - 1) * 100:+.2f}%")
+    return "、".join(out) or "（攞唔到市場數據）"
+
+
+def econ_ai(key, N, E, PE, now, light, watch):
+    """已公佈嘅重要數據：公佈後第一次見到就解讀；45 分鐘後（6 個鐘內）再解讀一次，等市場反應明朗。"""
+    old = {f"{r['t']}|{r['name']}": r for r in PE.get("rows", []) if r.get("ai")}
+    et = ZoneInfo("America/New_York")
+    due = []
+    for r in E.get("rows", []):
+        if not r.get("actual") or (r.get("imp") or 0) < 2 or len(r["t"]) <= 10:
+            continue
+        k = f"{r['t']}|{r['name']}"
+        rel = datetime.fromisoformat(r["t"]).replace(tzinfo=et).astimezone(timezone.utc)
+        if now - rel > timedelta(hours=24):
+            continue
+        o = old.get(k)
+        if o:
+            r["ai"], r["ai_at"], r["ai_stage"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1)
+            try:
+                age = now - datetime.fromisoformat(o["ai_at"])
+            except Exception:  # noqa: BLE001
+                age = timedelta(0)
+            if r["ai_stage"] >= 2 or age < timedelta(minutes=45) or now - rel > timedelta(hours=6):
+                continue
+        due.append((r, rel))
+    if not due:
+        return "冇新數據要解讀"
+    heads = [f"{x.get('zh') or x['title']}" for x in N["items"] if x["cat"] in ("快訊", "經濟")
+             and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=4)][:20]
+    lines = []
+    for i, (r, rel) in enumerate(due):
+        mins = int((now - rel).total_seconds() // 60)
+        lines.append(f"{i}. {r.get('zh') or r['name']}（{r['name']}）｜公佈：{r['t']} 美東（{mins} 分鐘前）｜實際 {r['actual']}／預測 {r.get('forecast') or '—'}"
+                     f"／上次 {r.get('previous') or '—'}｜公佈至今市場：{reaction(rel)}")
+    prompt = (f"你係美股宏觀分析助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶解讀啱啱公佈嘅經濟數據。{STYLE}\n"
+              f"大市燈號而家係{light}；佢關注嘅股：{', '.join(watch) or '（冇）'}。\n"
+              "每項數據寫 2–4 句：①同預測同上次比，代表咩（例如通脹熱／就業轉弱）；②市場實際反應（只用提供嘅 QQQ、債息、美元數字）："
+              "如果數據偏離預測但市場反應細或者相反，要講可能已經 price in 或者市場睇緊其他嘢；③對息口預期同美股科技股嘅含意。"
+              "公佈唔夠 15 分鐘就講明反應未明朗。只根據提供資料，唔好作新聞，唔好叫人買賣。\n"
+              "回覆 JSON：{\"items\": [{\"i\": 編號, \"text\": \"..\"}]}。\n數據：\n" + "\n".join(lines)
+              + "\n近 4 個鐘相關快訊：\n" + ("\n".join(heads) or "（冇）"))
+    res, model = gemini(key, prompt, MODELS_D)
+    n = 0
+    for it in res.get("items", []):
+        try:
+            r, _ = due[int(it["i"])]
+        except Exception:  # noqa: BLE001
+            continue
+        if isinstance(it.get("text"), str) and it["text"].strip():
+            r["ai"] = it["text"].strip()
+            r["ai_stage"] = (r.get("ai_stage") or 0) + 1 if r.get("ai_at") else 1
+            r["ai_at"] = now.isoformat(timespec="seconds")
+            n += 1
+    return f"經濟數據解讀 {n}／{len(due)} 項（{model}）"
+
+
 def digest(key, N, E, P, now):
     items = N["items"]
     recent = [x for x in items if x["cat"] in CATS and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=18)]
@@ -116,13 +209,7 @@ def digest(key, N, E, P, now):
     heads = [f"[{x['cat']}{'・高影響' if x.get('imp') == 3 else ''}] {x['title']}" for x in recent[:40]]
     done = [r for r in E.get("rows", []) if r.get("actual") and r.get("imp", 0) >= 2][-12:]
     econ = [f"{r['t']} {r.get('zh') or r['name']}：實際 {r['actual']}／預測 {r.get('forecast') or '—'}／上次 {r.get('previous') or '—'}" for r in done]
-    try:
-        sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
-        md = json.loads((ROOT / "docs" / "model.json").read_text(encoding="utf-8"))
-        watch = sorted({r["sym"] for r in sc.get("ranking", [])[:15]} | {p["sym"] for p in md.get("positions", [])})
-        light = "綠燈" if sc.get("green") else "紅燈"
-    except Exception:  # noqa: BLE001
-        watch, light = [], "未知"
+    light, watch = context()
     sig = hashlib.sha1(json.dumps([heads, econ, watch], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if old.get("sig") == sig or not (heads or econ):
@@ -139,8 +226,19 @@ def digest(key, N, E, P, now):
     if not pts:
         raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
-             "model": model, "points": pts, "econ": str(res.get("econ") or "").strip(), "sig": sig},
+             "model": model, "points": pts, "econ": str(res.get("econ") or "").strip(), "sig": sig, "hi": hi_titles(N, now)},
             f"今日重點 {len(pts)} 點（{model}）")
+
+
+def context():
+    """大市燈號同關注股（排名頭 15 + 模型持倉）。"""
+    try:
+        sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
+        md = json.loads((ROOT / "docs" / "model.json").read_text(encoding="utf-8"))
+        watch = sorted({r["sym"] for r in sc.get("ranking", [])[:15]} | {p["sym"] for p in md.get("positions", [])})
+        return ("綠燈" if sc.get("green") else "紅燈"), watch
+    except Exception:  # noqa: BLE001
+        return "未知", []
 
 
 def main():
@@ -161,10 +259,27 @@ def main():
     except Exception as e:  # noqa: BLE001
         print(f"[ai] 翻譯失敗：{e}")
         errs.append(f"翻譯：{str(e)[:300]}")
-    # 2. 今日重點：最少隔 GAP 分鐘
+    # 2. 經濟數據 AI 解讀：一公佈就做（45 分鐘後再做一次）
+    PE = prev("econ.json")
+    try:
+        light, watch = context()
+        print("[ai] " + econ_ai(key, N, E, PE, now, light, watch))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 經濟數據解讀失敗：{e}")
+        errs.append(f"數據解讀：{str(e)[:300]}")
+        old = {f"{r['t']}|{r['name']}": r for r in PE.get("rows", []) if r.get("ai")}
+        for r in E.get("rows", []):                      # 失敗就沿用上一份解讀
+            o = old.get(f"{r['t']}|{r['name']}")
+            if o and not r.get("ai"):
+                r["ai"], r["ai_at"], r["ai_stage"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1)
+    # 3. 今日重點：最少隔 GAP 分鐘；有新嘅高影響快訊（而且上次係 5 分鐘前）就即刻重寫
     try:
         last_ai = datetime.fromisoformat(P["ai_at"])
     except Exception:  # noqa: BLE001
+        last_ai = None
+    breaking = [t for t in hi_titles(N, now) if t not in set((P.get("digest") or {}).get("hi", []))]
+    if breaking and last_ai and now - last_ai >= timedelta(minutes=5):
+        print(f"[ai] 有 {len(breaking)} 條新嘅高影響快訊，即刻重寫今日重點")
         last_ai = None
     if last_ai and now - last_ai < timedelta(minutes=GAP):
         if P.get("digest"):
@@ -186,6 +301,8 @@ def main():
     if errs:
         N["ai_err"] = "；".join(errs)
     (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")
+    if E:
+        (out / "econ.json").write_text(json.dumps(E, ensure_ascii=False), encoding="utf-8")
     if S is not None:
         (out / "serenity_recent.json").write_text(json.dumps(S, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 

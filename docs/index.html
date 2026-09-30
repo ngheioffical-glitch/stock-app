@@ -145,6 +145,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .ev .exp{grid-column:2;font-size:12px;color:var(--ink);margin-top:4px}
 .ev .exp summary{cursor:pointer;color:var(--cyan);font-size:12px;line-height:1.5}
 .ev .exp p{margin:4px 0;line-height:1.5}
+.ev .aiexp{border-left:2px solid var(--cyan);padding-left:8px}
 .ev .tm{font-family:var(--mono);font-size:13px;color:var(--cyan)}
 .ev .tm small{color:var(--dim)}
 .ev .nm{font-weight:500;line-height:1.35}
@@ -737,9 +738,11 @@ const ECON_INFO = {
 };
 function econNote(r, cmp){
   const I = ECON_INFO[r.zh];
-  if (!I) return "";
+  // AI 即時解讀（scanner/ai.py：公佈後第一次更新就寫、45 分鐘後按市場反應再寫一次）
+  const ai = r.ai ? `<div class="exp aiexp"><b>AI 解讀</b><span class="small muted">（${r.ai_stage >= 2 ? "市場反應後更新" : "初步"}${r.ai_at ? " · " + esc(parts(HK, new Date(r.ai_at)).time) : ""}）</span><p>${esc(r.ai)}</p></div>` : "";
+  if (!I) return ai;
   const eff = cmp === "高過預測" ? I.up : cmp === "低過預測" ? I.dn : "";
-  return `<details class="exp"><summary>${eff ? `<b>解讀</b>：${esc(eff)}` : "係咩？點影響？"}</summary>
+  return ai + `<details class="exp"><summary>${r.ai ? "基本解釋：係咩？點影響？" : eff ? `<b>解讀</b>：${esc(eff)}` : "係咩？點影響？"}</summary>
     <p><b>係咩：</b>${esc(I.what)}</p><p><b>點解重要：</b>${esc(I.why)}</p>
     ${I.up ? `<p><b>高過預測：</b>${esc(I.up)}</p><p><b>低過預測：</b>${esc(I.dn)}</p>` : ""}
     <p class="muted">市場反應睇「同預測差幾多」，唔係數字本身；同時出幾個數據、或者市場早有預期，反應可以相反。</p></details>`;
