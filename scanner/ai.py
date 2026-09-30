@@ -26,19 +26,53 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = "https://raw.githubusercontent.com/{repo}/feeds/{f}"
-MODELS_D = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash") if m]
-MODELS_T = [m for m in (os.environ.get("GEMINI_MODEL_T"), "gemini-flash-lite-latest", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite",
+# 型號次序（2026-09-30：gemini-2.0-flash 已停用；每次運行先問 Google 有邊啲型號可用，見 models()）
+MODELS_D = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest",
+                        "gemini-2.5-flash-lite") if m]          # 重點／解讀：Flash 用完額度就退去 Lite（額度分開）
+MODELS_T = [m for m in (os.environ.get("GEMINI_MODEL_T"), "gemini-flash-lite-latest", "gemini-2.5-flash-lite",
                         "gemini-flash-latest") if m]
+_AVAIL = None
 API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
 CATS = ("快訊", "市場", "經濟")
 GAP = int(os.environ.get("GEMINI_GAP_MIN", "28"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
 
-def gemini(key, prompt, models):
+def models(key):
+    """問 Google 呢條 key 有邊啲 generateContent 型號（每次運行問一次）；問唔到就回 None（照原本次序試）。
+    新出嘅 gemini-X.Y-flash／flash-lite 會自動加入後備（版本新嘅排先）。"""
+    global _AVAIL
+    if _AVAIL is None:
+        try:
+            req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", headers={"x-goog-api-key": key})
+            d = json.loads(urllib.request.urlopen(req, timeout=30).read())
+            _AVAIL = [m["name"].split("/", 1)[1] for m in d.get("models", []) if "generateContent" in m.get("supportedGenerationMethods", [])]
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 型號清單攞唔到：{e}")
+            _AVAIL = []
+    return _AVAIL
+
+
+def pick(key, base):
+    av = models(key)
+    if not av:
+        return base
+    ver = lambda n: tuple(int(x) for x in re.findall(r"\d+", n)[:2])
+    flash = sorted([m for m in av if re.fullmatch(r"gemini-\d+(\.\d+)?-flash", m)], key=ver, reverse=True)
+    lite = sorted([m for m in av if re.fullmatch(r"gemini-\d+(\.\d+)?-flash-lite", m)], key=ver, reverse=True)
+    isl = lambda m: "lite" in m
+    groups = [[m for m in base if m in av and not isl(m)] + [m for m in flash if m not in base],
+              [m for m in base if m in av and isl(m)] + [m for m in lite if m not in base]]
+    if base and isl(base[0]):
+        groups.reverse()                               # 翻譯：Lite 先
+    out = groups[0] + groups[1]
+    return out or base
+
+
+def gemini(key, prompt, models_):
     gen = {"responseMimeType": "application/json", "temperature": 0.3}
-    last = None
-    for m in models:
+    last, errs = None, []
+    for m in pick(key, models_):
         for think_off in (True, False):       # 先試關閉「思考」（快好多）；型號唔支援就用預設
             g = dict(gen, thinkingConfig={"thinkingBudget": 0}) if think_off else gen
             body = json.dumps({"contents": [{"parts": [{"text": prompt}]}], "generationConfig": g}).encode()
@@ -53,8 +87,8 @@ def gemini(key, prompt, models):
                     return json.loads(txt), m
                 except urllib.error.HTTPError as e:
                     last = f"{m}: HTTP {e.code} {e.read()[:300].decode('utf-8', 'ignore')}"
-                    if e.code in (429, 500, 503) and attempt == 0:
-                        time.sleep(15)            # 限流／伺服器忙：等陣再試一次
+                    if e.code in (500, 503) and attempt == 0:
+                        time.sleep(10)            # 伺服器忙：等陣再試一次（429 額度用完就唔等，直接試下一個型號）
                         continue
                     break
                 except Exception as e:  # noqa: BLE001
@@ -62,9 +96,12 @@ def gemini(key, prompt, models):
                     break
             if last and "HTTP 400" not in last:
                 break                             # 唔係參數問題：唔使再試冇 thinkingConfig 嘅版本
+        if last:
+            code = re.search(r"HTTP (\d+)", last)
+            errs.append(f"{m} {code.group(1) if code else last.split(':', 1)[-1].strip()[:40]}")
         if last and not any(c in last for c in ("HTTP 404", "HTTP 400", "HTTP 429", "HTTP 500", "HTTP 503")):
             break                                 # 網絡問題：換型號都冇用（429／503 就試下一個型號：額度分開、繁忙程度唔同）
-    raise RuntimeError(last)
+    raise RuntimeError(f"全部型號失敗（{'、'.join(errs)}）；最後：{last}")
 
 
 def prev(f):
@@ -296,8 +333,22 @@ def digest(key, N, E, P, now):
     if not pts:
         raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
-             "model": model, "points": pts, "econ": str(res.get("econ") or "").strip(), "sig": sig, "hi": hi_titles(N, now)},
+             "model": model, "points": pts, "econ": str(res.get("econ") or "").strip(), "sig": sig, "hi": hi_titles(N, now),
+             "econ_done": [r["name"] for r in fresh_econ(E, now)]},
             f"今日重點 {len(pts)} 點（{model}）")
+
+
+def fresh_econ(E, now):
+    """近 18 個鐘已公佈、中／高影響嘅經濟數據。"""
+    et = ZoneInfo("America/New_York")
+    out = []
+    for r in E.get("rows", []):
+        if not r.get("actual") or (r.get("imp") or 0) < 2 or len(r["t"]) <= 10:
+            continue
+        rel = datetime.fromisoformat(r["t"]).replace(tzinfo=et).astimezone(timezone.utc)
+        if timedelta(0) <= now - rel <= timedelta(hours=18):
+            out.append(r)
+    return out
 
 
 def context():
@@ -358,6 +409,11 @@ def main():
     breaking = [t for t in hi_titles(N, now) if t not in set((P.get("digest") or {}).get("hi", []))]
     if breaking and last_ai and now - last_ai >= timedelta(minutes=5):
         print(f"[ai] 有 {len(breaking)} 條新嘅高影響快訊，即刻重寫今日重點")
+        last_ai = None
+    # 重要經濟數據（中／高影響）喺上一份重點之後公佈：即刻重寫（2026-09-30 用戶：PCE 出咗重點都未更新）
+    new_econ = [r["name"] for r in fresh_econ(E, now) if r["name"] not in set((P.get("digest") or {}).get("econ_done", []))]
+    if new_econ and last_ai:
+        print(f"[ai] 新公佈經濟數據 {new_econ}，即刻重寫今日重點")
         last_ai = None
     if last_ai and now - last_ai < timedelta(minutes=GAP):
         if P.get("digest"):
