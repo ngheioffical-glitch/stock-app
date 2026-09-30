@@ -274,7 +274,8 @@ function load(){
     const cur = JSON.parse(localStorage.getItem(KEY));
     const s = cur || JSON.parse(localStorage.getItem("v21-app")) || {};       // 第一次：沿用舊版嘅數據網址
     return {...defaults, ...Object.fromEntries(Object.entries({capital: cur ? +cur.capital || 0 : 0,   // 舊版「現金」係餘額，唔當資金
-      dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl, ghToken: cur ? cur.ghToken : "", follow: cur ? cur.follow : null}).filter(([, v]) => v))};
+      dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl, ghToken: cur ? cur.ghToken : "", follow: cur ? cur.follow : null,
+      acct: cur ? cur.acct : ""}).filter(([, v]) => v))};
   } catch(e){ return {...defaults}; }
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
@@ -540,16 +541,17 @@ const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
     <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.zh || o.last.text)}</a></p>`; };
 
 // ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.2 行虛擬帳戶（scanner/model.py），用戶照抄
-let MODEL = null, MODEL_ERR = null;
+let MODEL = null, MODEL_ERR = null, MNEW = null, MCONT = null;
+const pickModel = () => { MODEL = (S.acct === "cont" && MCONT) ? MCONT : MNEW; };
 async function fetchModel(){
-  try {
-    const u = S.dataUrl.replace(/scan\.json(\?.*)?$/, "model.json");
-    const r = await fetch(u + "?t=" + Date.now(), {cache:"no-store"});
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    MODEL = await r.json(); MODEL_ERR = null;
-  } catch(e){ MODEL_ERR = e.message; }
-  if (TAB === "model") render();
+  const get = async f => { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, f) + "?t=" + Date.now(), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
+  try { MNEW = await get("model.json"); MODEL_ERR = null; } catch(e){ MODEL_ERR = e.message; }
+  try { MCONT = await get("model_cont.json"); } catch(e){ MCONT = null; }
+  HCACHE = {}; BT00X = null;
+  pickModel();
+  if (TAB === "model" || TAB === "today") render();
 }
+function setAcct(a){ S.acct = a; save(); pickModel(); HCACHE = {}; render("f"); }
 
 // 歷史回看：模型（model.json 嘅 hist，9/28 起每日快照）｜回測（V2.2 全現金：model_bt2000.json 由 2000 年、model_bt.json 由 2026 年）
 let HMODE = "model", HIDX = {}, MBT = {}, MBT_ERR = {};
@@ -573,7 +575,15 @@ async function fetchBT(m){
   fetchBT[m] = false;
   if (TAB === "model") render();
 }
-const allDays = () => HMODE === "model" ? ((MODEL && MODEL.hist) || []) : (MBT[HMODE] ? MBT[HMODE].days : null);
+let BT00X = null;
+function bt00Days(){
+  const B = MBT.bt00; if (!B) return null;
+  if (!MCONT) return B.days;
+  if (!BT00X){ const end = B.days[B.days.length - 1].d;
+    BT00X = B.days.concat((MCONT.hist || []).filter(x => x.d > end).map(x => ({d: x.d, nav: x.nav, cash: x.cash, green: !!x.green, qqq: null, pos: x.pos || [], f: x.f || []}))); }
+  return BT00X;
+}
+const allDays = () => HMODE === "model" ? ((MODEL && MODEL.hist) || []) : (HMODE === "bt00" ? bt00Days() : (MBT[HMODE] ? MBT[HMODE].days : null));
 // 時段：HYEAR[模式] = 揀咗嘅年份；HR[模式] = 自訂時段 {a, b}（YYYY-MM-DD）；兩樣都冇 = 全部
 // HSRC：cont = 由上年延續（同一個帳戶）｜fresh = 每年 1 月 1 日全現金、10 萬起步（model_bt_years.json，只限回測 2000 年起、揀年份時）
 let HYEAR = {}, HR = {}, HCACHE = {}, HSRC = "cont", MBY = null, MBY_ERR = null;
@@ -773,28 +783,27 @@ function navChart(nav){
 // 我嘅跟單帳戶（2026-09-30 用戶要求：自己揀幾多錢、幾時開始跟模型；可以隨時重設）
 // 做法：喺揀咗嗰日收市，照模型當時嘅持倉比例同現金比例複製落自己帳戶；之後帳戶值 = 本金 × 模型淨值(今日) ÷ 模型淨值(開始日)
 function followState(M){
-  const F = S.follow, N = M.nav || [];
-  if (!F || !(F.capital > 0) || !N.length) return null;
-  const live0 = N[0].date, liveNow = N[N.length - 1].nav;
-  if (F.start >= live0){                                   // 雲端模型帳戶開始之後：直接用模型淨值
+  const F = S.follow;
+  if (!F || !(F.capital > 0) || !MNEW || !(MNEW.nav || []).length) return null;
+  const N = MNEW.nav, live0 = N[0].date;
+  if (F.start >= live0){                                   // 新帳戶開始之後：直接用新帳戶淨值
     const i = N.findIndex(x => x.date >= F.start), k = i < 0 ? N.length - 1 : i;
     const path = N.slice(k).map(x => F.capital * x.nav / N[k].nav);
-    return {capital: F.capital, start: N[k].date, val: path[path.length - 1], ret: path[path.length - 1] / F.capital - 1, dd: mdd(path), bt: false};
+    return {acct: "new", capital: F.capital, start: N[k].date, val: path[path.length - 1], ret: path[path.length - 1] / F.capital - 1, dd: mdd(path)};
   }
-  // 早過雲端模型帳戶：之前嗰段用 V2.2 回測帳戶（2000 年起連續行）嘅每日淨值，再接駁雲端模型帳戶
+  // 早過新帳戶：回測帳戶（2000 年起連續行）嘅每日淨值，到數據尾之後接延續帳戶（同一個帳戶、同一套持倉）
   const B = MBT.bt00;
   if (!B){ if (!MBT_ERR.bt00) fetchBT("bt00"); return {loading: true, err: MBT_ERR.bt00, capital: F.capital, start: F.start}; }
-  const D = B.days;
+  const D = bt00Days();
   let k = 0; for (let i = 0; i < D.length; i++){ if (D[i].d <= F.start) k = i; else break; }
-  const path = D.slice(k).map(x => F.capital * x.nav / D[k].nav);
-  const atBtEnd = path[path.length - 1];
-  for (const x of N) path.push(atBtEnd * x.nav / M.capital);   // 回測去到數據尾；之後到雲端帳戶開始當持平（現金）
-  const val = path[path.length - 1];
-  return {capital: F.capital, start: D[k].d, val, ret: val / F.capital - 1, dd: mdd(path), bt: true, btEnd: D[D.length - 1].d, live0};
+  const path = D.slice(k).map(x => F.capital * x.nav / D[k].nav), val = path[path.length - 1];
+  return {acct: "cont", capital: F.capital, start: D[k].d, val, ret: val / F.capital - 1, dd: mdd(path), btEnd: B.days[B.days.length - 1].d, last: D[D.length - 1].d};
 }
 const mdd = a => { let pk = -Infinity, m = 0; for (const x of a){ pk = Math.max(pk, x); m = Math.min(m, x / pk - 1); } return m; };
 function followCard(M){
-  const v = M.view, N = M.nav || [], fs = followState(M), last = N.length ? N[N.length - 1].date : "";
+  const fs = followState(M), A = fs && fs.acct === "cont" ? MCONT : MNEW;
+  if (fs && fs.acct && A !== M) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small">你跟緊「${fs.acct === "cont" ? "延續帳戶" : "新帳戶"}」。<button data-acct="${fs.acct}" class="small">切換去睇</button></p></div>`;
+  const v = (A || M).view, N = (MNEW && MNEW.nav) || [], last = N.length ? N[N.length - 1].date : "";
   const form = `<div class="grid2 fform"><label>本金（美元）<input id="fCap" type="number" inputmode="decimal" step="any" placeholder="例如 20000" value="${fs ? fs.capital : ""}"></label>
       <label>由邊日收市開始跟（2000 年起任何一日）<input id="fStart" type="date" min="2000-01-03" max="${esc(last)}" value="${esc(fs ? fs.start : last)}"></label></div>
     <div class="row"><button class="primary" id="fGo">${fs ? "重設" : "開始跟"}</button>${fs ? `<button id="fClear">停止跟</button>` : ""}</div>`;
@@ -808,19 +817,20 @@ function followCard(M){
       <div><span>期間最大回撤</span><b class="dn">${pct(fs.dd)}</b></div><div><span>現金（${Math.round(v.cash_frac * 100)}%）</span><b>${f0(fs.val * v.cash_frac)}</b></div></div>
     ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">金額</th><th class="r">股數</th></tr>${rows}</table></div>` : ""}
     <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
-    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.bt ? `開始日早過雲端模型帳戶（${esc(fs.live0)}），之前嗰段用 V2.2 回測帳戶（2000 年起連續行）嘅每日淨值計；回測數據去到 ${esc(fs.btEnd)}，之後到 ${esc(fs.live0)} 當持平。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
+    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.2 回測（2000 年起連續行、Tiingo 全美股），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
 }
 
 function viewModel(){
   let h = topbar();
   if (!MODEL) return h + (MODEL_ERR ? `<div class="alert"><b>讀唔到模型帳戶</b><p class="small">${esc(MODEL_ERR)}</p></div>` : `<p class="muted">載入中…</p>`);
   const M = MODEL, v = M.view, A = v.actions || {}, P = M.pending || {};
-  const fs = followState(M), base = fs && fs.val ? fs.val : S.capital;
+  const fs = followState(M), base = fs && fs.val && ((fs.acct === "cont") === (M === MCONT)) ? fs.val : S.capital;
+  if (MCONT) h += `<div class="chips"><button data-acct="new" aria-pressed="${M === MNEW}">新帳戶 · ${esc(MNEW ? MNEW.start : "")} 全現金</button><button data-acct="cont" aria-pressed="${M === MCONT}">延續帳戶 · 2000 年起</button></div>`;
   const cap = M.braking ? 2 : 5, own = base > 0;
   const sh = (frac, px) => own ? ` · ${f0(Math.floor(base * frac / px))} 股` : "";
-  h += `<div class="card"><div class="row spread"><div><div class="lbl">模型帳戶 · ${esc(M.start)} 起全現金</div>
+  h += `<div class="card"><div class="row spread"><div><div class="lbl">${M === MCONT ? `延續帳戶 · 2000-01-03 起（10 萬），${esc(M.start)} 之後雲端繼續行` : `模型帳戶 · ${esc(M.start)} 起全現金`}</div>
       <div class="price">${f0(v.nav)}</div></div><span class="tag ${v.green ? "t-buy" : "t-stop"}">${v.green ? "綠燈" : "紅燈"}</span></div>
-    <div class="kv"><div><span>回報</span><b>${chg(v.ret)}</b></div><div><span>NDX 同期</span><b>${chg(v.ndx_ret)}</b></div>
+    <div class="kv"><div><span>回報</span><b>${chg(v.ret)}</b></div><div><span>${M === MCONT ? "NDX（" + esc(M.start.slice(5)) + " 起）" : "NDX 同期"}</span><b>${chg(v.ndx_ret)}</b></div>
       <div><span>持股 · 現金</span><b>${v.holdings.length}/${cap} · ${Math.round(v.cash_frac * 100)}%</b></div></div>
     ${navChart(M.nav)}
     <p class="small muted">照 V2.2 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>` + followCard(M);
@@ -1134,7 +1144,8 @@ function bind(){
   on("#fGo", () => { const c = +$("#fCap").value, d = $("#fStart").value;
     if (!(c > 0)){ alert("請填本金（美元）"); return; }
     if (!d || d < "2000-01-03"){ alert("開始日期要喺 2000-01-03 之後"); return; }
-    S.follow = {capital: c, start: d}; save(); render("f"); });
+    S.follow = {capital: c, start: d}; S.acct = (MNEW && MNEW.nav && MNEW.nav.length && d < MNEW.nav[0].date) ? "cont" : "new"; save(); pickModel(); HCACHE = {}; render("f"); });
+  document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });

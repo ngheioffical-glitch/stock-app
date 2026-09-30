@@ -13,15 +13,19 @@ V2.2（2026-09-30 用戶採用，stock-strategy/LAB_GRID2.md 嘅 B3）= V2.1 + �
 輸出 docs/model.json（狀態 + 下一個交易日要做嘅嘢 + hist 每日快照：帳戶值、現金、持倉、當日成交，app 用嚟拉條 bar 睇歷史）。
 用法：python scanner/model.py            （每日）
       python scanner/model.py seed       （由而家份 scan.json 嘅下一個交易日開始，全現金）
+      python scanner/model.py cont       （延續帳戶 docs/model_cont.json：2000 年起回測帳戶喺數據尾嘅狀態接落去行；
+                                           唔會自動開新帳戶，第一次要用 scanner/model_cont.py 建立）
 """
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCAN, OUT = ROOT / "docs" / "scan.json", ROOT / "docs" / "model.json"
+CONT = ROOT / "docs" / "model_cont.json"
 RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=15.0, rank_exit_brake=6.0, sleeve_cost=0.001, be_R=2.0, atr_buf=0.2,
             brake_down=0.75, brake_up=0.875, cost=0.001, mult=2)
 CAPITAL = 100_000.0
@@ -250,4 +254,13 @@ def main():
 
 
 if __name__ == "__main__":
-    seed() if sys.argv[1:] == ["seed"] else main()
+    if sys.argv[1:] == ["seed"]:
+        seed()
+    elif sys.argv[1:] == ["cont"]:
+        if CONT.exists():
+            OUT = CONT
+            main()
+        else:
+            print("[model] 冇 docs/model_cont.json（要先用 scanner/model_cont.py 建立），跳過")
+    else:
+        main()
