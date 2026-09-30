@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  models: read            # GitHub Models：Gemini 失敗時嘅 AI 後備（用內置 GITHUB_TOKEN）
 concurrency:
   group: feeds
   cancel-in-progress: true
@@ -29,13 +30,14 @@ jobs:
         timeout-minutes: 4
         env:
           PYTHONIOENCODING: utf-8
-      - name: Gemini 翻譯（新聞 + Serenity，即時）同今日重點（每 28 分鐘）；冇 key 或者出錯都唔影響新聞
+      - name: AI 翻譯（新聞 + Serenity，即時）同今日重點；Gemini 優先、GitHub Models 後備；出錯都唔影響新聞
         run: python scanner/ai.py out
         continue-on-error: true
         timeout-minutes: 5
         env:
           PYTHONIOENCODING: utf-8
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: 推去 feeds 分支
         working-directory: out
         run: |

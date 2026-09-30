@@ -69,7 +69,57 @@ def pick(key, base):
     return out or base
 
 
+# GitHub Models（2026-09-30 用戶要求：Gemini 唔穩定時嘅後備）：用 Actions 內置 GITHUB_TOKEN（workflow 要 permissions: models: read），唔使另外申請 key
+GH_API = "https://models.github.ai/inference/chat/completions"
+GH_MODELS = [m for m in (os.environ.get("GH_MODEL"), "openai/gpt-4.1-mini", "openai/gpt-4o-mini", "deepseek/deepseek-v3-0324") if m]
+
+
+def github_models(prompt):
+    tok = os.environ.get("GITHUB_TOKEN", "").strip()
+    if not tok:
+        raise RuntimeError("冇 GITHUB_TOKEN")
+    errs = []
+    for m in GH_MODELS:
+        for fmt in (True, False):                  # 先要求 JSON 格式；型號唔支援（400）就唔要
+            body = {"model": m, "temperature": 0.3,
+                    "messages": [{"role": "system", "content": "你只可以回覆一個 JSON object，唔好加其他文字。"},
+                                 {"role": "user", "content": prompt}]}
+            if fmt:
+                body["response_format"] = {"type": "json_object"}
+            req = urllib.request.Request(GH_API, data=json.dumps(body).encode(), method="POST",
+                                         headers={"Content-Type": "application/json", "Accept": "application/json",
+                                                  "Authorization": f"Bearer {tok}", "X-GitHub-Api-Version": "2022-11-28"})
+            try:
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    d = json.loads(r.read())
+                txt = d["choices"][0]["message"]["content"].strip()
+                txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt)
+                return json.loads(txt), "github:" + m
+            except urllib.error.HTTPError as e:
+                errs.append(f"{m} {e.code}")
+                if e.code == 400 and fmt:
+                    continue
+                break
+            except Exception as e:  # noqa: BLE001
+                errs.append(f"{m} {type(e).__name__}")
+                break
+    raise RuntimeError("GitHub Models 失敗（" + "、".join(errs) + "）")
+
+
 def gemini(key, prompt, models_):
+    """先用 Gemini（逐個型號試）；全部失敗就用 GitHub Models 後備。"""
+    try:
+        return _gemini(key, prompt, models_)
+    except Exception as e:  # noqa: BLE001
+        try:
+            res, m = github_models(prompt)
+            print(f"[ai] Gemini 失敗，改用 {m}：{str(e)[:160]}")
+            return res, m
+        except Exception as e2:  # noqa: BLE001
+            raise RuntimeError(f"{e}｜{e2}") from None
+
+
+def _gemini(key, prompt, models_):
     gen = {"responseMimeType": "application/json", "temperature": 0.3}
     last, errs = None, []
     for m in pick(key, models_):

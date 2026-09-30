@@ -1,4 +1,4 @@
-"""每日掃描（規則 v2.1），數據源：Nasdaq 公開股票名單 + Yahoo（yfinance）。唔使 Tiingo。[quant-signals]
+"""每日掃描（規則 V2.2），數據源：Nasdaq 公開股票名單 + Yahoo（yfinance）。唔使 Tiingo。[quant-signals]
 
 1. 股票池預選：Nasdaq 名單（全美約 7,000 隻普通股／ADR，唔包 ETF），揀當日成交額頭 300 + 市值頭 300（取合集）。
 2. Yahoo 下載預選股 2 年日線（拆股、派息調整）+ ^NDX。

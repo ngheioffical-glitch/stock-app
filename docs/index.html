@@ -253,7 +253,7 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
 
 <script>
 "use strict";
-// ───────────────────────── 規則（RULES_V2.md v2.1）：app 淨係顯示訊號，買唔買由用戶自己決定
+// ───────────────────────── 規則（RULES_V2.md V2.2）：app 淨係顯示訊號，買唔買由用戶自己決定
 const RULE = { cap: 5, frac: 0.20, boost: 1.5, rankExit: 15, beR: 2, show: 10 };
 const KEY = "signals-app";                // 舊版（v21-app）嘅持倉紀錄唔郁，淨係唔再用
 const defaults = { capital: 0, dataUrl: "scan.json",
@@ -765,7 +765,7 @@ function viewSet(){
     <label>新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
     <label>盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label></div>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
-  <div class="card small muted"><p>規則 v2.1（RULES_V2.md）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高就買。每隻 20%（排第 1 用 30%），最多 5 隻。帳戶由星期五高位跌 25% 就只揸 2 隻。</p>
+  <div class="card small muted"><p>規則 V2.2（RULES_V2.md）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高就買。每隻 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈（下一日開市清倉）就賣。帳戶由星期五高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到 −12.5% 以內恢復。現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
     <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></div>`;
 }
 
