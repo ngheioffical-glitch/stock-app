@@ -110,6 +110,49 @@ def feed(a=None, b=None):
     return out
 
 
+XMIRROR = "TrumpTruthOnX"      # X 帳戶：自動將 Trump 每條 Truth Social 貼文搬上 X，原文尾有「( TS: Sep 29 2026, 5:00 PM ET )」
+ZW = re.compile("[​-‏⁠﻿]")
+
+
+def xmirror(days=3):
+    """後備來源：經 fxtwitter 搜尋 @TrumpTruthOnX。只收有「( TS: … ET )」標記嘅（= Trump 原文）；「New media post」＝淨係相／片，跳過。"""
+    a = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
+    q = urllib.parse.urlencode(dict(q=f"from:{XMIRROR} since:{a}", feed="latest", count="100"))
+    d = json.loads(get("https://api.fxtwitter.com/2/search?" + q))
+    et, out = ZoneInfo("America/New_York"), []
+    for x in d.get("results", []):
+        if x.get("type") != "status" or (x.get("author") or {}).get("screen_name", "").lower() != XMIRROR.lower():
+            continue
+        t = ZW.sub("", x.get("text") or "")
+        m = re.search(r"\(\s*TS:\s*([A-Za-z]{3} \d{1,2} \d{4}, \d{1,2}:\d{2} [AP]M) ET\s*\)\s*$", t.strip())
+        if not m or t.startswith("New media post"):
+            continue
+        try:
+            ts = int(datetime.strptime(m.group(1), "%b %d %Y, %I:%M %p").replace(tzinfo=et).timestamp())
+        except ValueError:
+            ts = int(x.get("created_timestamp") or 0)
+        body = re.sub(r"\n*VIDEO: \S+", "", t[:m.start()]).strip()
+        if body:
+            out.append(dict(id="x" + x["id"], ts=ts, text=body, url=f"https://x.com/{XMIRROR}/status/{x['id']}", src="x"))
+    return out
+
+
+def recent_posts(days=3):
+    """近幾日貼文：trumpstruth.org 為主，@TrumpTruthOnX（X）補漏；其中一個出事都照有數據。"""
+    now, posts, errs = datetime.now(timezone.utc), [], []
+    try:
+        posts += feed((now - timedelta(days=days)).date().isoformat())
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"trumpstruth.org：{e}")
+    try:
+        posts += xmirror(days)                                   # dedupe 會留 trumpstruth 嗰個版本（排先）
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"X @{XMIRROR}：{e}")
+    if not posts and errs:
+        raise RuntimeError("；".join(errs))
+    return posts, errs
+
+
 def archive():
     a = json.loads(get(ARCHIVE))
     out = []
@@ -146,7 +189,7 @@ def keep(p):
 
 def dedupe(posts):
     seen, out = set(), []
-    for p in sorted(posts, key=lambda p: -p["ts"]):
+    for p in sorted(posts, key=lambda p: (-(p["ts"] // 600), p.get("src") == "x", -p["ts"])):   # 同一條：trumpstruth 版本優先
         t = p["text"]
         t = t[len("RT @realDonaldTrump"):] if t.startswith("RT @realDonaldTrump") else re.sub(r"^RT @\w+", "", t)
         k = re.sub(r"\W", "", t)[:80]                                          # 轉發自己舊 post 當同一條
@@ -165,19 +208,29 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "recent"
     if mode == "recent":
         out = Path(sys.argv[2] if len(sys.argv) > 2 else "out")
-        now = datetime.now(timezone.utc)
-        posts = dedupe(feed((now - timedelta(days=3)).date().isoformat()))
+        raw, errs = recent_posts(3)
+        posts = dedupe(raw)
         for p in posts:
             p["syms"], p["kind"] = tag(p["text"])
             p["text"] = p["text"][:1200]
-        (out / "trump_recent.json").write_text(json.dumps({"generated": hk_now(), "posts": posts}, ensure_ascii=False, separators=(",", ":")),
-                                               encoding="utf-8")
-        print(f"[trump] 近 3 日 {len(posts)} 條，提公司 {sum(1 for p in posts if p['syms'])} 條")
+        (out / "trump_recent.json").write_text(json.dumps({"generated": hk_now(), "posts": posts, "errors": errs,
+                                                           "sources": sorted({p.get("src", "trumpstruth") for p in posts})},
+                                                          ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print(f"[trump] 近 3 日 {len(posts)} 條（X 補 {sum(1 for p in posts if p.get('src') == 'x')}），提公司 {sum(1 for p in posts if p['syms'])} 條"
+              + (f"；出錯：{errs}" if errs else ""))
         return
     old = json.loads(ALL.read_text(encoding="utf-8"))["posts"] if ALL.exists() else []
-    if old:                                                     # 已有歷史：只補最近 10 日
+    if old:                                                     # 已有歷史：只補最近 10 日（trumpstruth 攞唔到就用 X 後備）
         start = (datetime.now(timezone.utc) - timedelta(days=10)).date().isoformat()
-        new = since(start)
+        try:
+            new = since(start)
+        except Exception as e:  # noqa: BLE001
+            print(f"[trump] trumpstruth.org 攞唔到（{e}），改用 X @{XMIRROR}")
+            new = []
+        try:
+            new += xmirror(10)
+        except Exception as e:  # noqa: BLE001
+            print(f"[trump] X @{XMIRROR} 攞唔到：{e}")
     else:                                                       # 第一次：存檔 + 存檔之後嘅 RSS
         arc = archive()
         last = max(p["ts"] for p in arc)

@@ -126,9 +126,9 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(5,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(6,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-nav button{border:0;background:none;padding:9px 4px 8px;font-size:12px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button{border:0;background:none;padding:9px 2px 8px;font-size:11px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 nav button[aria-current="page"]{color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.5)}
 nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
@@ -198,6 +198,9 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .snap{display:flex;flex-wrap:wrap;gap:4px 12px;padding:8px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
 .snap>.muted{flex-basis:100%;font-size:11.5px}
 .zm{font-size:11px;color:var(--dim);font-family:var(--mono)}
+.gear{padding:5px;border-radius:999px;line-height:0;flex:none}
+.gear svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.7;stroke-linecap:round}
+.gear.on svg{stroke:var(--cyan);filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
 /* 動畫（2026-09-30）：分頁滑入、卡片逐張浮入、底部指示條、撳落回饋、載入骨架 */
 :root{--ease:cubic-bezier(.22,.9,.24,1)}
 .rise{animation:rise .4s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms)}
@@ -206,7 +209,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 @keyframes fadein{from{opacity:.35}to{opacity:1}}
 button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
 button:active{transform:scale(.95)}
-nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:20%;padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 6);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
 nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
   box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
 nav button{position:relative;z-index:1}
@@ -253,7 +256,8 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
   <button data-tab="model"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>模型</button>
   <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
   <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
-  <button data-tab="set"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>設定</button>
+  <button data-tab="ser"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Serenity</button>
+  <button data-tab="trump"><svg viewBox="0 0 24 24"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>Trump</button>
 </nav>
 
 <script>
@@ -270,7 +274,7 @@ function load(){
     const cur = JSON.parse(localStorage.getItem(KEY));
     const s = cur || JSON.parse(localStorage.getItem("v21-app")) || {};       // 第一次：沿用舊版嘅數據網址
     return {...defaults, ...Object.fromEntries(Object.entries({capital: cur ? +cur.capital || 0 : 0,   // 舊版「現金」係餘額，唔當資金
-      dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl, ghToken: cur ? cur.ghToken : ""}).filter(([, v]) => v))};
+      dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl, ghToken: cur ? cur.ghToken : "", follow: cur ? cur.follow : null}).filter(([, v]) => v))};
   } catch(e){ return {...defaults}; }
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
@@ -297,9 +301,10 @@ const nyToday = () => parts(NY, new Date()).date;
 function signals(){
   if (!SCAN) return {list:[], why:"未有數據"};
   if (!SCAN.green) return {list:[], why:"大市紅燈：規則唔開新倉"};
+  const fs = (typeof MODEL !== "undefined" && MODEL) ? followState(MODEL) : null, base = fs && fs.val ? fs.val : S.capital;   // 有跟單帳戶就用帳戶值
   const list = SCAN.ranking.filter(r => r.status === "候選").slice(0, RULE.show).map(r => {
     const frac = RULE.frac * (r.sym === SCAN.rank1 ? RULE.boost : 1);
-    return {...r, frac, shares: S.capital > 0 ? Math.floor(S.capital * frac / r.pivot) : null};
+    return {...r, frac, shares: base > 0 ? Math.floor(base * frac / r.pivot) : null};
   });
   return {list, why: list.length ? "" : "今日冇合格嘅突破候選股"};
 }
@@ -316,7 +321,8 @@ function exitNote(r){
 // ───────────────────────── 畫面
 function topbar(){
   return `<div class="topbar"><div class="brand">LEADER<span>//</span>BREAKOUT</div>
-    ${SCAN ? `<span class="chip">${esc(SCAN.date.slice(5))} 收市</span>` : ""}</div>`;
+    <div class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${SCAN ? `<span class="chip">${esc(SCAN.date.slice(5))} 收市</span>` : ""}
+    <button class="gear${TAB === "set" ? " on" : ""}" id="goSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button></div></div>`;
 }
 
 function header(){
@@ -457,14 +463,14 @@ const serTag = sym => { const o = SER && SER.by[sym]; return (o ? ` <span class=
 // Trump（Truth Social）：2026-09-30 用戶要求追蹤佢提過嘅公司同講股市嘅貼文；只供參考，唔改規則
 let TR = null, TRALL = null, TRSYM = "", TRALL_ERR = null;
 async function fetchTrump(){
-  const bust = "?t=" + Math.floor(Date.now() / 60e3), m = {}, recent = [];
+  const bust = "?t=" + Math.floor(Date.now() / 60e3), m = {}, recent = []; let errs = [];
   try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "trump.json") + bust, {cache:"no-store"}); if (r.ok) (await r.json()).posts.forEach(x => m[x.id] = x); } catch(e){}
   try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "trump_recent.json" + bust, {cache:"no-store"});
-    if (r.ok) (await r.json()).posts.forEach(x => { recent.push(x); if ((x.syms || []).length || x.kind) m[x.id] = Object.assign({}, m[x.id], x); }); } catch(e){}
+    if (r.ok){ const j = await r.json(); errs = j.errors || []; j.posts.forEach(x => { recent.push(x); if ((x.syms || []).length || x.kind) m[x.id] = Object.assign({}, m[x.id], x); }); } } catch(e){}
   const now = Date.now() / 1e3, by = {};
   const ment = Object.values(m).sort((a, b) => b.ts - a.ts);
   for (const t of ment) if (now - t.ts <= 30 * 86400) for (const s of t.syms || []){ const o = by[s] || (by[s] = {n: 0, last: t}); o.n++; }
-  TR = {by, ment, recent: recent.sort((a, b) => b.ts - a.ts)};
+  TR = {by, ment, errs, recent: recent.sort((a, b) => b.ts - a.ts)};
   render();
 }
 async function fetchTrAll(){
@@ -476,13 +482,21 @@ async function fetchTrAll(){
 const trTag = sym => { const o = TR && TR.by[sym]; return o ? ` <span class="tag t-tr" data-trsym="${sym}" role="button" title="Trump 近 30 日提過 ${o.n} 次：撳落去睇">T·${o.n}</span>` : ""; };
 function openTr(sym){
   TRSYM = String(sym || "").trim().toUpperCase().replace(/^\$/, "");
-  TAB = "news"; NT = "news"; NCAT = "Trump";
+  TAB = "trump";
   try { localStorage.setItem(KEY + "-tab", TAB); localStorage.setItem(KEY + "-nt", NT); } catch(e){}
   if (TRSYM) fetchTrAll();
   render("r"); window.scrollTo(0, 0);
 }
 const trPost = (t, cand, skip) => `<div class="news"><a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
   <div class="meta">${t.kind ? `<span class="tag ${t.kind === "講 BUY" ? "t-stop" : "t-warn"}">${esc(t.kind)}</span>` : ""}${(t.syms || []).filter(s => s !== skip).map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-trsym="${s}" role="button">${s}</span>`).join("")}<span>${hkDate(t.ts)}</span>${t.zm ? `<span class="zm">譯：${esc(String(t.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`;
+function viewSer(){
+  return topbar() + `<div class="row spread"><h2>Serenity · X @aleabitoreddit</h2><button id="serReload" class="small">重新整理</button></div>` + viewSerList();
+}
+function viewTrump(){
+  const errs = (TR && TR.errs) || [];
+  return topbar() + `<div class="row spread"><h2>Trump · Truth Social</h2><button id="trReload" class="small">重新整理</button></div>`
+    + (errs.length ? `<p class="small muted">部分來源出錯，已用後備：${esc(errs.join("；"))}</p>` : "") + viewTrList();
+}
 function viewTrList(){
   if (!TR) return `<p class="muted">載入中…</p>`;
   const cand = new Set(SCAN ? SCAN.ranking.filter(r => r.status === "候選").map(r => r.sym) : []);
@@ -492,7 +506,7 @@ function viewTrList(){
   let h = search + (top.length ? `<div class="card"><span class="small muted">近 30 日提過嘅公司（撳落去睇 2022 年起全部）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-tr"}" data-trsym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>` : "");
   const L = TR.recent.filter(t => t.text && t.text.length > 3).slice(0, 60);
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px"><span class="small muted" style="padding-top:8px">最新貼文（近 3 日）</span>` + (L.length ? L.map(t => trPost(t, cand)).join("") : `<p class="muted" style="padding:10px 0">暫時冇</p>`) + `</div>`;
-  return h + `<p class="small muted">Trump 嘅 Truth Social（佢喺 X 大多只轉片）。來源：trumpstruth.org 同公開存檔；每 5 分鐘更新，AI 即時翻譯。只列有文字嘅貼文；公司用名稱對照代號，可能有漏或者誤判。只供參考，唔係買入訊號。</p>`;
+  return h + `<p class="small muted">Trump 嘅 Truth Social（佢喺 X 大多只轉片）。來源：trumpstruth.org 為主、X @TrumpTruthOnX 後備（兩邊互相補漏）、2022 起公開存檔；每 5 分鐘更新，AI 即時翻譯。只列有文字嘅貼文；公司用名稱對照代號，可能有漏或者誤判。只供參考，唔係買入訊號。</p>`;
 }
 function viewTrHist(cand){
   const sym = TRSYM;
@@ -515,7 +529,7 @@ async function fetchSerAll(){
 }
 function openSer(sym){
   SERSYM = String(sym || "").trim().toUpperCase().replace(/^\$/, "");
-  TAB = "news"; NT = "news"; NCAT = "Serenity";
+  TAB = "ser";
   try { localStorage.setItem(KEY + "-tab", TAB); localStorage.setItem(KEY + "-nt", NT); } catch(e){}
   if (SERSYM) fetchSerAll();
   render("r"); window.scrollTo(0, 0);
@@ -756,18 +770,60 @@ function navChart(nav){
     <polyline points="${pts}" fill="none" stroke="${up ? "var(--buy)" : "var(--stop)"}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
 }
 
+// 我嘅跟單帳戶（2026-09-30 用戶要求：自己揀幾多錢、幾時開始跟模型；可以隨時重設）
+// 做法：喺揀咗嗰日收市，照模型當時嘅持倉比例同現金比例複製落自己帳戶；之後帳戶值 = 本金 × 模型淨值(今日) ÷ 模型淨值(開始日)
+function followState(M){
+  const F = S.follow, N = M.nav || [];
+  if (!F || !(F.capital > 0) || !N.length) return null;
+  const live0 = N[0].date, liveNow = N[N.length - 1].nav;
+  if (F.start >= live0){                                   // 雲端模型帳戶開始之後：直接用模型淨值
+    const i = N.findIndex(x => x.date >= F.start), k = i < 0 ? N.length - 1 : i;
+    const path = N.slice(k).map(x => F.capital * x.nav / N[k].nav);
+    return {capital: F.capital, start: N[k].date, val: path[path.length - 1], ret: path[path.length - 1] / F.capital - 1, dd: mdd(path), bt: false};
+  }
+  // 早過雲端模型帳戶：之前嗰段用 V2.2 回測帳戶（2000 年起連續行）嘅每日淨值，再接駁雲端模型帳戶
+  const B = MBT.bt00;
+  if (!B){ if (!MBT_ERR.bt00) fetchBT("bt00"); return {loading: true, err: MBT_ERR.bt00, capital: F.capital, start: F.start}; }
+  const D = B.days;
+  let k = 0; for (let i = 0; i < D.length; i++){ if (D[i].d <= F.start) k = i; else break; }
+  const path = D.slice(k).map(x => F.capital * x.nav / D[k].nav);
+  const atBtEnd = path[path.length - 1];
+  for (const x of N) path.push(atBtEnd * x.nav / M.capital);   // 回測去到數據尾；之後到雲端帳戶開始當持平（現金）
+  const val = path[path.length - 1];
+  return {capital: F.capital, start: D[k].d, val, ret: val / F.capital - 1, dd: mdd(path), bt: true, btEnd: D[D.length - 1].d, live0};
+}
+const mdd = a => { let pk = -Infinity, m = 0; for (const x of a){ pk = Math.max(pk, x); m = Math.min(m, x / pk - 1); } return m; };
+function followCard(M){
+  const v = M.view, N = M.nav || [], fs = followState(M), last = N.length ? N[N.length - 1].date : "";
+  const form = `<div class="grid2 fform"><label>本金（美元）<input id="fCap" type="number" inputmode="decimal" step="any" placeholder="例如 20000" value="${fs ? fs.capital : ""}"></label>
+      <label>由邊日收市開始跟（2000 年起任何一日）<input id="fStart" type="date" min="2000-01-03" max="${esc(last)}" value="${esc(fs ? fs.start : last)}"></label></div>
+    <div class="row"><button class="primary" id="fGo">${fs ? "重設" : "開始跟"}</button>${fs ? `<button id="fClear">停止跟</button>` : ""}</div>`;
+  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-28 之前用 V2.2 回測帳戶計）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
+  if (fs.loading) return `<div class="card"><b>我嘅跟單帳戶</b><p class="muted">${fs.err ? "讀唔到回測數據：" + esc(fs.err) : "載入緊 2000 年起嘅回測數據（約 1 MB）…"}</p>${fs.err ? form : ""}</div>`;
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b><span class="ind">佔 ${Math.round(p.weight * 100)}%</span></td><td class="r mono">${f0(fs.val * p.weight)}</td>
+      <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td></tr>`).join("");
+  return `<div class="card"><div class="row spread"><div><div class="lbl">我嘅跟單帳戶 · ${esc(fs.start)} 收市開始</div><div class="price">${f0(fs.val)}</div></div>
+      <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
+    <div class="kv"><div><span>本金</span><b>${f0(fs.capital)}</b></div><div><span>賺蝕</span><b class="${fs.val >= fs.capital ? "up" : "dn"}">${(fs.val >= fs.capital ? "+" : "") + f0(fs.val - fs.capital)}</b></div>
+      <div><span>期間最大回撤</span><b class="dn">${pct(fs.dd)}</b></div><div><span>現金（${Math.round(v.cash_frac * 100)}%）</span><b>${f0(fs.val * v.cash_frac)}</b></div></div>
+    ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">金額</th><th class="r">股數</th></tr>${rows}</table></div>` : ""}
+    <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
+    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.bt ? `開始日早過雲端模型帳戶（${esc(fs.live0)}），之前嗰段用 V2.2 回測帳戶（2000 年起連續行）嘅每日淨值計；回測數據去到 ${esc(fs.btEnd)}，之後到 ${esc(fs.live0)} 當持平。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
+}
+
 function viewModel(){
   let h = topbar();
   if (!MODEL) return h + (MODEL_ERR ? `<div class="alert"><b>讀唔到模型帳戶</b><p class="small">${esc(MODEL_ERR)}</p></div>` : `<p class="muted">載入中…</p>`);
   const M = MODEL, v = M.view, A = v.actions || {}, P = M.pending || {};
-  const cap = M.braking ? 2 : 5, own = S.capital > 0;
-  const sh = (frac, px) => own ? ` · ${f0(Math.floor(S.capital * frac / px))} 股` : "";
+  const fs = followState(M), base = fs && fs.val ? fs.val : S.capital;
+  const cap = M.braking ? 2 : 5, own = base > 0;
+  const sh = (frac, px) => own ? ` · ${f0(Math.floor(base * frac / px))} 股` : "";
   h += `<div class="card"><div class="row spread"><div><div class="lbl">模型帳戶 · ${esc(M.start)} 起全現金</div>
       <div class="price">${f0(v.nav)}</div></div><span class="tag ${v.green ? "t-buy" : "t-stop"}">${v.green ? "綠燈" : "紅燈"}</span></div>
     <div class="kv"><div><span>回報</span><b>${chg(v.ret)}</b></div><div><span>NDX 同期</span><b>${chg(v.ndx_ret)}</b></div>
       <div><span>持股 · 現金</span><b>${v.holdings.length}/${cap} · ${Math.round(v.cash_frac * 100)}%</b></div></div>
     ${navChart(M.nav)}
-    <p class="small muted">照 V2.2 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>`;
+    <p class="small muted">照 V2.2 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>` + followCard(M);
   for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
 
   h += `<h2>${esc(P.for || v.next_day)} 要做</h2>`;
@@ -777,7 +833,7 @@ function viewModel(){
   if ((P.buys || []).length) todo.push(`<div class="tablewrap"><table><tr><th>掛 buy-stop</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">注碼</th></tr>
       ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}${levInd(b.sym)}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
         <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
-      <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺「設定」填資金就會計埋股數。"}</p>`);
+      <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺上面「我嘅跟單帳戶」填本金就會計埋股數。"}</p>`);
   h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
   h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
   h += viewHist();
@@ -987,9 +1043,8 @@ function viewEcon(){
 function viewNewsList(){
   const N = FEED.news.items;
   const mine = new Set(SCAN ? signals().list.map(r => r.sym) : []);
-  const cats = ["全部", "快訊", "Serenity", "Trump", "買入訊號股", "市場", "經濟", "國際", "科技"];
-  if (NCAT === "Trump") return `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>` + viewTrList();
-  if (NCAT === "Serenity") return `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>` + viewSerList();
+  const cats = ["全部", "快訊", "買入訊號股", "市場", "經濟", "國際", "科技"];     // Serenity／Trump 已經有自己一頁
+  if (!cats.includes(NCAT)) NCAT = "全部";
   let list = NCAT === "全部" ? N.filter(x => !x.sym) : NCAT === "買入訊號股" ? N.filter(x => x.sym && mine.has(x.sym)) : N.filter(x => x.cat === NCAT);
   const seen = new Set();
   list = list.filter(x => { const k = x.title + (NCAT === "買入訊號股" ? "" : x.sym || ""); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 80);
@@ -1052,13 +1107,13 @@ function viewNews(){
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
-const ORDER = ["today", "model", "rank", "news", "set"];
+const ORDER = ["today", "model", "rank", "news", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
-  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, set:viewSet}[TAB] || viewToday)();
+  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
-  const pill = $("#tabs .pill"); if (pill) pill.style.transform = `translateX(${Math.max(0, ORDER.indexOf(TAB)) * 100}%)`;
+  const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(TAB); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
     [...app.children].slice(0, 12).forEach((el, i) => { el.style.setProperty("--i", i); el.style.setProperty("--dx", anim === "r" ? "26px" : "-26px"); el.classList.add("rise"); });
   } else if (anim === "f"){
@@ -1076,6 +1131,14 @@ function bind(){
   on("#reload", () => fetchScan());
   on("#feedReload", () => { cloudRefresh(); render(); });
   on("#goToday", () => jumpToday(true));
+  on("#fGo", () => { const c = +$("#fCap").value, d = $("#fStart").value;
+    if (!(c > 0)){ alert("請填本金（美元）"); return; }
+    if (!d || d < "2000-01-03"){ alert("開始日期要喺 2000-01-03 之後"); return; }
+    S.follow = {capital: c, start: d}; save(); render("f"); });
+  on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
+  on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
+  on("#serReload", () => { fetchSer(); });
+  on("#trReload", () => { fetchTrump(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { if (b.dataset.nt === "econ") FEED.scrolled = false; NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
@@ -1094,9 +1157,11 @@ function bind(){
   document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render("f"); });
 }
 
+let LASTTAB = null;
 function go(tab){
   if (tab === TAB){ window.scrollTo({top:0, behavior:"smooth"}); return; }
-  const dir = ORDER.indexOf(tab) > ORDER.indexOf(TAB) ? "r" : "l";
+  if (tab === "set") LASTTAB = TAB;
+  const dir = tab === "set" ? "r" : (TAB === "set" ? "l" : (ORDER.indexOf(tab) > ORDER.indexOf(TAB) ? "r" : "l"));
   TAB = tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){}
   if (tab === "news") FEED.scrolled = false;          // 每次入新聞：經濟日曆跳返今日
   try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch(e){}

@@ -420,7 +420,7 @@ def fed_ai(key, N, P, now):
     return f"聯儲局文件總結 新 {len(done)}／候選 {len(new)}，共 {len(N['fed'])} 份"
 
 
-def digest(key, N, E, P, now, force=False, T=None):
+def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     items = N["items"]
     recent = [x for x in items if x["cat"] in CATS and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=18)]
     recent.sort(key=lambda x: x["t"], reverse=True)                  # 新嘅先，再按影響排（穩定排序）
@@ -428,6 +428,9 @@ def digest(key, N, E, P, now, force=False, T=None):
     heads = [f"[{x['cat']}{'・高影響' if x.get('imp') == 3 else ''}] {x['title']}" for x in recent[:40]]
     heads += [f"[Trump Truth Social 貼文] {t['text'][:220]}" for t in (T or {}).get("posts", [])
               if t.get("text") and now.timestamp() - t["ts"] < 18 * 3600 and len(t["text"]) > 40][:8]
+    heads += [f"[Serenity（美股分析師，X @aleabitoreddit）推文，提到 {' '.join('$' + x for x in t.get('syms', []))}] {t['text'][:220]}"
+              for t in sorted((Sr or {}).get("tweets", []), key=lambda t: -t["ts"])
+              if now.timestamp() - t["ts"] < 18 * 3600 and not t.get("reply")][:6]
     done = [r for r in E.get("rows", []) if r.get("actual") and r.get("imp", 0) >= 2][-12:]
     econ = [f"{r['t']} {r.get('zh') or r['name']}：實際 {r['actual']}／預測 {r.get('forecast') or '—'}／上次 {r.get('previous') or '—'}" for r in done]
     light, watch = context()
@@ -439,7 +442,8 @@ def digest(key, N, E, P, now, force=False, T=None):
     base = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
-            "根據下面最近 18 小時嘅新聞標題、Trump 貼文（如有，只揀對市場有影響嘅，例如關稅、公司、聯儲局、股市）同已公佈經濟數據，寫：\n"
+            "根據下面最近 18 小時嘅新聞標題、Trump 貼文（如有，只揀對市場有影響嘅，例如關稅、公司、聯儲局、股市）、"
+            "Serenity 推文（如有，佢係 X 上面嘅美股分析師，講邊隻股同點解；有重要觀點就寫一點，註明係 Serenity 嘅睇法）同已公佈經濟數據，寫：\n"
             "1. points：3–6 點今日最重要嘅事，每點一句講「發生咩 → 對美股／科技股可能有咩影響」；有提到佢留意嘅股就講埋；\n"
             "2. econ：一至兩句總結已公佈經濟數據對息口預期嘅意思（冇數據就寫空字串）。\n"
             "事實規則：講到美元、債息、納指、油價、金價嘅升跌，只可以用上面嘅實際數字；新聞標題可能係幾個鐘前嘅走勢，同實際數字唔同就以實際數字為準，"
@@ -554,7 +558,7 @@ def main():
     else:
         N["ai_at"] = now.isoformat(timespec="seconds")
         try:
-            d, msg = digest(key, N, E, P, now, force=manual, T=T)
+            d, msg = digest(key, N, E, P, now, force=manual, T=T, Sr=S)
             if d:
                 N["digest"] = d
             print("[ai] " + msg)
