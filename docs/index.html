@@ -142,6 +142,9 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .news .meta{font-size:11.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .ev{display:grid;grid-template-columns:54px 1fr;gap:2px 10px;padding:9px 0;border-bottom:1px solid var(--line)}
 .ev:last-child{border-bottom:0}
+.ev .exp{grid-column:2;font-size:12px;color:var(--ink);margin-top:4px}
+.ev .exp summary{cursor:pointer;color:var(--cyan);font-size:12px;line-height:1.5}
+.ev .exp p{margin:4px 0;line-height:1.5}
 .ev .tm{font-family:var(--mono);font-size:13px;color:var(--cyan)}
 .ev .tm small{color:var(--dim)}
 .ev .nm{font-weight:500;line-height:1.35}
@@ -686,6 +689,62 @@ async function fetchFeeds(force){
   if (TAB === "news") render();
 }
 
+// 經濟數據解釋（2026-09-30 用戶要求：數據出咗唔知代表咩、有咩影響）。
+// what = 係咩；why = 點解重要；up／dn = 實際高過／低過預測通常點解讀（市場反應睇「同預測差幾多」，唔係數字本身，唔一定每次一樣）
+const EI_INFL = {up: "通脹熱過預期 → 聯儲局減息機會細咗（甚至要加息）、債息升 → 高估值科技股通常受壓", dn: "通脹降溫多過預期 → 減息機會大咗、債息跌 → 通常利好科技股同大市"};
+const EI_GROW = {up: "經濟強過預期 → 公司盈利前景好；但太熱會令減息推遲、債息升", dn: "經濟弱過預期 → 減息機會大咗；但弱得太多會擔心衰退，週期股受壓"};
+const EI_JOBW = {up: "就業轉弱多過預期 → 減息機會大咗；但升得急要小心經濟衰退", dn: "就業強過預期 → 經濟穩陣；但減息可能推遲、債息升"};
+const EI_JOBS = {up: "請人多過預期 → 經濟強；但太熱會令減息推遲，債息升、科技股有時反而跌", dn: "請人少過預期 → 經濟轉弱，減息機會大咗；差太遠會擔心衰退"};
+const ECON_INFO = {
+  "核心 CPI": {what: "消費物價指數扣除食物同能源，睇「黏住唔走」嘅通脹。", why: "每月最重要嘅通脹數據之一，直接影響聯儲局減息／加息。", ...EI_INFL},
+  "CPI 通脹": {what: "消費物價指數：一籃子日常開支嘅價格變化。", why: "通脹高 = 聯儲局難減息；包埋油價食物，上落大過核心 CPI。", ...EI_INFL},
+  "核心 PCE": {what: "個人消費開支物價，扣除食物能源。", why: "聯儲局 2% 通脹目標正正係睇呢個，係佢最鍾意嘅通脹指標。", ...EI_INFL},
+  "PCE 物價": {what: "個人消費開支物價（包食物能源）。", why: "同核心 PCE 一齊出，通常睇核心嗰個多啲。", ...EI_INFL},
+  "核心 PPI": {what: "生產者物價（扣食物能源）：企業賣出價嘅變化。", why: "上游成本，會慢慢轉嫁去消費者，係 CPI 嘅先行指標。", ...EI_INFL},
+  "PPI 生產物價": {what: "生產者物價指數：企業層面嘅通脹。", why: "反映成本壓力，影響之後嘅 CPI 同企業利潤率。", ...EI_INFL},
+  "平均時薪": {what: "打工仔平均時薪升幅（非農報告入面）。", why: "人工升得快 = 服務業通脹難降，聯儲局好睇重。", ...EI_INFL},
+  "密歇根通脹預期": {what: "消費者估計未來 1 年／5 年通脹會幾高。", why: "預期通脹上升會自我實現，聯儲局會擔心。", ...EI_INFL},
+  "非農就業": {what: "上個月美國（唔計農業）新增咗幾多份工。", why: "每月第一個星期五出，係市場最大嘅數據之一，反映經濟同就業市場。", ...EI_JOBS},
+  "ADP 就業": {what: "私人薪酬公司 ADP 統計嘅私人企業新增職位。", why: "非農前兩日出，當係非農嘅預告，但兩者經常唔一致。", ...EI_JOBS},
+  "失業率": {what: "勞動人口入面搵唔到工嘅比例。", why: "聯儲局兩大任務之一係就業；失業率急升係衰退警號（Sahm 規則）。", ...EI_JOBW},
+  "首次申領失業救濟": {what: "上星期第一次申請失業救濟嘅人數。", why: "每星期四出，最快反映裁員；持續升穿 25–30 萬要小心。", ...EI_JOBW},
+  "持續申領失業救濟": {what: "仲喺度領緊失業救濟嘅人數。", why: "數字升 = 失咗工嘅人難搵返工，就業市場轉弱。", ...EI_JOBW},
+  "JOLTS 職位空缺": {what: "企業有幾多職位空缺請緊人。", why: "空缺多 = 勞工需求強、人工有上升壓力。", ...EI_GROW},
+  "GDP": {what: "國內生產總值：成個經濟上一季增長幾多（年率）。", why: "最全面嘅經濟指標，但較遲出；分初值、修正、終值。", ...EI_GROW},
+  "亞特蘭大聯儲 GDPNow": {what: "亞特蘭大聯儲按最新數據即時估算本季 GDP。", why: "官方 GDP 未出之前嘅最佳估計，每隔幾日更新。", ...EI_GROW},
+  "零售銷售": {what: "零售店同網購總銷售額變化。", why: "消費佔美國經濟大約七成，反映消費者仲肯唔肯使錢。", ...EI_GROW},
+  "核心零售銷售": {what: "零售銷售扣除汽車（有時連油站）。", why: "去除汽車大單嘅波動，更反映日常消費。", ...EI_GROW},
+  "ISM 製造業": {what: "採購經理調查：製造業景氣，50 以上 = 擴張。", why: "月初第一個大數據，反映工廠訂單、生產同價格。", ...EI_GROW},
+  "ISM 服務業": {what: "採購經理調查：服務業景氣，50 以上 = 擴張。", why: "服務業係美國經濟主體；入面嘅「價格」分項反映通脹。", ...EI_GROW},
+  "製造業 PMI": {what: "S&P Global 製造業採購經理指數，50 以上 = 擴張。", why: "比 ISM 早出嘅初值，睇趨勢。", ...EI_GROW},
+  "服務業 PMI": {what: "S&P Global 服務業採購經理指數，50 以上 = 擴張。", why: "服務業景氣嘅早期信號。", ...EI_GROW},
+  "耐用品訂單": {what: "汽車、機器等耐用品嘅新訂單。", why: "反映企業投資意欲；飛機訂單令數字大上大落，要睇扣除運輸嗰個。", ...EI_GROW},
+  "工業生產": {what: "工廠、礦業、公用事業嘅產量。", why: "製造業實際產出，配合 ISM 睇。", ...EI_GROW},
+  "諮商會消費信心": {what: "諮商會調查消費者對經濟同就業嘅信心。", why: "信心好 = 之後較肯消費；偏重就業感受。", ...EI_GROW},
+  "密歇根消費信心": {what: "密歇根大學消費者信心調查。", why: "偏重物價同個人財務感受；同時公佈通脹預期。", ...EI_GROW},
+  "新屋銷售": {what: "新建住宅嘅銷售數量。", why: "樓市對息口最敏感，反映按揭息率嘅影響。", ...EI_GROW},
+  "成屋銷售": {what: "二手樓成交數量。", why: "樓市主體，受按揭息率同樓價影響。", ...EI_GROW},
+  "新屋動工": {what: "新開工興建嘅住宅數量。", why: "反映建築業同之後嘅樓市供應。", ...EI_GROW},
+  "建築許可": {what: "批出嘅新建築許可數量。", why: "新屋動工嘅先行指標。", ...EI_GROW},
+  "費城聯儲製造業": {what: "費城區製造業調查，0 以上 = 擴張。", why: "月中出，比 ISM 早，睇製造業方向。", ...EI_GROW},
+  "紐約製造業": {what: "紐約州製造業調查（Empire State），0 以上 = 擴張。", why: "每月最早出嘅製造業調查。", ...EI_GROW},
+  "貿易差額": {what: "出口減入口（負數 = 逆差）。", why: "影響 GDP 計算；關稅時期特別受注意。", up: "逆差收窄（數字高過預期）→ 對 GDP 有正面貢獻", dn: "逆差擴大 → 拖低 GDP"},
+  "原油庫存": {what: "美國能源資訊署公佈嘅每週原油庫存變化。", why: "影響油價，油價影響通脹同能源股。", up: "庫存多過預期 → 供應充足 → 油價通常跌、通脹壓力減", dn: "庫存少過預期 → 供應緊 → 油價通常升，利好能源股"},
+  "聯儲局議息": {what: "聯儲局公佈聯邦基金利率。", why: "全球資產定價嘅基準；除咗決定本身，記者會同點陣圖（對將來息口嘅預測）更重要。", up: "息口高過預期（偏鷹）→ 股市、債市通常受壓，美元升", dn: "息口低過預期（偏鴿）→ 通常利好股市，美元跌"},
+  "聯儲局會議紀錄": {what: "上次議息會議嘅詳細討論內容（3 星期後公佈）。", why: "睇委員之間對減息／加息嘅分歧同傾向。"},
+  "聯儲局主席講話": {what: "聯儲局主席公開講話。", why: "一句「仲未有信心通脹回落」都可以令市場即時大上落。"},
+  "國債拍賣": {what: "美國財政部拍賣國債。", why: "需求差（得標息率高過預期）會推高長債息率，壓住股市估值。"},
+};
+function econNote(r, cmp){
+  const I = ECON_INFO[r.zh];
+  if (!I) return "";
+  const eff = cmp === "高過預測" ? I.up : cmp === "低過預測" ? I.dn : "";
+  return `<details class="exp"><summary>${eff ? `<b>解讀</b>：${esc(eff)}` : "係咩？點影響？"}</summary>
+    <p><b>係咩：</b>${esc(I.what)}</p><p><b>點解重要：</b>${esc(I.why)}</p>
+    ${I.up ? `<p><b>高過預測：</b>${esc(I.up)}</p><p><b>低過預測：</b>${esc(I.dn)}</p>` : ""}
+    <p class="muted">市場反應睇「同預測差幾多」，唔係數字本身；同時出幾個數據、或者市場早有預期，反應可以相反。</p></details>`;
+}
+
 function viewEcon(){
   const E = FEED.econ;
   const rows = E.rows.filter(r => EALL || r.imp >= 2).map(r => ({...r, d: fromET(r.t)}));
@@ -701,7 +760,7 @@ function viewEcon(){
     const cmp = done && r.forecast ? (() => { const a = parseFloat(String(r.actual).replace(/[^\d.-]/g,"")), f = parseFloat(String(r.forecast).replace(/[^\d.-]/g,"")); return isFinite(a) && isFinite(f) && a !== f ? (a > f ? "高過預測" : "低過預測") : (isFinite(a) && a === f ? "同預測一樣" : ""); })() : "";
     h += `<div class="ev ${done ? "done" : ""}${soon ? " next" : ""}"><div class="tm">${hk.time}<br><small>(${r.t.length > 10 ? r.t.slice(11) : "—"})</small></div>
       <div class="nm"><span class="imp i${r.imp || 1}"><i></i><i></i><i></i></span>${esc(r.zh || r.name)}${soon ? ` <span class="tag t-warn">下一個</span>` : ""}${cmp ? ` <span class="tag t-dim">${cmp}</span>` : ""}${r.zh ? `<span class="en">${esc(r.name)}</span>` : ""}</div>
-      <div class="vals"><div>實際<b class="act">${esc(r.actual ?? "未公佈")}</b></div><div>預測<b>${esc(r.forecast ?? "—")}</b></div><div>上次<b>${esc(r.previous ?? "—")}</b></div></div></div>`;
+      <div class="vals"><div>實際<b class="act">${esc(r.actual ?? "未公佈")}</b></div><div>預測<b>${esc(r.forecast ?? "—")}</b></div><div>上次<b>${esc(r.previous ?? "—")}</b></div></div>${econNote(r, cmp)}</div>`;
   }
   return h + (rows.length ? "" : `<p class="muted">冇數據</p>`) + `</div>`;
 }
