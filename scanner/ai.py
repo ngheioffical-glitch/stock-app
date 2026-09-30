@@ -62,8 +62,8 @@ def gemini(key, prompt, models):
                     break
             if last and "HTTP 400" not in last:
                 break                             # 唔係參數問題：唔使再試冇 thinkingConfig 嘅版本
-        if last and not any(c in last for c in ("HTTP 404", "HTTP 400", "HTTP 429")):
-            break                                 # 網絡問題：換型號都冇用（429 就試下一個型號，佢哋額度分開）
+        if last and not any(c in last for c in ("HTTP 404", "HTTP 400", "HTTP 429", "HTTP 500", "HTTP 503")):
+            break                                 # 網絡問題：換型號都冇用（429／503 就試下一個型號：額度分開、繁忙程度唔同）
     raise RuntimeError(last)
 
 
