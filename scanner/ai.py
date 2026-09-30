@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -27,25 +28,34 @@ STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指�
 
 
 def gemini(key, prompt):
-    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
-                       "generationConfig": {"responseMimeType": "application/json", "temperature": 0.3}}).encode()
+    gen = {"responseMimeType": "application/json", "temperature": 0.3}
     last = None
     for m in MODELS:
-        req = urllib.request.Request(API.format(m=m), data=body, method="POST",
-                                     headers={"Content-Type": "application/json", "x-goog-api-key": key})
-        try:
-            with urllib.request.urlopen(req, timeout=90) as r:
-                d = json.loads(r.read())
-            txt = d["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(txt), m
-        except urllib.error.HTTPError as e:
-            last = f"{m}: HTTP {e.code} {e.read()[:200]!r}"
-            if e.code in (404, 400):
-                continue                      # 型號唔存在：試下一個
-            break
-        except Exception as e:  # noqa: BLE001
-            last = f"{m}: {e}"
-            break
+        for think_off in (True, False):       # 先試關閉「思考」（快好多）；型號唔支援就用預設
+            g = dict(gen, thinkingConfig={"thinkingBudget": 0}) if think_off else gen
+            body = json.dumps({"contents": [{"parts": [{"text": prompt}]}], "generationConfig": g}).encode()
+            for attempt in range(2):
+                req = urllib.request.Request(API.format(m=m), data=body, method="POST",
+                                             headers={"Content-Type": "application/json", "x-goog-api-key": key})
+                try:
+                    with urllib.request.urlopen(req, timeout=180) as r:
+                        d = json.loads(r.read())
+                    parts = d["candidates"][0]["content"]["parts"]
+                    txt = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+                    return json.loads(txt), m
+                except urllib.error.HTTPError as e:
+                    last = f"{m}: HTTP {e.code} {e.read()[:300].decode('utf-8', 'ignore')}"
+                    if e.code in (429, 500, 503) and attempt == 0:
+                        time.sleep(15)            # 限流／伺服器忙：等陣再試一次
+                        continue
+                    break
+                except Exception as e:  # noqa: BLE001
+                    last = f"{m}: {type(e).__name__} {e}"
+                    break
+            if last and "HTTP 400" not in last:
+                break                             # 唔係參數問題：唔使再試冇 thinkingConfig 嘅版本
+        if last and "HTTP 404" not in last and "HTTP 400" not in last:
+            break                                 # 限流／網絡問題：換型號都冇用
     raise RuntimeError(last)
 
 
@@ -87,6 +97,7 @@ def main():
             print(f"[ai] 翻譯 {len(zh)} 條（{model}）")
         except Exception as e:  # noqa: BLE001
             print(f"[ai] 翻譯失敗：{e}")
+            N["ai_err"] = f"翻譯：{str(e)[:300]}"
     # 2. 今日重點（新聞同已公佈數據冇變就沿用上一份）
     now = datetime.now(timezone.utc)
     recent = [x for x in items if x["cat"] in CATS and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=18)]
@@ -118,12 +129,15 @@ def main():
         try:
             res, model = gemini(key, prompt)
             pts = [p for p in res.get("points", []) if isinstance(p, str) and p.strip()][:6]
+            if not pts:
+                N["ai_err"] = f"重點：回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）"
             if pts:
                 N["digest"] = {"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
                                "model": model, "points": pts, "econ": str(res.get("econ") or "").strip(), "sig": sig}
                 print(f"[ai] 今日重點 {len(pts)} 點（{model}）")
         except Exception as e:  # noqa: BLE001
             print(f"[ai] 重點失敗：{e}")
+            N["ai_err"] = f"重點：{str(e)[:300]}"
             if old:
                 N["digest"] = old
     (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")
