@@ -126,7 +126,7 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(6,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(7,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 nav button{border:0;background:none;padding:9px 2px 8px;font-size:11px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -212,7 +212,7 @@ details.card>summary::-webkit-details-marker{display:none}
 @keyframes fadein{from{opacity:.35}to{opacity:1}}
 button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
 button:active{transform:scale(.95)}
-nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 6);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 7);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
 nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
   box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
 nav button{position:relative;z-index:1}
@@ -259,6 +259,7 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
   <button data-tab="model"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>模型</button>
   <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
   <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
+  <button data-tab="crypto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5m0-8v8M11 6v1.5M11 16.5V18"/></svg>加密</button>
   <button data-tab="ser"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Serenity</button>
   <button data-tab="trump"><svg viewBox="0 0 24 24"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>Trump</button>
 </nav>
@@ -354,7 +355,7 @@ function header(){
 let BTC = null;
 async function fetchBtc(){
   try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "btc.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
-    if (r.ok){ BTC = await r.json(); if (TAB === "today") render(); } } catch(e){}
+    if (r.ok){ BTC = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
 }
 function btcChart(C){
   if (!C || C.length < 10) return "";
@@ -364,6 +365,40 @@ function btcChart(C){
   return `<svg viewBox="0 0 ${W} ${Hh}" class="btcchart" preserveAspectRatio="none"><polyline points="${pl(2)}" fill="none" stroke="var(--warn)" stroke-width="1.4" stroke-dasharray="4 3"/>
     <polyline points="${pl(1)}" fill="none" stroke="var(--cyan)" stroke-width="1.6"/></svg>
     <div class="small muted" style="display:flex;justify-content:space-between"><span>${esc(C[0][0])}</span><span><span style="color:var(--cyan)">━</span> BTC　<span style="color:var(--warn)">┅</span> 365 日線</span><span>${esc(C[C.length - 1][0])}</span></div>`;
+}
+function viewCrypto(){
+  if (!BTC) fetchBtc();
+  return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
+    + (BTC ? ethCard() + btcCard() : `<p class="muted">載入中…</p>`);
+}
+// ETH 策略 B（2026-10-01 用戶揀）：BTC 做市場情緒、只買賣 ETH；移動止蝕 25% + 抄底 + BTC 紅燈做空。scanner/btc.py eth_strategy()
+function ethCard(){
+  const E = BTC && BTC.eth;
+  if (!E) return "";
+  const px = E.live ? E.live.px : E.px, P = E.pos, cls = P === "做多" ? "g" : P === "做空" ? "r" : "";
+  let next;
+  if (P === "做多") next = `收市跌穿 <b class="dn">${f0(E.stop)}</b> 就賣（由入場後最高收市 ${f0(E.peak)} 回落 25%）；BTC 收市跌穿 365 日線 ${f0(BTC.ma365)} 都會賣（除非有抄底訊號）。`;
+  else if (P === "做空") next = `收市高過 <b class="up">${f0(E.cover)}</b> 就平倉（由最低 ${f0(E.trough)} 反彈 25%，或者升穿 50 日線 ${f0(E.e50)}）；BTC 轉綠燈即刻平倉。`;
+  else if (E.locked) next = `移動止蝕咗：等 ETH 收市升穿 20 日高位 <b>${f0(E.hi20)}</b> 先再買。`;
+  else next = E.green ? `BTC 綠燈：下一日收市會買入。` : `BTC 紅燈：ETH 收市低過 50 日線 ${f0(E.e50)} 就做空；出現抄底訊號就買。`;
+  const T = (E.trades || []).slice().reverse().map(t => `<tr><td><span class="tag ${t.side === "做多" ? "t-buy" : "t-stop"}">${t.side}</span></td>
+      <td class="mono small">${esc(t.entry_date.slice(2))} → ${esc(t.exit_date.slice(2))}</td><td class="r mono">${f0(t.entry)} → ${f0(t.exit)}</td>
+      <td class="r mono ${t.ret >= 0 ? "up" : "dn"}">${pct(t.ret)}</td></tr>`).join("");
+  return `<div class="card"><div class="row spread"><div class="light"><span class="orb ${cls}" ${cls ? "" : `style="background:var(--muted)"`}></span><div>
+      <div class="status ${P === "做多" ? "up" : P === "做空" ? "dn" : ""}" style="font-size:15px">ETH 策略 · ${esc(P)}</div>
+      <div class="small muted">${E.since ? esc(E.since) + " 起" : ""}${E.entry ? ` · 入場 ${f0(E.entry)} · ${pct(E.ret)}` : ""}</div></div></div>
+      <div style="text-align:right"><div class="mono" style="font-size:20px;font-weight:800">${f0(px)}</div><div class="small muted">ETH${E.live ? " · " + esc(E.live.at) : ""}</div></div></div>
+    <div class="info small"><b>下一步：</b>${next}</div>
+    <div class="kv">
+      <div><span>BTC 燈號（日線 vs 365 日線）</span><b class="${E.green ? "up" : "dn"}">${E.green ? "綠燈" : "紅燈"}</b></div>
+      <div><span>抄底訊號</span><b class="${E.bottom ? "up" : ""}">${E.bottom ? "有" : "冇"}</b><span class="small muted">BTC 週 RSI ${E.btc_rsiw} · 200 週線 ${f0(E.btc_200w)} · MVRV ${BTC.mvrv != null ? BTC.mvrv.toFixed(2) : "—"}</span></div>
+      <div><span>ETH 50 日線</span><b>${f0(E.e50)}</b></div>
+    </div>
+    ${T ? `<div class="tablewrap"><table><tr><th>最近交易</th><th>日期</th><th class="r">價錢</th><th class="r">回報</th></tr>${T}</table></div>` : ""}
+    <p class="small muted">規則（全部用每日收市，UTC 00:00 = 香港早上 8 點，下一日照做）：BTC 收市高過 365 日線 = 綠燈 → 做多 ETH；收市由入場後最高位回落 25% 就賣，之後要升穿 20 日高位先再買。
+    抄底：BTC 跌穿 200 週線、BTC MVRV &lt; 0.8 或者 BTC 週 RSI &lt; 30，就算紅燈都買。BTC 紅燈而 ETH 低過 50 日線 → 做空 ETH，反彈 25%、升穿 50 日線或者 BTC 轉綠就平倉。
+    回測 2017–2026（每次買賣 0.1%、做空加 10%／年資金費率）：年化 149%、最大回撤 −76%（ETH 揸住 81%、−94%）；2018 熊市 +147%、2022 熊市 +72%，但 2019–20 反覆時做空會連續中伏。
+    做空要用永續合約或者借幣（唔好開槓桿：1.5 倍回測最大回撤 −91%）。只有約 3 輪週期，樣本少；唔係投資建議。</p></div>`;
 }
 function btcCard(){
   const B = BTC;
@@ -455,7 +490,7 @@ function liveStatus(){
 
 function viewToday(){
   const o = signals();
-  let h = topbar() + header() + btcCard();
+  let h = topbar() + header();
   h += `<div class="row spread"><h2>買入訊號 · ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
@@ -1215,11 +1250,11 @@ function viewNews(){
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
-const ORDER = ["today", "model", "rank", "news", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
+const ORDER = ["today", "model", "rank", "news", "crypto", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
-  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
+  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(TAB); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
@@ -1248,6 +1283,7 @@ function bind(){
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
   on("#trReload", () => { fetchTrump(); });
+  on("#btcReload", () => { fetchBtc(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { if (b.dataset.nt === "econ") FEED.scrolled = false; NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
