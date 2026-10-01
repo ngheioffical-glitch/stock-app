@@ -951,7 +951,7 @@ function viewHist(){
     <input type="range" id="histR" min="0" max="${D.length - 1}" value="${i}" aria-label="揀日子">
     <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="揀年份"><option value="">全部年份</option>${years.map(y => `<option${y === Y ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
     <div id="histDay" style="display:flex;flex-direction:column;gap:6px">${histDay(D, i)}</div>
-    <p class="small muted">${HMODE !== "model" ? `V2.2 由 ${esc(B.start)} 全現金、10 萬起步嘅回測（全美股連退市，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
+    <p class="small muted">${HMODE !== "model" ? `V2.3（80% V2.2 + 20% TQQQ 腳）由 ${esc(B.start)}、10 萬起步嘅回測（全美股連退市；2010 前 TQQQ 用每日 3 倍 QQQ 模擬，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
   return h;
 }
 
@@ -996,10 +996,10 @@ function followCard(M){
   const form = `<div class="grid2 fform"><label>本金（美元）<input id="fCap" type="number" inputmode="decimal" step="any" placeholder="例如 20000" value="${fs ? fs.capital : ""}"></label>
       <label>由邊日收市開始跟（2000 年起任何一日）<input id="fStart" type="date" min="2000-01-03" max="${esc(last)}" value="${esc(fs ? fs.start : last)}"></label></div>
     <div class="row"><button class="primary" id="fGo">${fs ? "重設" : "開始跟"}</button>${fs ? `<button id="fClear">停止跟</button>` : ""}</div>`;
-  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.2 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
+  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.3 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
   if (fs.loading) return `<div class="card"><b>我嘅跟單帳戶</b><p class="muted">${fs.err ? "讀唔到回測數據：" + esc(fs.err) : "載入緊 2000 年起嘅回測數據（約 1 MB）…"}</p>${fs.err ? form : ""}</div>`;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">佔 ${Math.round(p.weight * 100)}% · ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}</span></td>
-      <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${chg(p.ret)}</td><td class="r mono dn">${f2(p.stop)}</td></tr>`).join("");
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${p.leg ? "" : serTag(p.sym)}<span class="ind">佔 ${Math.round(p.weight * 100)}% · ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}${p.leg ? " · TQQQ 腳" : ""}</span></td>
+      <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${p.sym === "IEF" ? "" : chg(p.ret)}</td><td class="r mono ${p.leg ? "muted" : "dn"}">${p.leg ? "唔設" : f2(p.stop)}</td></tr>`).join("");
   return `<div class="card"><div class="row spread"><div><div class="lbl">我嘅跟單帳戶 · ${esc(fs.start)} 收市開始 → 計到 <b>${esc(fs.last)}</b> 收市</div><div class="price">${f0(fs.val)}</div></div>
       <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
     <div class="kv"><div><span>本金</span><b>${f0(fs.capital)}</b></div><div><span>賺蝕</span><b class="${fs.val >= fs.capital ? "up" : "dn"}">${(fs.val >= fs.capital ? "+" : "") + f0(fs.val - fs.capital)}</b></div>
@@ -1014,7 +1014,7 @@ function followCard(M){
     ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">股數</th><th class="r">回報</th><th class="r">止蝕</th></tr>${rows}</table></div>` : ""}
     <p class="small muted">每日美股收市、雲端掃描完會自動計到最新一日，唔使重新設定；想由第二日開始或者改本金就撳下面。</p>
     <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
-    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.2 回測（2000 年起連續行、Tiingo 全美股），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
+    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.3 回測（2000 年起連續行、Tiingo 全美股），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
 }
 
 let MTAB = (() => { try { const m = localStorage.getItem("mtab"); return m === "hist" ? "hist" : "follow"; } catch(e){ return "follow"; } })();
@@ -1041,12 +1041,19 @@ function viewModel(){
         ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}${levInd(b.sym)}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
           <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
         <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺上面填本金就會計埋股數。"}</p>`);
+    const TQ = v.tq;
+    if (TQ && TQ.pend != null && TQ.pend !== TQ.held) todo.push(TQ.pend
+      ? `<div class="info"><b>收市前：TQQQ 腳由 IEF 轉 TQQQ</b><p class="small">賣晒 IEF（約帳戶 ${Math.round(TQ.frac * 100)}%${own ? " · " + f0(base * TQ.frac) : ""}），買 TQQQ。原因：大市綠燈，QQQ 20 日波幅 ${pct(TQ.vol, 1).replace("+", "")} 低過 ${Math.round(TQ.vol_max * 100)}%。</p></div>`
+      : `<div class="alert"><b>收市前：TQQQ 腳由 TQQQ 轉 IEF</b><p class="small">賣晒 TQQQ（約帳戶 ${Math.round(TQ.frac * 100)}%${own ? " · " + f0(base * TQ.frac) : ""}），買 IEF。原因：${esc(TQ.why_off || "")}${TQ.vol != null ? `（QQQ 20 日波幅 ${pct(TQ.vol, 1).replace("+", "")}）` : ""}。</p></div>`);
     h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
+    if (TQ) h += `<div class="info small"><b>TQQQ 腳（${Math.round(TQ.target * 100)}%）：而家揸 ${TQ.held ? "TQQQ" : "IEF"}</b>（佔 ${Math.round(TQ.frac * 100)}%）。
+      條件：大市綠燈 ${TQ.green ? `<span class="up">✓</span>` : `<span class="dn">✗</span>`}、QQQ 20 日波幅 ${TQ.vol != null ? pct(TQ.vol, 1).replace("+", "") : "—"} &lt; ${Math.round(TQ.vol_max * 100)}% ${TQ.vol != null && TQ.vol < TQ.vol_max ? `<span class="up">✓</span>` : `<span class="dn">✗</span>`}。
+      兩樣都啱就揸 TQQQ，否則揸 IEF；收市決定，下一個交易日收市前轉。每月最後一個交易日用現金將佢調返 ${Math.round(TQ.target * 100)}%（唔賣股）。唔用孖展、唔設止蝕：最多蝕晒呢 ${Math.round(TQ.target * 100)}%，唔會爆倉。</div>`;
     if (M.braking) h += `<div class="info small"><b class="dn">回撤剎車生效：</b>帳戶由高位跌咗 25% 以上，最多揸 2 隻，返到高位 −12.5% 先恢復 5 隻。</div>`;
-    h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
+    h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%（V2.2 部分）：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
     if ((A.fills || []).length) h += `<h2>最近成交</h2><div class="card" style="gap:4px">${A.fills.map(x =>
       `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
-    h += `<p class="small muted">模型 = V2.2 由 2000-01-03 用 10 萬全現金開始嘅帳戶，${esc(M.start)} 之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣、止蝕照改。</p>`;
+    h += `<p class="small muted">模型 = V2.3（80% V2.2 揀股 + 20% TQQQ 腳）由 2000-01-03 用 10 萬開始嘅帳戶（2010 前 TQQQ 用每日 3 倍 QQQ 模擬），${esc(M.start)} 之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣、止蝕照改。</p>`;
   } else {
     h += viewHist();
     const T = (M.trades || []).slice().reverse().slice(0, 20);
@@ -1112,6 +1119,7 @@ function viewSet(){
     <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
   <div class="card small muted"><p>規則 V2.2（RULES_V2.md）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高就買。每隻 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈（下一日開市清倉）就賣。帳戶由星期五高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到 −12.5% 以內恢復。現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
+    <p><b>V2.3（2026-10-02）</b>：上面 V2.2 用 80% 資金（注碼、剎車都按呢 80% 計）；另外 20% 係「TQQQ 腳」：上一日收市大市綠燈而且 QQQ 20 日波幅（年化）低過 35% 就揸 TQQQ，否則揸 IEF；收市決定，下一個交易日收市前轉。每月最後一個交易日只用現金調返 20%。唔用孖展。回測 2000–：V2.3 年化 22.7%、最大回撤 −31%（V2.2 20.4%、−35%；QQQ 8.7%、−83%）；比例同門檻係只用 2012 年前數據揀（LAB_TQQQ3.md）。</p>
     <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></div>`;
 }
 

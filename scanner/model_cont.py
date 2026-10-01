@@ -1,6 +1,6 @@
 """建立延續帳戶 docs/model_cont.json（2026-10-01 用戶要求：回測唔好停喺 9 月 22 日）。[quant-backtest]
 
-2000 年起嘅 V2.2 回測（stock-strategy，Tiingo 全美股連退市）只去到 Tiingo 數據尾。呢度：
+2000 年起嘅 V2.2 回測（2026-10-02 起 V2.3：加 20% TQQQ 腳，種子有 tq）（stock-strategy，Tiingo 全美股連退市）只去到 Tiingo 數據尾。呢度：
   1. 讀回測最後一日收市嘅帳戶狀態（stock-strategy/src/cont_seed.py 輸出）：持倉、現金、星期五高位、剎車
   2. 價錢換做 Yahoo 拆股調整價（同雲端模型一樣）：入場價、止蝕、R 按「Yahoo 收市 ÷ Tiingo 收市」換算，股數反向換算，帳戶值唔變
   3. 用 Yahoo 數據逐日重播 scan.py（每日收市排名、燈號、候選股）同 model.py（開市賣、buy-stop、止蝕、收市），補到最新一日
@@ -50,7 +50,12 @@ def main(seed_path):
               braking=seed["braking"], last=seed["date"], ndx0=sc["ndx"], pending={}, slots=0,
               sleeve="bill" if seed["green"] else "ief", last_green=seed["green"],
               note="2000-01-03 起 V2.2 回測帳戶（stock-strategy，Tiingo）喺 " + seed["date"] + " 收市嘅狀態，之後用 Yahoo 數據照規則繼續行")
-    nav0 = M.nav_at(st, lambda p: p["last_close"])
+    if seed.get("tq"):                                               # V2.3：20% TQQQ 腳（回測最後一日狀態，價錢改用 Yahoo）
+        t, Q = seed["tq"], sc.get("tq") or {}
+        px_t, px_i = (Q.get("tq10") or [None])[-1], ((sc.get("cash") or {}).get("ief10") or [None])[-1]
+        st["tq"] = dict(val=t["val"], held=t["held"], pend=t["pend"], epx=px_t if t["held"] else None,
+                        edate=seed["date"] if t["held"] else None, tq_px=px_t, ief_px=px_i, vol=t.get("vol"))
+    nav0 = M.nav_at(st, lambda p: p["last_close"]) + M.tq_val(st)
     st["nav"].append(dict(date=seed["date"], nav=round(nav0, 2)))
     actions = dict(fills=[], stops=[], warn=[])
     M.snap(st, seed["date"], [], sc["green"], M.qqq_at(sc, len(sc["days"]) - 1))

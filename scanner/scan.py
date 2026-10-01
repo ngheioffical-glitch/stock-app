@@ -80,8 +80,9 @@ def sectors(syms, nasdaq_info, max_age=180):
     return {s: zh(cache[s]["sector"], cache[s]["industry"]) if s in cache else ("", "") for s in syms}
 
 
-CASH_SYMS = ["IEF", "^IRX", "QQQ", "^VIX", "BTC-USD"]   # V2.2 現金：紅燈揸 IEF（7–10 年國債）；^IRX 只作記錄；QQQ = 比較基準；
-# ^VIX = 恐慌買入訊號；BTC-USD = 加密相關股標示（都唔入股票池）
+CASH_SYMS = ["IEF", "^IRX", "QQQ", "^VIX", "BTC-USD", "TQQQ"]   # V2.2 現金：紅燈揸 IEF（7–10 年國債）；^IRX 只作記錄；QQQ = 比較基準；
+# ^VIX = 恐慌買入訊號；BTC-USD = 加密相關股標示；TQQQ = V2.3 嘅 20% TQQQ 腳（都唔入股票池）
+TQ_VOL = 0.35      # V2.3：上一日收市綠燈 + QQQ 20 日波幅（年化）< 35% 先揸 TQQQ，否則 IEF（stock-strategy/src/tq_mix.py）
 
 
 def download(syms, end=None):
@@ -260,6 +261,18 @@ def crypto_info(C, advF, cash_px, extra=()):
                 corr={k: round(float(v), 2) for k, v in cor.sort_values(ascending=False).items() if v >= 0.5})
 
 
+def tq_info(cash_px, ndx, e21, s50n, s200n, days):
+    """V2.3 TQQQ 腳：最近 10 日 TQQQ 收市、QQQ 20 日波幅、訊號（綠燈 + 波幅 < TQ_VOL）。"""
+    if "TQQQ" not in cash_px or "QQQ" not in cash_px:
+        return None
+    q = cash_px["QQQ"].dropna()
+    vol = (q.pct_change().rolling(20).std() * (252 ** 0.5)).reindex(days).ffill()
+    g = ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)
+    r4 = lambda row: [round(float(x), 4) if x == x else None for x in row]
+    return dict(tq10=r4(cash_px["TQQQ"].reindex(days).ffill()), vol10=[round(float(v), 4) if v == v else None for v in vol],
+                on10=[bool(a and v == v and v < TQ_VOL) for a, v in zip(g, vol)], vol_max=TQ_VOL)
+
+
 def must_have():
     """兩個模型帳戶嘅持倉同掛緊嘅 buy-stop：就算跌出成交額／市值頭 300 都要有數據（止蝕、出場、退市判斷靠佢）。"""
     out = set()
@@ -367,6 +380,7 @@ def scan(end=None):
                cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
                          ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
+               tq=tq_info(cash_px, ndx, e21, s50n, s200n, days),
                bench=dict(qqq10=r4(cash_px["QQQ"].reindex(days).ffill()) if "QQQ" in cash_px else None),   # 模型帳戶記低 QQQ 收市，app 比較「同期買 QQQ」
                bounce=bnc, fear=fear, crypto=cry, universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
                stocks=stocks)

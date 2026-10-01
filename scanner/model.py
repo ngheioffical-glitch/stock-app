@@ -11,6 +11,10 @@ V2.2（2026-09-30 用戶採用，stock-strategy/LAB_GRID2.md 嘅 B3）= V2.1 + �
      星期五記帳戶值做回撤剎車（跌 25% 只揸 2 隻，返到 −12.5% 恢復）；有空位就對排名頭嘅候選股掛 buy-stop（空位 × 2 張）
 成本每邊 0.1%。價錢係 Yahoo 拆股調整價（同 app 一樣）；拆股時自動換算持倉。
 輸出 docs/model.json（狀態 + 下一個交易日要做嘅嘢 + hist 每日快照：帳戶值、現金、持倉、當日成交，app 用嚟拉條 bar 睇歷史）。
+2026-10-02 V2.3（用戶批准）：帳戶分兩部分：80% 照 V2.2；20% 係「TQQQ 腳」（st["tq"]）：
+  上一日收市「綠燈 + QQQ 20 日波幅 < 35%」→ 今日收市揸 TQQQ，否則揸 IEF（scan.json 嘅 tq.on10）；轉換扣 0.1%；
+  每月最後一個交易日收市，只用 V2.2 現金將 TQQQ 腳調返 20%（唔賣股）。V2.2 嘅注碼、剎車只計 V2.2 部分。
+  回測同一套規則：stock-strategy/src/tq_mix.py、LAB_TQQQ3.md。
 用法：python scanner/model.py            （每日）
       python scanner/model.py seed       （由而家份 scan.json 嘅下一個交易日開始，全現金）
       python scanner/model.py cont       （延續帳戶 docs/model_cont.json：2000 年起回測帳戶喺數據尾嘅狀態接落去行；
@@ -32,7 +36,8 @@ CONT = ROOT / "docs" / "model_cont.json"
 RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=15.0, rank_exit_brake=6.0, sleeve_cost=0.001, be_R=2.0, atr_buf=0.2,
             brake_down=0.75, brake_up=0.875, cost=0.001, mult=2,
             delist_days=5,       # 持倉連續 5 個交易日冇價：當退市／被收購，按最後收市價賣（同回測引擎一樣）；停牌幾日唔會誤判
-            split_tol=0.03)      # 同一日收市價被 Yahoo 追溯改咗 > 3% = 拆股／合股（大升大跌唔會改舊收市價）
+            split_tol=0.03,      # 同一日收市價被 Yahoo 追溯改咗 > 3% = 拆股／合股（大升大跌唔會改舊收市價）
+            tq_frac=0.20, tq_cost=0.001)   # V2.3 TQQQ 腳：佔 20%，轉換／再平衡每邊 0.1%
 CAPITAL = 100_000.0
 
 
@@ -41,15 +46,88 @@ def load(p):
 
 
 def nav_at(st, px):
+    """V2.2 部分嘅帳戶值（注碼、剎車用呢個）。"""
     return st["cash"] + sum(p["shares"] * px(p) for p in st["positions"])
+
+
+def tq_val(st):
+    return (st.get("tq") or {}).get("val", 0.0)
+
+
+def tq_leg_row(st):
+    """TQQQ 腳當一行持倉（揸 TQQQ 或者 IEF）。"""
+    T = st.get("tq")
+    if not T:
+        return None
+    if T["held"]:
+        c = T.get("tq_px") or T.get("epx") or 0
+        return dict(sym="TQQQ", date=T.get("edate") or "", entry=round(T.get("epx") or c, 2), close=round(c, 2),
+                    ret=round(c / T["epx"] - 1, 4) if T.get("epx") else 0.0)
+    c = T.get("ief_px") or 0
+    return dict(sym="IEF", date="", entry=round(c, 2), close=round(c, 2), ret=0.0)
+
+
+def tq_step(st, sc, i, actions):
+    """V2.3 TQQQ 腳：1. 今日回報 2. 今日收市執行上一日決定 3. 月尾再平衡（只用現金）4. 今日收市決定聽日。"""
+    T, Q = st.get("tq"), sc.get("tq")
+    if not T or not Q:
+        return
+    d, days = sc["days"][i], sc["days"]
+    tq10, on10, vol10 = Q.get("tq10") or [], Q.get("on10") or [], Q.get("vol10") or []
+    ief10 = (sc.get("cash") or {}).get("ief10") or []
+    g10 = (sc.get("cash") or {}).get("green10") or []
+    at = lambda a, k: a[k] if 0 <= k < len(a) else None
+    cur_t, cur_i = at(tq10, i), at(ief10, i)
+    prev_t = at(tq10, i - 1) if i > 0 else T.get("tq_px")
+    prev_i = at(ief10, i - 1) if i > 0 else T.get("ief_px")
+    cur, prev = (cur_t, prev_t) if T["held"] else (cur_i, prev_i)
+    if cur and prev:
+        r = cur / prev
+        if 0.5 < r < 1.6:                                    # 第一日用上次記低嘅價：拆股會令比例離譜，唔計
+            T["val"] *= r
+        else:
+            actions["warn"].append(f"TQQQ 腳 {d} 價錢跳咗 × {r:.3f}（可能拆股），當日唔計升跌")
+    if T.get("pend") is not None and T["pend"] != T["held"] and cur_t:     # 2. 今日收市成交
+        T["val"] *= 1 - RULE["tq_cost"]
+        T["held"] = T["pend"]
+        if T["held"]:
+            T["epx"], T["edate"] = cur_t, d
+            actions["fills"].append(dict(date=d, sym="TQQQ", side="買入", px=round(cur_t, 2), frac=RULE["tq_frac"],
+                                         reason="綠燈 + QQQ 波幅 < 35%：TQQQ 腳由 IEF 轉 TQQQ"))
+        else:
+            ret = round(cur_t / T["epx"] - 1, 4) if T.get("epx") else None
+            why = T.get("why_off") or "轉 IEF"
+            actions["fills"].append(dict(date=d, sym="TQQQ", side="賣出", px=round(cur_t, 2), ret=ret, reason=why + "：TQQQ 轉 IEF"))
+            if ret is not None:
+                st["trades"].append(dict(sym="TQQQ", date=T.get("edate") or d, entry=round(T["epx"], 2), sell_date=d, sell=round(cur_t, 2),
+                                         ret=ret, reason=why))
+    nxt = days[i + 1] if i + 1 < len(days) else sc["next_day"]
+    if nxt[:7] != d[:7]:                                       # 3. 月尾再平衡（只用 V2.2 現金，唔賣股）
+        tot = nav_at(st, lambda p: p["last_close"]) + T["val"]
+        tgt = RULE["tq_frac"] * tot
+        mv = T["val"] - tgt if T["val"] > tgt else -min(tgt - T["val"], max(st["cash"], 0.0))
+        if abs(mv) > 0.005 * tot:
+            T["val"] -= mv + RULE["tq_cost"] * abs(mv)
+            st["cash"] += mv
+            px = cur_t if T["held"] else cur_i
+            actions["fills"].append(dict(date=d, sym="TQQQ" if T["held"] else "IEF", side="賣出" if mv > 0 else "買入",
+                                         px=round(px or 0, 2), reason=f"月尾再平衡：TQQQ 腳調返 {int(RULE['tq_frac'] * 100)}%（{'多出嘅錢轉返現金' if mv > 0 else '用現金補'}，金額約帳戶 {abs(mv) / tot:.1%}）"))
+    T["pend"] = bool(at(on10, i))                               # 4. 今日收市決定
+    T["why_off"] = "大市紅燈" if not at(g10, i) else "QQQ 20 日波幅 ≥ 35%"
+    T["vol"] = at(vol10, i)
+    T["tq_px"], T["ief_px"] = cur_t or T.get("tq_px"), cur_i or T.get("ief_px")
 
 
 def snap(st, d, fills, green, q=None):
     """每日收市快照（同 stock-strategy/src/model_bt.py 嘅 days 格式一樣）；q = 當日 QQQ 收市（比較用）。"""
-    nav = nav_at(st, lambda p: p["last_close"])
-    pos = sorted((dict(s=p["sym"], w=round(p["shares"] * p["last_close"] / nav, 4) if nav else 0,
-                       ret=round(p["last_close"] / p["entry"] - 1, 4), e=round(p["entry"], 2), c=round(p["last_close"], 2),
-                       st=round(p["stop"], 2)) for p in st["positions"]), key=lambda x: -x["w"])
+    nav = nav_at(st, lambda p: p["last_close"]) + tq_val(st)
+    pos = [dict(s=p["sym"], w=round(p["shares"] * p["last_close"] / nav, 4) if nav else 0,
+                ret=round(p["last_close"] / p["entry"] - 1, 4), e=round(p["entry"], 2), c=round(p["last_close"], 2),
+                st=round(p["stop"], 2)) for p in st["positions"]]
+    L = tq_leg_row(st)
+    if L and nav:
+        pos.append(dict(s=L["sym"], w=round(tq_val(st) / nav, 4), ret=L["ret"], e=L["entry"], c=L["close"], st=None))
+    pos.sort(key=lambda x: -x["w"])
     f = [dict(s=x["sym"], side=x["side"], px=x["px"], **({"ret": x["ret"]} if x.get("ret") is not None else {}),
               why=x.get("reason") or "突破買入") for x in fills if x["date"] == d]
     h = st.setdefault("hist", [])
@@ -160,7 +238,8 @@ def step(st, sc, i, actions):
             if p["miss"] >= R["delist_days"]:
                 delisted(st, p, d, actions)
     cash_sleeve(st, sc, i)
-    st["nav"].append(dict(date=d, nav=round(nav_at(st, lambda p: p["last_close"]), 2)))
+    tq_step(st, sc, i, actions)
+    st["nav"].append(dict(date=d, nav=round(nav_at(st, lambda p: p["last_close"]) + tq_val(st), 2)))
     snap(st, d, actions["fills"], sc["green"] if d == sc["date"] else None, qqq_at(sc, i))
 
 
@@ -317,7 +396,7 @@ def seed():
 
 def save(st, sc, actions):
     stocks = sc["stocks"]
-    nav = nav_at(st, lambda p: p["last_close"])
+    nav = nav_at(st, lambda p: p["last_close"]) + tq_val(st)
     view = dict(generated=sc.get("generated"), data_date=sc["date"], next_day=sc["next_day"], green=sc["green"],
                 sleeve="bill" if sc["green"] else "ief",
                 nav=round(nav, 2), ret=round(nav / st["capital"] - 1, 4), ndx_ret=round(sc["ndx"] / st["ndx0"] - 1, 4),
@@ -329,6 +408,13 @@ def save(st, sc, actions):
                                    (stocks.get(p["sym"]) or {}).get("c10")))
                           for p in st["positions"]],
                 actions=actions)
+    L, T = tq_leg_row(st), st.get("tq")
+    if L and nav:
+        view["holdings"].append(dict(L, stop=None, be=False, weight=round(tq_val(st) / nav, 4), leg=True, day_chg=None))
+        view["holdings"].sort(key=lambda h: -h["weight"])
+        Q = sc.get("tq") or {}
+        view["tq"] = dict(held=T["held"], pend=T.get("pend"), frac=round(tq_val(st) / nav, 4), target=RULE["tq_frac"],
+                          vol=T.get("vol"), vol_max=Q.get("vol_max", 0.35), green=sc["green"], why_off=T.get("why_off"))
     st["view"] = view
     OUT.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
 
