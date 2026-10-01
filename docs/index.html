@@ -393,8 +393,9 @@ function fngCard(kind){
   const v = F.score, cmp = [["昨日", F.prev], ["1 星期前", F.week], ["1 個月前", F.month], ["1 年前", F.year]].filter(x => x[1] != null);
   const tip = kind === "stock"
     ? `<b>點配合用：</b>只作參考，唔改 V2.2 規則。2020-07 起（得 2022 同 2025 兩次大跌，樣本好細）：V2.2 紅燈而指數 &lt; 25 嘅日子，NDX 之後 60 日平均 +7.8%；紅燈但只係 25–55，之後 60 日平均 −1.4%。即係<b>紅燈 + 極度恐慌 = 留意見底</b>（配合上面「牛市回調」卡同大市突破）；2025-04-09 大陽燭嗰日指數得 10。`
-    : `<b>點配合用：</b>2018 起回測：ETH 策略 B 加「指數 ≤ 20–25 都當抄底」年化 62% → 78–80%、Sharpe 1.03 → 1.16（主要係極度恐慌時唔好追空）；「指數 ≥ 80–90 就走」冇幫助。未加入規則，只作參考。`;
-  return `<div class="card"><div class="row spread"><div><div class="small muted">${kind === "stock" ? "股市" : "加密"}恐慌貪婪指數</div>
+    : `<b>訊號：</b>指數 ≤ 20 = <b>加密極度恐慌抄底訊號</b>（唔改 ETH 策略，自己決定）。2018 起回測：ETH 策略 B 加「≤ 20 都當抄底」年化 62% → 78%、Sharpe 1.03 → 1.16（主要係極度恐慌時唔好追空）；「≥ 80–90 就走」冇幫助。`;
+  const sig = kind === "crypto" && v <= 20 ? `<div class="alert"><b>加密極度恐慌訊號：指數 ${Math.round(v)} ≤ 20</b><p class="small">歷史上係抄底／唔好追空嘅時候（只係訊號，ETH 策略照舊）。</p></div>` : "";
+  return sig + `<div class="card"><div class="row spread"><div><div class="small muted">${kind === "stock" ? "股市" : "加密"}恐慌貪婪指數</div>
       <div class="status ${fngCls(v)}" style="font-size:16px">${esc(F.rating)}</div></div>
       <div style="text-align:right"><div class="mono ${fngCls(v)}" style="font-size:28px;font-weight:800">${Math.round(v)}</div><div class="small muted">/ 100</div></div></div>
     <div class="fngbar"><i style="left:${Math.max(0, Math.min(100, v))}%"></i></div>
@@ -990,7 +991,9 @@ function viewModel(){
         <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
       <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺上面「我嘅跟單帳戶」填本金就會計埋股數。"}</p>`);
   h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
-  h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
+  h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}
+    ${v.cash_frac < 0.01 ? "" : `<br><span class="muted">所以就算一隻股都冇揸，帳戶值都會每日變：${(() => { const ir = SCAN && SCAN.cash && SCAN.cash.irx10 ? SCAN.cash.irx10.filter(x => x != null).slice(-1)[0] : null;
+      return v.green ? `綠燈每個交易日加一日國債息${ir != null ? `（而家年息約 ${ir.toFixed(2)}%，即每 10 萬每日約 $${(1e5 * ir / 100 / 252).toFixed(0)}）` : ""}` : "紅燈跟 IEF 每日升跌（通常 ±0.2–1%）"; })()}；紅綠燈轉換嗰日扣 0.1% 買賣成本。</span>`}</div>`;
   h += viewHist();
 
   if ((A.fills || []).length) h += `<h2>最近成交（模型）</h2><div class="card" style="gap:4px">${A.fills.map(x =>
