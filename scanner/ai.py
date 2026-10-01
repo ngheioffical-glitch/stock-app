@@ -435,8 +435,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     econ = [f"{r['t']} {r.get('zh') or r['name']}：實際 {r['actual']}／預測 {r.get('forecast') or '—'}／上次 {r.get('previous') or '—'}" for r in done]
     light, watch = context()
     lc = light_change()
+    ta = tq_alert()
     sn = snapshot()
-    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc], ensure_ascii=False).encode()).hexdigest()
+    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
@@ -445,6 +446,16 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
         lc_txt = (f"重要：大市燈號喺 {lc['date']} 收市由{lc['frm']}轉咗{lc['to']}（{lc['detail']}；規則：綠燈 = NDX 高過 200 日線，或者 NDX > 21 日 EMA > 50 日線）。"
                   f"points 第一點一定要講：根據下面新聞同數據，點解大市會轉{lc['to']}（邊單新聞、數據或者事件最有關），"
                   + ("同埋規則下一個交易日開市會賣晒股、現金轉 IEF。" if lc["to"] == "紅燈" else "同埋規則下一個交易日開始可以買突破股。") + chr(10))
+    if ta:
+        if ta["kind"] == "switch":
+            lc_txt += (f"重要：佢嘅模型 {ta['date']} 收市出咗 TQQQ 轉換訊號：下一個交易日收市前，佔帳戶 40% 嘅 TQQQ 腳要轉做 {ta['to']}"
+                       + (f"（原因：{'、'.join(w for w in ta['why'] if w)}）" if ta["why"] else "（大市綠燈而且 QQQ 波幅回落）")
+                       + f"。{ta['detail']}。points 要有一點講：根據新聞同數據，點解市況會變成咁，同埋呢個轉換係規則決定。" + NL)
+        else:
+            lc_txt += (f"重要：佢嘅模型 TQQQ 腳（佔帳戶 40%，3 倍納指 ETF）出咗黃燈（只係提示，規則未叫佢郁）："
+                       + "、".join(ta["why"]) + f"。{ta['detail']}。points 要有一點講：根據新聞同數據，點解市況會出現呢啲變化（邊單新聞、數據或者事件最有關），"
+                       + ("同埋如果轉紅燈或者 QQQ 波幅去到 35%，規則下一個交易日收市前會賣晒 TQQQ 轉 IEF。" if ta["kind"] == "sell"
+                          else "同埋如果轉返綠燈而且 QQQ 波幅低過 35%，規則下一個交易日收市前會買返 TQQQ。") + NL)
     base = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
@@ -472,7 +483,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
              "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
-             "light_change": lc},
+             "light_change": lc, "tq_alert": ta},
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
@@ -510,6 +521,41 @@ def light_change():
         to = "綠燈" if g[-1] else "紅燈"
         return dict(date=sc["date"], to=to, frm="紅燈" if g[-1] else "綠燈", next_day=sc.get("next_day"),
                     detail=f"NDX 收市 {sc['ndx']:,.0f}；200 日線 {sc['ndx_s200']:,.0f}；21 日 EMA {sc['ndx_e21']:,.0f}；50 日線 {sc['ndx_s50']:,.0f}")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def tq_alert():
+    """V2.3 TQQQ 腳（2026-10-02 用戶：黃燈要話我知發生咩事）：有轉換要做 → kind=switch；黃燈 → kind=sell／buy；否則 None。
+    條件同 app 嘅 tqYellow() 一樣（只係提示，唔改規則）。"""
+    try:
+        sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
+        T = (json.loads((ROOT / "docs" / "model_cont.json").read_text(encoding="utf-8")).get("view") or {}).get("tq")
+        if not T or T.get("margin") is None:
+            return None
+        f = lambda x: f"{abs(x) * 100:.1f}%"
+        vm = T.get("vol_max", 0.35)
+        lv = f"NDX 收市 {sc['ndx']:,.0f}（200 日線 {sc['ndx_s200']:,.0f}、21 日 EMA {sc['ndx_e21']:,.0f}、50 日線 {sc['ndx_s50']:,.0f}）；QQQ 20 日波幅 {f(T.get('vol') or 0)}"
+        if T.get("pend") is not None and T["pend"] != T["held"]:
+            return dict(date=sc["date"], kind="switch", to="TQQQ" if T["pend"] else "IEF", why=[T.get("why_off") or ""] if not T["pend"] else [], detail=lv)
+        why = []
+        if T["held"]:
+            if (T.get("vol") or 0) >= 0.30:
+                why.append(f"QQQ 20 日波幅 {f(T['vol'])}，就快到 {int(vm * 100)}% 賣出線")
+            if T["margin"] < 0.02:
+                why.append(f"NDX 再跌大約 {f(T['margin'])} 就轉紅燈")
+            if (T.get("gap21") or 0) < 0:
+                why.append(f"NDX 跌穿 21 日 EMA（{f(T['gap21'])}）")
+            if (T.get("gap50") or 0) < 0:
+                why.append(f"NDX 跌穿 50 日線（{f(T['gap50'])}）")
+            kind = "sell"
+        else:
+            if -0.02 < T["margin"] < 0 and (T.get("vol") or 0) < vm:
+                why.append(f"NDX 再升大約 {f(T['margin'])} 就轉綠燈")
+            if T["margin"] >= 0 and vm <= (T.get("vol") or 0) < vm + 0.05:
+                why.append(f"大市綠燈，QQQ 20 日波幅 {f(T['vol'])} 回落到 {int(vm * 100)}% 以下就買")
+            kind = "buy"
+        return dict(date=sc["date"], kind=kind, why=why, detail=lv) if why else None
     except Exception:  # noqa: BLE001
         return None
 
@@ -616,6 +662,10 @@ def main():
     lc = light_change()                                                  # 大市啱啱轉燈而上一份重點未講：即刻重寫
     if lc and (P.get("digest") or {}).get("light_change") != lc and last_ai:
         print(f"[ai] 大市 {lc['date']} 轉{lc['to']}，即刻重寫今日重點")
+        last_ai = None
+    ta = tq_alert()                                                      # TQQQ 黃燈／轉換而上一份重點未講：即刻重寫
+    if ta and (P.get("digest") or {}).get("tq_alert") != ta and last_ai:
+        print(f"[ai] TQQQ {ta['kind']}（{ta['date']}），即刻重寫今日重點")
         last_ai = None
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"   # app 撳「重新整理」叫嘅：即刻重寫
     if manual:

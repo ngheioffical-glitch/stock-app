@@ -270,7 +270,16 @@ def tq_info(cash_px, ndx, e21, s50n, s200n, days):
     g = ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)
     r4 = lambda row: [round(float(x), 4) if x == x else None for x in row]
     return dict(tq10=r4(cash_px["TQQQ"].reindex(days).ffill()), vol10=[round(float(v), 4) if v == v else None for v in vol],
-                on10=[bool(a and v == v and v < TQ_VOL) for a, v in zip(g, vol)], vol_max=TQ_VOL)
+                on10=[bool(a and v == v and v < TQ_VOL) for a, v in zip(g, vol)], vol_max=TQ_VOL,
+                **tq_yellow(ndx, e21, s50n, s200n))
+
+
+def tq_yellow(ndx, e21, s50n, s200n):
+    """黃燈提示用（2026-10-02 用戶）：最新收市 NDX 距離轉燈有幾遠、有冇跌穿 21 日 EMA／50 日線。只係提示，唔改買賣規則。
+    margin > 0 = 綠燈，數值 = 再跌幾多就轉紅；< 0 = 紅燈，數值 = 再升幾多就轉綠（大約）。"""
+    n, a, b_, c = float(ndx.iloc[-1]), float(e21.iloc[-1]), float(s50n.iloc[-1]), float(s200n.iloc[-1])
+    margin = max(n / c - 1, min(n / a - 1, a / b_ - 1))
+    return dict(margin=round(margin, 4), gap21=round(n / a - 1, 4), gap50=round(n / b_ - 1, 4))
 
 
 def must_have():

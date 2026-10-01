@@ -11,9 +11,9 @@ V2.2（2026-09-30 用戶採用，stock-strategy/LAB_GRID2.md 嘅 B3）= V2.1 + �
      星期五記帳戶值做回撤剎車（跌 25% 只揸 2 隻，返到 −12.5% 恢復）；有空位就對排名頭嘅候選股掛 buy-stop（空位 × 2 張）
 成本每邊 0.1%。價錢係 Yahoo 拆股調整價（同 app 一樣）；拆股時自動換算持倉。
 輸出 docs/model.json（狀態 + 下一個交易日要做嘅嘢 + hist 每日快照：帳戶值、現金、持倉、當日成交，app 用嚟拉條 bar 睇歷史）。
-2026-10-02 V2.3（用戶批准）：帳戶分兩部分：70% 照 V2.2；30% 係「TQQQ 腳」（st["tq"]）：
+2026-10-02 V2.3（用戶批准）：帳戶分兩部分：60% 照 V2.2；40% 係「TQQQ 腳」（st["tq"]）：
   上一日收市「綠燈 + QQQ 20 日波幅 < 35%」→ 今日收市揸 TQQQ，否則揸 IEF（scan.json 嘅 tq.on10）；轉換扣 0.1%；
-  每月最後一個交易日收市，只用 V2.2 現金將 TQQQ 腳調返 30%（唔賣股）。V2.2 嘅注碼、剎車只計 V2.2 部分。
+  每月最後一個交易日收市，只用 V2.2 現金將 TQQQ 腳調返 40%（唔賣股）。V2.2 嘅注碼、剎車只計 V2.2 部分。
   回測同一套規則：stock-strategy/src/tq_mix.py、LAB_TQQQ3.md。
 用法：python scanner/model.py            （每日）
       python scanner/model.py seed       （由而家份 scan.json 嘅下一個交易日開始，全現金）
@@ -37,7 +37,7 @@ RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=15.0, rank_exit_
             brake_down=0.75, brake_up=0.875, cost=0.001, mult=2,
             delist_days=5,       # 持倉連續 5 個交易日冇價：當退市／被收購，按最後收市價賣（同回測引擎一樣）；停牌幾日唔會誤判
             split_tol=0.03,      # 同一日收市價被 Yahoo 追溯改咗 > 3% = 拆股／合股（大升大跌唔會改舊收市價）
-            tq_frac=0.30, tq_cost=0.001)   # V2.3 TQQQ 腳：佔 30%（2026-10-02 用戶由 20% 改 30%），轉換／再平衡每邊 0.1%
+            tq_frac=0.40, tq_cost=0.001)   # V2.3 TQQQ 腳：佔 40%（2026-10-02 用戶：20% → 30% → 40%），轉換／再平衡每邊 0.1%
 CAPITAL = 100_000.0
 
 
@@ -414,7 +414,8 @@ def save(st, sc, actions):
         view["holdings"].sort(key=lambda h: -h["weight"])
         Q = sc.get("tq") or {}
         view["tq"] = dict(held=T["held"], pend=T.get("pend"), frac=round(tq_val(st) / nav, 4), target=RULE["tq_frac"],
-                          vol=T.get("vol"), vol_max=Q.get("vol_max", 0.35), green=sc["green"], why_off=T.get("why_off"))
+                          vol=T.get("vol"), vol_max=Q.get("vol_max", 0.35), green=sc["green"], why_off=T.get("why_off"),
+                          margin=Q.get("margin"), gap21=Q.get("gap21"), gap50=Q.get("gap50"))     # 黃燈提示用
     st["view"] = view
     OUT.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
 

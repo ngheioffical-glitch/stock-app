@@ -951,7 +951,7 @@ function viewHist(){
     <input type="range" id="histR" min="0" max="${D.length - 1}" value="${i}" aria-label="揀日子">
     <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="揀年份"><option value="">全部年份</option>${years.map(y => `<option${y === Y ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
     <div id="histDay" style="display:flex;flex-direction:column;gap:6px">${histDay(D, i)}</div>
-    <p class="small muted">${HMODE !== "model" ? `V2.3（70% V2.2 + 30% TQQQ 腳）由 ${esc(B.start)}、10 萬起步嘅回測（全美股連退市；2010 前 TQQQ 用每日 3 倍 QQQ 模擬，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
+    <p class="small muted">${HMODE !== "model" ? `V2.3（60% V2.2 + 40% TQQQ 腳）由 ${esc(B.start)}、10 萬起步嘅回測（全美股連退市；2010 前 TQQQ 用每日 3 倍 QQQ 模擬，數據至 ${esc(B.end)}）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
   return h;
 }
 
@@ -1018,6 +1018,26 @@ function followCard(M){
 }
 
 let MTAB = (() => { try { const m = localStorage.getItem("mtab"); return m === "hist" ? "hist" : "follow"; } catch(e){ return "follow"; } })();
+// TQQQ 黃燈（2026-10-02 用戶）：條件就快唔成立（準備賣）／就快成立（準備買）。只係提示，唔改買賣規則。
+function tqYellow(TQ){
+  if (!TQ || TQ.margin == null) return null;
+  const p = x => pct(Math.abs(x), 1).replace("+", ""), why = [];
+  const vm = Math.round(TQ.vol_max * 100), S_ = typeof SCAN !== "undefined" && SCAN ? SCAN : null;
+  const lv = S_ ? `NDX 收市 ${f0(S_.ndx)}（200 日線 ${f0(S_.ndx_s200)}、21 日 EMA ${f0(S_.ndx_e21)}、50 日線 ${f0(S_.ndx_s50)}）` : "";
+  if (TQ.held && TQ.pend !== false){
+    if (TQ.vol != null && TQ.vol >= 0.30) why.push(`<b>波幅升緊</b>：QQQ 近 20 日波幅 ${p(TQ.vol)}（平時大約 15–20%），即係市況開始大上大落；升到 ${vm}% 就會賣晒 TQQQ（3 倍 ETF 喺大上大落嘅市況耗損好大）。`);
+    if (TQ.margin < 0.02) why.push(`<b>就快轉紅燈</b>：NDX 再跌大約 ${p(TQ.margin)} 就會轉紅燈。${lv}。轉紅燈 = TQQQ 賣晒、V2.2 股票都會清倉。`);
+    if (TQ.gap21 < 0) why.push(`<b>短期轉弱</b>：NDX 收市跌穿 21 日 EMA（低 ${p(TQ.gap21)}）。單憑呢個唔會賣，但通常係轉紅燈之前嘅第一個訊號。`);
+    if (TQ.gap50 < 0) why.push(`<b>中期轉弱</b>：NDX 收市跌穿 50 日線（低 ${p(TQ.gap50)}）。單憑呢個唔會賣，但要留意會唔會繼續跌向 200 日線。`);
+    return why.length ? {kind: "sell", why, then: `如果真係觸發：下一個交易日收市前賣晒 TQQQ（約帳戶 ${Math.round(TQ.frac * 100)}%），轉做 IEF。`} : null;
+  }
+  if (!TQ.held && TQ.pend !== true){
+    if (TQ.margin < 0 && TQ.margin > -0.02 && (TQ.vol == null || TQ.vol < TQ.vol_max)) why.push(`<b>就快轉綠燈</b>：NDX 再升大約 ${p(TQ.margin)} 就會轉綠燈。${lv}。`);
+    if (TQ.margin >= 0 && TQ.vol != null && TQ.vol >= TQ.vol_max && TQ.vol < TQ.vol_max + 0.05) why.push(`<b>波幅回落緊</b>：大市已經綠燈，QQQ 近 20 日波幅 ${p(TQ.vol)}，回落到 ${vm}% 以下就會買返 TQQQ。`);
+    return why.length ? {kind: "buy", why, then: `如果真係觸發：下一個交易日收市前賣 IEF，買返 TQQQ（約帳戶 ${Math.round(TQ.target * 100)}%）。`} : null;
+  }
+  return null;     // 已經有轉換要做：睇「要做」
+}
 function viewModel(){
   let h = topbar();
   if (!MODEL) return h + (MODEL_ERR ? `<div class="alert"><b>讀唔到模型帳戶</b><p class="small">${esc(MODEL_ERR)}</p></div>` : `<p class="muted">載入中…</p>`);
@@ -1046,6 +1066,11 @@ function viewModel(){
       ? `<div class="info"><b>收市前：TQQQ 腳由 IEF 轉 TQQQ</b><p class="small">賣晒 IEF（約帳戶 ${Math.round(TQ.frac * 100)}%${own ? " · " + f0(base * TQ.frac) : ""}），買 TQQQ。原因：大市綠燈，QQQ 20 日波幅 ${pct(TQ.vol, 1).replace("+", "")} 低過 ${Math.round(TQ.vol_max * 100)}%。</p></div>`
       : `<div class="alert"><b>收市前：TQQQ 腳由 TQQQ 轉 IEF</b><p class="small">賣晒 TQQQ（約帳戶 ${Math.round(TQ.frac * 100)}%${own ? " · " + f0(base * TQ.frac) : ""}），買 IEF。原因：${esc(TQ.why_off || "")}${TQ.vol != null ? `（QQQ 20 日波幅 ${pct(TQ.vol, 1).replace("+", "")}）` : ""}。</p></div>`);
     h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
+    const Y = tqYellow(TQ);
+    if (Y) h += `<div class="info"><span class="tag t-warn">TQQQ 黃燈</span> <b>${Y.kind === "sell" ? "留意：可能就快要賣 TQQQ" : "留意：可能就快要買返 TQQQ"}</b>
+      ${Y.why.map(w => `<p class="small">· ${w}</p>`).join("")}
+      <p class="small"><b>${esc(Y.then)}</b></p>
+      <p class="small muted">點解會咁：去「新聞」睇 AI 今日重點，出黃燈嗰日 AI 會根據新聞解釋市況點解轉弱／轉強。黃燈只係提早通知，規則未叫你郁；真正買賣以「要做」為準（${Y.kind === "sell" ? "紅燈或者 QQQ 波幅 ≥ 35% 先賣" : "綠燈而且 QQQ 波幅 &lt; 35% 先買"}）。測過用 21／50 日線提早走或者減半，冇偷睇都係蝕多過賺（LAB_EXIT40.md），所以唔改規則。</p></div>`;
     if (TQ) h += `<div class="info small"><b>TQQQ 腳（${Math.round(TQ.target * 100)}%）：而家揸 ${TQ.held ? "TQQQ" : "IEF"}</b>（佔 ${Math.round(TQ.frac * 100)}%）。
       條件：大市綠燈 ${TQ.green ? `<span class="up">✓</span>` : `<span class="dn">✗</span>`}、QQQ 20 日波幅 ${TQ.vol != null ? pct(TQ.vol, 1).replace("+", "") : "—"} &lt; ${Math.round(TQ.vol_max * 100)}% ${TQ.vol != null && TQ.vol < TQ.vol_max ? `<span class="up">✓</span>` : `<span class="dn">✗</span>`}。
       兩樣都啱就揸 TQQQ，否則揸 IEF；收市決定，下一個交易日收市前轉。每月最後一個交易日用現金將佢調返 ${Math.round(TQ.target * 100)}%（唔賣股）。唔用孖展、唔設止蝕：最多蝕晒呢 ${Math.round(TQ.target * 100)}%，唔會爆倉。</div>`;
@@ -1053,7 +1078,7 @@ function viewModel(){
     h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%（V2.2 部分）：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
     if ((A.fills || []).length) h += `<h2>最近成交</h2><div class="card" style="gap:4px">${A.fills.map(x =>
       `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
-    h += `<p class="small muted">模型 = V2.3（70% V2.2 揀股 + 30% TQQQ 腳）由 2000-01-03 用 10 萬開始嘅帳戶（2010 前 TQQQ 用每日 3 倍 QQQ 模擬），${esc(M.start)} 之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣、止蝕照改。</p>`;
+    h += `<p class="small muted">模型 = V2.3（60% V2.2 揀股 + 40% TQQQ 腳）由 2000-01-03 用 10 萬開始嘅帳戶（2010 前 TQQQ 用每日 3 倍 QQQ 模擬），${esc(M.start)} 之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣、止蝕照改。</p>`;
   } else {
     h += viewHist();
     const T = (M.trades || []).slice().reverse().slice(0, 20);
@@ -1119,7 +1144,7 @@ function viewSet(){
     <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
   <div class="card small muted"><p>規則 V2.2（RULES_V2.md）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高就買。每隻 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈（下一日開市清倉）就賣。帳戶由星期五高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到 −12.5% 以內恢復。現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
-    <p><b>V2.3（2026-10-02）</b>：上面 V2.2 用 70% 資金（注碼、剎車都按呢 70% 計）；另外 30% 係「TQQQ 腳」：上一日收市大市綠燈而且 QQQ 20 日波幅（年化）低過 35% 就揸 TQQQ，否則揸 IEF；收市決定，下一個交易日收市前轉。每月最後一個交易日只用現金調返 30%。唔用孖展。回測 2000–：V2.3 年化 23.7%、最大回撤 −33%（V2.2 20.4%、−35%；QQQ 8.7%、−83%）。波幅門檻 35% 係只用 2012 年前數據揀；比例 30% 係用戶揀嘅風險取向（冇偷睇揀中係 20%：22.6%、−32%）（LAB_TQQQ3.md）。</p>
+    <p><b>V2.3（2026-10-02）</b>：上面 V2.2 用 60% 資金（注碼、剎車都按呢 60% 計）；另外 40% 係「TQQQ 腳」：上一日收市大市綠燈而且 QQQ 20 日波幅（年化）低過 35% 就揸 TQQQ，否則揸 IEF；收市決定，下一個交易日收市前轉。每月最後一個交易日只用現金調返 40%。唔用孖展。回測 2000–（事後）：V2.3 年化 24.5%、最大回撤 −36%（V2.2 20.4%、−35%；QQQ 8.7%、−83%）。冇偷睇（每年只用之前數據揀參數、產品、門檻）：年化約 20%、最大回撤約 −41%（LAB_STRICT.md、LAB_EXIT40.md）。黃燈 = 提示 TQQQ 就快要轉，唔改規則。</p>
     <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></div>`;
 }
 
