@@ -228,10 +228,10 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
 /* 手機：表格唔好闊過畫面 */
 @media (max-width:600px){
   .hide-sm{display:none}
-  th,td{padding:8px 6px;font-size:12.5px}
+  th,td{padding:8px 5px;font-size:12px}
   td .ind{max-width:110px;white-space:normal}
   td.st,th.st{white-space:normal;min-width:84px} td.st .tag{white-space:normal;line-height:1.35}
-  .tablewrap{overflow-x:hidden}
+  .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
 </style>
 </head>
@@ -382,7 +382,7 @@ function ethCard(){
   else if (E.locked) next = `移動止蝕咗：等 ETH 收市升穿 20 日高位 <b>${f0(E.hi20)}</b> 先再買。`;
   else next = E.green ? `BTC 綠燈：下一日收市會買入。` : `BTC 紅燈：ETH 收市低過 50 日線 ${f0(E.e50)} 就做空；出現抄底訊號就買。`;
   const T = (E.trades || []).slice().reverse().map(t => `<tr><td><span class="tag ${t.side === "做多" ? "t-buy" : "t-stop"}">${t.side}</span></td>
-      <td class="mono small">${esc(t.entry_date.slice(2))} → ${esc(t.exit_date.slice(2))}</td><td class="r mono">${f0(t.entry)} → ${f0(t.exit)}</td>
+      <td class="mono small" style="line-height:1.35">${esc(t.entry_date.slice(2))}<br>${esc(t.exit_date.slice(2))}</td><td class="r mono small" style="line-height:1.35">${f0(t.entry)}<br>${f0(t.exit)}</td>
       <td class="r mono ${t.ret >= 0 ? "up" : "dn"}">${pct(t.ret)}</td></tr>`).join("");
   return `<div class="card"><div class="row spread"><div class="light"><span class="orb ${cls}" ${cls ? "" : `style="background:var(--muted)"`}></span><div>
       <div class="status ${P === "做多" ? "up" : P === "做空" ? "dn" : ""}" style="font-size:15px">ETH 策略 · ${esc(P)}</div>
@@ -394,7 +394,7 @@ function ethCard(){
       <div><span>抄底訊號</span><b class="${E.bottom ? "up" : ""}">${E.bottom ? "有" : "冇"}</b><span class="small muted">BTC 週 RSI ${E.btc_rsiw} · 200 週線 ${f0(E.btc_200w)} · MVRV ${BTC.mvrv != null ? BTC.mvrv.toFixed(2) : "—"}</span></div>
       <div><span>ETH 50 日線</span><b>${f0(E.e50)}</b></div>
     </div>
-    ${T ? `<div class="tablewrap"><table><tr><th>最近交易</th><th>日期</th><th class="r">價錢</th><th class="r">回報</th></tr>${T}</table></div>` : ""}
+    ${T ? `<div class="tablewrap"><table><tr><th>最近交易</th><th>入／出日期</th><th class="r">入／出價</th><th class="r">回報</th></tr>${T}</table></div>` : ""}
     <p class="small muted">規則（全部用每日收市，UTC 00:00 = 香港早上 8 點，下一日照做）：BTC 收市高過 365 日線 = 綠燈 → 做多 ETH；收市由入場後最高位回落 25% 就賣，之後要升穿 20 日高位先再買。
     抄底：BTC 跌穿 200 週線、BTC MVRV &lt; 0.8 或者 BTC 週 RSI &lt; 30，就算紅燈都買。BTC 紅燈而 ETH 低過 50 日線 → 做空 ETH，反彈 25%、升穿 50 日線或者 BTC 轉綠就平倉。
     回測 2017–2026（每次買賣 0.1%、做空加 10%／年資金費率）：年化 149%、最大回撤 −76%（ETH 揸住 81%、−94%）；2018 熊市 +147%、2022 熊市 +72%，但 2019–20 反覆時做空會連續中伏。
