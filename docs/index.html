@@ -203,6 +203,10 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .gear.on svg{stroke:var(--cyan);filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
 .qcmp{border-top:1px dashed var(--line2);padding-top:8px}
 .btcchart{width:100%;height:90px;display:block}
+.fngchart{width:100%;height:70px;display:block;margin-top:10px}
+.fngbar{position:relative;height:10px;border-radius:6px;margin-top:10px;background:linear-gradient(90deg,var(--stop) 0%,var(--warn) 35%,var(--muted) 50%,var(--buy) 75%,var(--buy) 100%);opacity:.9}
+.fngbar i{position:absolute;top:-4px;width:4px;height:18px;margin-left:-2px;border-radius:2px;background:var(--ink);box-shadow:0 0 8px var(--cyan)}
+.warnc{color:var(--warn)}
 details.card>summary::-webkit-details-marker{display:none}
 /* 動畫（2026-09-30）：分頁滑入、卡片逐張浮入、底部指示條、撳落回饋、載入骨架 */
 :root{--ease:cubic-bezier(.22,.9,.24,1)}
@@ -348,7 +352,7 @@ function header(){
     </div>
     <p class="small"><b>現金點擺：</b>${g ? "未用嘅現金買短期國債 ETF（<b>SGOV</b> 或 <b>BIL</b>）收息，要買股時先賣" : "賣晒股之後，現金買 <b>IEF</b>（7–10 年美國國債），轉返綠燈先賣"}</p>
     <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
-  </div>` + bounceCard();
+  </div>` + bounceCard() + fngCard("stock");
 }
 
 // 比特幣燈號（2026-10-01；scanner/btc.py → feeds/btc.json，每 5 分鐘；回測 stock-strategy/LAB_BTC.md）
@@ -366,10 +370,46 @@ function btcChart(C){
     <polyline points="${pl(1)}" fill="none" stroke="var(--cyan)" stroke-width="1.6"/></svg>
     <div class="small muted" style="display:flex;justify-content:space-between"><span>${esc(C[0][0])}</span><span><span style="color:var(--cyan)">━</span> BTC　<span style="color:var(--warn)">┅</span> 365 日線</span><span>${esc(C[C.length - 1][0])}</span></div>`;
 }
+// 恐慌貪婪指數（2026-10-01）：scanner/fng.py → feeds/fng.json（股市 CNN、加密 alternative.me）
+let FNG = null;
+async function fetchFng(){
+  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "fng.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
+    if (r.ok){ FNG = await r.json(); if (TAB === "crypto" || TAB === "today") render(); } } catch(e){}
+}
+const fngCls = v => v < 25 ? "dn" : v < 45 ? "warnc" : v <= 55 ? "" : "up";
+function fngSpark(H){
+  if (!H || H.length < 10) return "";
+  const W = 320, Hh = 70, X = i => (i / (H.length - 1) * W).toFixed(1), Y = v => (Hh - 2 - v / 100 * (Hh - 4)).toFixed(1);
+  return `<svg viewBox="0 0 ${W} ${Hh}" class="fngchart" preserveAspectRatio="none">
+    <rect x="0" y="${Y(100)}" width="${W}" height="${(Y(75) - Y(100)).toFixed(1)}" fill="var(--buy)" opacity=".1"/>
+    <rect x="0" y="${Y(25)}" width="${W}" height="${(Y(0) - Y(25)).toFixed(1)}" fill="var(--stop)" opacity=".12"/>
+    <polyline points="${H.map((x, i) => `${X(i)},${Y(x[1])}`).join(" ")}" fill="none" stroke="var(--cyan)" stroke-width="1.5"/></svg>
+    <div class="small muted" style="display:flex;justify-content:space-between"><span>${esc(H[0][0])}</span><span>${esc(H[H.length - 1][0])}</span></div>
+    <div class="small muted">紅底 &lt; 25 極度恐慌 · 綠底 &gt; 75 極度貪婪</div>`;
+}
+function fngCard(kind){
+  const F = FNG && FNG[kind];
+  if (!F) return "";
+  const v = F.score, cmp = [["昨日", F.prev], ["1 星期前", F.week], ["1 個月前", F.month], ["1 年前", F.year]].filter(x => x[1] != null);
+  const tip = kind === "stock"
+    ? `<b>點配合用：</b>只作參考，唔改 V2.2 規則。2020-07 起（得 2022 同 2025 兩次大跌，樣本好細）：V2.2 紅燈而指數 &lt; 25 嘅日子，NDX 之後 60 日平均 +7.8%；紅燈但只係 25–55，之後 60 日平均 −1.4%。即係<b>紅燈 + 極度恐慌 = 留意見底</b>（配合上面「牛市回調」卡同大市突破）；2025-04-09 大陽燭嗰日指數得 10。`
+    : `<b>點配合用：</b>2018 起回測：ETH 策略 B 加「指數 ≤ 20–25 都當抄底」年化 62% → 78–80%、Sharpe 1.03 → 1.16（主要係極度恐慌時唔好追空）；「指數 ≥ 80–90 就走」冇幫助。未加入規則，只作參考。`;
+  return `<div class="card"><div class="row spread"><div><div class="small muted">${kind === "stock" ? "股市" : "加密"}恐慌貪婪指數</div>
+      <div class="status ${fngCls(v)}" style="font-size:16px">${esc(F.rating)}</div></div>
+      <div style="text-align:right"><div class="mono ${fngCls(v)}" style="font-size:28px;font-weight:800">${Math.round(v)}</div><div class="small muted">/ 100</div></div></div>
+    <div class="fngbar"><i style="left:${Math.max(0, Math.min(100, v))}%"></i></div>
+    <div class="small muted" style="display:flex;justify-content:space-between;margin-top:2px"><span>極度恐慌</span><span>中性</span><span>極度貪婪</span></div>
+    <div class="kv">${cmp.map(x => `<div><span>${x[0]}</span><b class="${fngCls(x[1])}">${Math.round(x[1])}</b></div>`).join("")}</div>
+    ${fngSpark(F.hist)}
+    ${F.parts && F.parts.length ? `<details><summary class="small">7 個組成部分</summary><div class="kv">${F.parts.map(x => `<div><span>${esc(x.name)}</span><b class="${fngCls(x.score)}">${Math.round(x.score)}</b><span class="small muted">${esc(x.rating)}</span></div>`).join("")}</div></details>` : ""}
+    <p class="small">${tip}</p>
+    <p class="small muted">來源：${esc(F.src)} · ${esc(String(F.at).slice(0, 16).replace("T", " "))}${FNG.err && FNG.err[kind] ? ` · <span class="dn">今次讀取失敗，顯示上一份</span>` : ""}</p></div>`;
+}
 function viewCrypto(){
   if (!BTC) fetchBtc();
+  if (!FNG) fetchFng();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? ethCard() + btcCard() : `<p class="muted">載入中…</p>`);
+    + (BTC ? ethCard() + fngCard("crypto") + btcCard() : `<p class="muted">載入中…</p>`);
 }
 // ETH 策略 B（2026-10-01 用戶揀）：BTC 做市場情緒、只買賣 ETH；移動止蝕 25% + 抄底 + BTC 紅燈做空。scanner/btc.py eth_strategy()
 function ethCard(){
@@ -1283,7 +1323,7 @@ function bind(){
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
   on("#trReload", () => { fetchTrump(); });
-  on("#btcReload", () => { fetchBtc(); });
+  on("#btcReload", () => { fetchBtc(); fetchFng(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { if (b.dataset.nt === "econ") FEED.scrolled = false; NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
@@ -1364,8 +1404,8 @@ fetchModel();
 fetchLive();
 fetchSer();
 fetchTrump();
-fetchBtc();
-setInterval(() => { if (document.visibilityState === "visible") fetchBtc(); }, 5 * 60e3);
+fetchBtc(); fetchFng();
+setInterval(() => { if (document.visibilityState === "visible"){ fetchBtc(); fetchFng(); } }, 5 * 60e3);
 fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
