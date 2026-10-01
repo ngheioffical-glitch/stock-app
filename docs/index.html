@@ -723,12 +723,11 @@ const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
     <a href="https://x.com/aleabitoreddit/status/${o.last.id}" target="_blank" rel="noopener" class="muted">${esc(o.last.zh || o.last.text)}</a></p>`; };
 
 // ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.2 行虛擬帳戶（scanner/model.py），用戶照抄
-let MODEL = null, MODEL_ERR = null, MNEW = null, MCONT = null;
-const pickModel = () => { MODEL = (S.acct === "cont" && MCONT) ? MCONT : MNEW; };
+let MODEL = null, MODEL_ERR = null, MCONT = null;      // 2026-10-01 用戶：刪新帳戶（9/28 全現金冇參考價值），只用延續帳戶
+const pickModel = () => { MODEL = MCONT; };
 async function fetchModel(){
   const get = async f => { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, f) + "?t=" + Date.now(), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
-  try { MNEW = await get("model.json"); MODEL_ERR = null; } catch(e){ MODEL_ERR = e.message; }
-  try { MCONT = await get("model_cont.json"); } catch(e){ MCONT = null; }
+  try { MCONT = await get("model_cont.json"); MODEL_ERR = null; } catch(e){ MODEL_ERR = e.message; MCONT = null; }
   HCACHE = {}; BT00X = null;
   pickModel();
   if (TAB === "model" || TAB === "today") render();
@@ -736,8 +735,9 @@ async function fetchModel(){
 function setAcct(a){ S.acct = a; save(); pickModel(); HCACHE = {}; render("f"); }
 
 // 歷史回看：模型（model.json 嘅 hist，9/28 起每日快照）｜回測（V2.2 全現金：model_bt2000.json 由 2000 年、model_bt.json 由 2026 年）
-let HMODE = "model", HIDX = {}, MBT = {}, MBT_ERR = {};
-try { HMODE = localStorage.getItem(KEY + "-hmode") || "model"; } catch(e){}
+let HMODE = "bt00", HIDX = {}, MBT = {}, MBT_ERR = {};
+try { HMODE = localStorage.getItem(KEY + "-hmode") || "bt00"; } catch(e){}
+if (HMODE === "model") HMODE = "bt00";
 const BTFILE = {bt00: "model_bt2000.json", bt26: "model_bt.json"};
 function expandBT(j){
   if (j.fmt === "c") j.days = j.days.map(r => ({d: r[0], nav: r[1], cash: r[2], green: !!r[3], qqq: r[4],
@@ -906,7 +906,7 @@ function viewHist(){
   if (fresh()) fetchBY();
   const B = MBT[HMODE];
   const chip = (m, t) => `<button data-hmode="${m}" aria-pressed="${HMODE === m}">${t}</button>`;
-  let h = `<h2>歷史回看</h2><div class="card"><div class="chips">${chip("model", `模型（${esc(MODEL.start.slice(5))} 起）`)}${chip("bt00", "回測 2000 年起")}${chip("bt26", "回測 2026 年起")}</div>`;
+  let h = `<h2>歷史回看</h2><div class="card"><div class="chips">${chip("bt00", "2000 年起（接到今日）")}${chip("bt26", "回測 2026 年起")}</div>`;
   if (HMODE !== "model" && !B) return h + (MBT_ERR[HMODE] ? `<p class="small dn">讀唔到回測：${esc(MBT_ERR[HMODE])}</p>` : `<p class="muted">載入中…${HMODE === "bt00" ? "（約 1.2 MB）" : ""}</p>`) + `</div>`;
   const ALL = allDays();
   if (!ALL.length) return h + `<p class="muted">未有歷史：第一個交易日收市後先有。</p></div>`;
@@ -968,16 +968,8 @@ function navChart(nav){
 // 做法：喺揀咗嗰日收市，照模型當時嘅持倉比例同現金比例複製落自己帳戶；之後帳戶值 = 本金 × 模型淨值(今日) ÷ 模型淨值(開始日)
 function followState(M){
   const F = S.follow;
-  if (!F || !(F.capital > 0) || !MNEW || !(MNEW.nav || []).length) return null;
-  const N = MNEW.nav, live0 = N[0].date;
-  if (F.start >= live0){                                   // 新帳戶開始之後：直接用新帳戶淨值
-    const i = N.findIndex(x => x.date >= F.start), k = i < 0 ? N.length - 1 : i;
-    const path = N.slice(k).map(x => F.capital * x.nav / N[k].nav);
-    const H = (MNEW.hist || []).filter(x => x.d >= N[k].date && x.q), qp = H.length ? H.map(x => F.capital * x.q / H[0].q) : null;
-    return {acct: "new", capital: F.capital, start: N[k].date, val: path[path.length - 1], ret: path[path.length - 1] / F.capital - 1, dd: mdd(path),
-            q: qp && {val: qp[qp.length - 1], dd: mdd(qp)}, qt: H.length > 1 ? qTiming(H.map(x => ({v: x.q, g: x.green})), F.capital) : null};
-  }
-  // 早過新帳戶：回測帳戶（2000 年起連續行）嘅每日淨值，到數據尾之後接延續帳戶（同一個帳戶、同一套持倉）
+  if (!F || !(F.capital > 0) || !MCONT) return null;
+  // 回測帳戶（2000 年起連續行）嘅每日淨值，到數據尾之後接延續帳戶（同一個帳戶、同一套持倉）
   const B = MBT.bt00;
   if (!B){ if (!MBT_ERR.bt00) fetchBT("bt00"); return {loading: true, err: MBT_ERR.bt00, capital: F.capital, start: F.start}; }
   const D = bt00Days();
@@ -1000,16 +992,14 @@ function qTiming(L, cap){          // L = [{v: QQQ 值, g: 當日收市綠燈?}]
 }
 const mdd = a => { let pk = -Infinity, m = 0; for (const x of a){ pk = Math.max(pk, x); m = Math.min(m, x / pk - 1); } return m; };
 function followCard(M){
-  const fs = followState(M), A = fs && fs.acct === "cont" ? MCONT : MNEW;
-  if (fs && fs.acct && A !== M) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small">你跟緊「${fs.acct === "cont" ? "延續帳戶" : "新帳戶"}」。<button data-acct="${fs.acct}" class="small">切換去睇</button></p></div>`;
-  const v = (A || M).view, N = (MNEW && MNEW.nav) || [], last = N.length ? N[N.length - 1].date : "";
+  const fs = followState(M), v = M.view, last = M.last || "";
   const form = `<div class="grid2 fform"><label>本金（美元）<input id="fCap" type="number" inputmode="decimal" step="any" placeholder="例如 20000" value="${fs ? fs.capital : ""}"></label>
       <label>由邊日收市開始跟（2000 年起任何一日）<input id="fStart" type="date" min="2000-01-03" max="${esc(last)}" value="${esc(fs ? fs.start : last)}"></label></div>
     <div class="row"><button class="primary" id="fGo">${fs ? "重設" : "開始跟"}</button>${fs ? `<button id="fClear">停止跟</button>` : ""}</div>`;
-  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-28 之前用 V2.2 回測帳戶計）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
+  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.2 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
   if (fs.loading) return `<div class="card"><b>我嘅跟單帳戶</b><p class="muted">${fs.err ? "讀唔到回測數據：" + esc(fs.err) : "載入緊 2000 年起嘅回測數據（約 1 MB）…"}</p>${fs.err ? form : ""}</div>`;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b><span class="ind">佔 ${Math.round(p.weight * 100)}%</span></td><td class="r mono">${f0(fs.val * p.weight)}</td>
-      <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td></tr>`).join("");
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">佔 ${Math.round(p.weight * 100)}% · ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}</span></td>
+      <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${chg(p.ret)}</td><td class="r mono dn">${f2(p.stop)}</td></tr>`).join("");
   return `<div class="card"><div class="row spread"><div><div class="lbl">我嘅跟單帳戶 · ${esc(fs.start)} 收市開始</div><div class="price">${f0(fs.val)}</div></div>
       <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
     <div class="kv"><div><span>本金</span><b>${f0(fs.capital)}</b></div><div><span>賺蝕</span><b class="${fs.val >= fs.capital ? "up" : "dn"}">${(fs.val >= fs.capital ? "+" : "") + f0(fs.val - fs.capital)}</b></div>
@@ -1021,62 +1011,47 @@ function followCard(M){
       ${fs.qt ? `<tr><td>QQQ + 大市燈號<span class="ind">綠燈揸 QQQ、紅燈現金</span></td><td class="r mono">${f0(fs.qt.val)}</td><td class="r mono">${chg(fs.qt.val / fs.capital - 1)}</td><td class="r mono dn">${pct(fs.qt.dd)}</td></tr>` : ""}
       </table></div>
       <p class="small muted">「QQQ + 大市燈號」= 用同一個紅綠燈規則（NDX &gt; 200 日線，或 NDX &gt; 21 日 EMA &gt; 50 日線），上一日收市綠燈就揸 QQQ、紅燈就賣晒轉現金（保守：現金唔計利息），每次轉換扣 0.1%。策略贏佢嘅部分 = 揀股嘅功勞；贏「QQQ 揸住」但輸「QQQ + 燈號」= 主要靠避開熊市。QQQ 用收市價，冇計派息（約每年 0.6%）。</p></div>` : ""}
-    ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">金額</th><th class="r">股數</th></tr>${rows}</table></div>` : ""}
+    ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">股數</th><th class="r">回報</th><th class="r">止蝕</th></tr>${rows}</table></div>` : ""}
     <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
     <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.2 回測（2000 年起連續行、Tiingo 全美股），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
 }
 
-let MTAB = (() => { try { return localStorage.getItem("mtab") || "today"; } catch(e){ return "today"; } })();
+let MTAB = (() => { try { const m = localStorage.getItem("mtab"); return m === "hist" ? "hist" : "follow"; } catch(e){ return "follow"; } })();
 function viewModel(){
   let h = topbar();
   if (!MODEL) return h + (MODEL_ERR ? `<div class="alert"><b>讀唔到模型帳戶</b><p class="small">${esc(MODEL_ERR)}</p></div>` : `<p class="muted">載入中…</p>`);
   const M = MODEL, v = M.view, A = v.actions || {}, P = M.pending || {};
-  const fs = followState(M), base = fs && fs.val && ((fs.acct === "cont") === (M === MCONT)) ? fs.val : S.capital;
-  // 2026-10-01 用戶：模型頁太亂 → 分三頁：今日（帳戶、持倉、要做）｜我嘅帳戶（跟單）｜歷史（回看、已完成交易）
-  h += `<div class="chips mtabs">${[["today", "今日"], ["follow", "我嘅帳戶"], ["hist", "歷史"]].map(([k, l]) => `<button data-mtab="${k}" aria-pressed="${MTAB === k}">${l}</button>`).join("")}</div>`;
-  if (MTAB === "today"){
-  if (MCONT) h += `<div class="chips"><button data-acct="new" aria-pressed="${M === MNEW}">新帳戶 · ${esc(MNEW ? MNEW.start : "")} 全現金</button><button data-acct="cont" aria-pressed="${M === MCONT}">延續帳戶 · 2000 年起</button></div>`;
-  const cap = M.braking ? 2 : 5, own = base > 0;
-  const sh = (frac, px) => own ? ` · ${f0(Math.floor(base * frac / px))} 股` : "";
-  h += `<div class="card"><div class="row spread"><div><div class="lbl">${M === MCONT ? `延續帳戶 · 2000-01-03 起（10 萬），${esc(M.start)} 之後雲端繼續行` : `模型帳戶 · ${esc(M.start)} 起全現金`}</div>
-      <div class="price">${f0(v.nav)}</div></div><span class="tag ${v.green ? "t-buy" : "t-stop"}">${v.green ? "綠燈" : "紅燈"}</span></div>
-    <div class="kv"><div><span>回報</span><b>${chg(v.ret)}</b></div><div><span>${M === MCONT ? "NDX（" + esc(M.start.slice(5)) + " 起）" : "NDX 同期"}</span><b>${chg(v.ndx_ret)}</b></div>
-      <div><span>持股 · 現金</span><b>${v.holdings.length}/${cap} · ${Math.round(v.cash_frac * 100)}%</b></div></div>
-    ${navChart(M.nav)}
-    <p class="small muted">照 V2.2 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>`;
-  for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
-
-  if (fs && fs.val) h += `<div class="info small row spread"><span>我嘅跟單帳戶：<b>${f0(fs.val)}</b>（${chg(fs.val / fs.capital - 1)}）</span><button data-mtab="follow" class="small">睇詳情</button></div>`;
-  h += `<h2>模型持倉</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th><th class="r">止蝕</th></tr>
-    ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
-      <td class="r mono">${f2(p.entry)}</td><td class="r mono">${f2(p.close)}<span class="ind">${chg(p.day_chg)}</span></td><td class="r mono">${chg(p.ret)}</td>
-      <td class="r mono dn">${f2(p.stop)}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">未有持倉（全現金）</p></div>`);
-
-  h += `<h2>${esc(P.for || v.next_day)} 要做</h2>`;
-  const todo = [];
-  if ((P.sells || []).length) todo.push(`<div class="alert"><b>開市賣出</b>${P.sells.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${esc(x.reason)}</p>`).join("")}</div>`);
-  if ((A.stops || []).length) todo.push(`<div class="info"><b>喺券商改止蝕單</b>${A.stops.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${f2(x.old)} → <b class="num up">${f2(x.new)}</b>${x.be ? "（已保本）" : ""}</p>`).join("")}</div>`);
-  if ((P.buys || []).length) todo.push(`<div class="tablewrap"><table><tr><th>掛 buy-stop</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">注碼</th></tr>
-      ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}${levInd(b.sym)}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
-        <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
-      <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺上面「我嘅跟單帳戶」填本金就會計埋股數。"}</p>`);
-  h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
-  h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}
-    ${v.cash_frac < 0.01 ? "" : `<br><span class="muted">所以就算一隻股都冇揸，帳戶值都會每日變：${(() => { const ir = SCAN && SCAN.cash && SCAN.cash.irx10 ? SCAN.cash.irx10.filter(x => x != null).slice(-1)[0] : null;
-      return v.green ? `綠燈每個交易日加一日國債息${ir != null ? `（而家年息約 ${ir.toFixed(2)}%，即每 10 萬每日約 $${(1e5 * ir / 100 / 252).toFixed(0)}）` : ""}` : "紅燈跟 IEF 每日升跌（通常 ±0.2–1%）"; })()}；紅綠燈轉換嗰日扣 0.1% 買賣成本。</span>`}</div>`;
-  if ((A.fills || []).length) h += `<h2>最近成交（模型）</h2><div class="card" style="gap:4px">${A.fills.map(x =>
-    `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
-
-
-  } else if (MTAB === "follow"){
+  const fs = followState(M), base = fs && fs.val ? fs.val : S.capital;
+  // 2026-10-01 用戶：模型頁太亂、刪新帳戶 → 兩頁：我嘅帳戶（跟單 + 持倉止蝕 + 要做）｜歷史（2000 年起接到今日 + 已完成交易）
+  h += `<div class="chips mtabs">${[["follow", "我嘅帳戶"], ["hist", "歷史"]].map(([k, l]) => `<button data-mtab="${k}" aria-pressed="${MTAB === k}">${l}</button>`).join("")}</div>`;
+  if (MTAB !== "hist"){
+    const own = base > 0;
+    const sh = (frac, px) => own ? ` · ${f0(Math.floor(base * frac / px))} 股` : "";
     h += followCard(M);
+    for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
+    if (!fs) h += `<h2>模型而家揸</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入</th><th class="r">回報</th><th class="r">止蝕</th></tr>
+      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
+        <td class="r mono">${f2(p.entry)}</td><td class="r mono">${chg(p.ret)}</td><td class="r mono dn">${f2(p.stop)}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">全現金</p></div>`);
+    h += `<h2>${esc(P.for || v.next_day)} 要做</h2>`;
+    const todo = [];
+    if ((P.sells || []).length) todo.push(`<div class="alert"><b>開市賣出</b>${P.sells.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${esc(x.reason)}</p>`).join("")}</div>`);
+    if ((A.stops || []).length) todo.push(`<div class="info"><b>喺券商改止蝕單</b>${A.stops.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${f2(x.old)} → <b class="num up">${f2(x.new)}</b>${x.be ? "（已保本）" : ""}</p>`).join("")}</div>`);
+    if ((P.buys || []).length) todo.push(`<div class="tablewrap"><table><tr><th>掛 buy-stop</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">注碼</th></tr>
+        ${P.buys.map(b => `<tr><td class="mono"><b>${b.sym}</b>${serTag(b.sym)}<span class="ind">RS #${b.rank}${levInd(b.sym)}</span></td><td class="r mono hl">${f2(b.trigger)}</td>
+          <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
+        <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺上面填本金就會計埋股數。"}</p>`);
+    h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
+    if (M.braking) h += `<div class="info small"><b class="dn">回撤剎車生效：</b>帳戶由高位跌咗 25% 以上，最多揸 2 隻，返到高位 −12.5% 先恢復 5 隻。</div>`;
+    h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}</div>`;
+    if ((A.fills || []).length) h += `<h2>最近成交</h2><div class="card" style="gap:4px">${A.fills.map(x =>
+      `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
+    h += `<p class="small muted">模型 = V2.2 由 2000-01-03 用 10 萬全現金開始嘅帳戶，${esc(M.start)} 之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣、止蝕照改。</p>`;
   } else {
-  h += viewHist();
-
-  const T = (M.trades || []).slice().reverse().slice(0, 20);
-  if (T.length) h += `<h2>已完成交易</h2><div class="tablewrap"><table><tr><th>股票</th><th>買入 → 賣出</th><th class="r">回報</th></tr>
-    ${T.map(t => `<tr><td class="mono"><b>${t.sym}</b><span class="ind">${esc(t.reason)}</span></td><td class="mono small">${esc(t.date.slice(5))} → ${esc(t.sell_date.slice(5))}</td>
-      <td class="r mono">${chg(t.ret)}</td></tr>`).join("")}</table></div>`;
+    h += viewHist();
+    const T = (M.trades || []).slice().reverse().slice(0, 20);
+    if (T.length) h += `<h2>已完成交易（${esc(M.start)} 之後）</h2><div class="tablewrap"><table><tr><th>股票</th><th>買入 → 賣出</th><th class="r">回報</th></tr>
+      ${T.map(t => `<tr><td class="mono"><b>${t.sym}</b><span class="ind">${esc(t.reason)}</span></td><td class="mono small">${esc(t.date.slice(5))} → ${esc(t.sell_date.slice(5))}</td>
+        <td class="r mono">${chg(t.ret)}</td></tr>`).join("")}</table></div>`;
   }
   return h;
 }
@@ -1108,9 +1083,8 @@ function healthCard(){
     const stale = now > Date.parse(SCAN.next_day + "T22:30:00Z") + 8 * 3600e3;
     add("每日掃描（排名、燈號、訊號）", !stale, SCAN.date + " 收市", stale ? "超過一日冇更新：GitHub 每日排程可能停咗" : "");
   } else add("每日掃描（排名、燈號、訊號）", false, "讀唔到", ERR || "");
-  if (MNEW) add("模型帳戶（新）", !SCAN || MNEW.last >= SCAN.date, MNEW.last, MNEW.last < (SCAN && SCAN.date) ? "落後過每日掃描" : "");
   if (MCONT) add("延續帳戶（2000 年起）", !SCAN || MCONT.last >= SCAN.date, MCONT.last, MCONT.last < (SCAN && SCAN.date) ? "落後過每日掃描" : "");
-  const warns = [...((MNEW && MNEW.view && MNEW.view.actions && MNEW.view.actions.warn) || []), ...((MCONT && MCONT.view && MCONT.view.actions && MCONT.view.actions.warn) || [])];
+  const warns = [...((MCONT && MCONT.view && MCONT.view.actions && MCONT.view.actions.warn) || [])];
   if (warns.length) add("模型提示（拆股／退市等，已自動處理）", true, `${warns.length} 條`, warns.join("；"));
   if (FEED.news){
     const g = hkt(FEED.news.generated), age = (now - g) / 60e3;
@@ -1390,7 +1364,7 @@ function bind(){
   on("#fGo", () => { const c = +$("#fCap").value, d = $("#fStart").value;
     if (!(c > 0)){ alert("請填本金（美元）"); return; }
     if (!d || d < "2000-01-03"){ alert("開始日期要喺 2000-01-03 之後"); return; }
-    S.follow = {capital: c, start: d}; S.acct = (MNEW && MNEW.nav && MNEW.nav.length && d < MNEW.nav[0].date) ? "cont" : "new"; save(); pickModel(); HCACHE = {}; render("f"); });
+    S.follow = {capital: c, start: d}; save(); pickModel(); HCACHE = {}; render("f"); });
   document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });

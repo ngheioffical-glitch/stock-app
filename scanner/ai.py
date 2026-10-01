@@ -493,7 +493,7 @@ def context():
     """大市燈號同關注股（排名頭 15 + 模型持倉）。"""
     try:
         sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
-        md = json.loads((ROOT / "docs" / "model.json").read_text(encoding="utf-8"))
+        md = json.loads((ROOT / "docs" / "model_cont.json").read_text(encoding="utf-8"))   # 2026-10-01 刪咗新帳戶
         watch = sorted({r["sym"] for r in sc.get("ranking", [])[:15]} | {p["sym"] for p in md.get("positions", [])})
         return ("綠燈" if sc.get("green") else "紅燈"), watch
     except Exception:  # noqa: BLE001
