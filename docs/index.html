@@ -358,7 +358,7 @@ function header(){
 function fearCard(){
   const F = SCAN && SCAN.fear;
   if (!F) return "";
-  const note = `<p class="small muted">回測（同一個帳戶，2000–2026）：VIX ≥ 30 第一日之後 60 日，β 最高 5 隻平均跑贏 QQQ 6–7%（2000–12 同 2013– 都成立）；但同 V2.2 同一個帳戶照做 40%：全期年化約 20%（V2.2 21%）、最大回撤 −49%（V2.2 −35%），因為 2021–22 籃子蝕錢觸發 V2.2 回撤剎車，2023 年少賺。2000–2012 就有幫助（15.6% vs 11.8%）。只係訊號，唔改 V2.2，自己決定。</p>`;
+  const note = `<p class="small muted">回測（同一個帳戶，2000–2026）：VIX ≥ 30 第一日之後 60 日，β 最高 5 隻平均跑贏 QQQ 6–7%（2000–12 同 2013– 都成立）；但同 V2.2 同一個帳戶照做 40%：全期年化少大約 1%、最大回撤 −49%（V2.2 −35%），因為 2021–22 籃子蝕錢觸發 V2.2 回撤剎車，2023 年少賺。2000–2012 就有幫助（15.6% vs 11.8%）。只係訊號，唔改 V2.2，自己決定。</p>`;
   if (!F.active){
     if (F.vix < 25) return `<div class="card"><div class="row spread"><span class="small muted">VIX（恐慌買入訊號 ≥ 30）</span><b class="mono">${F.vix.toFixed(1)}</b></div>
       <p class="small muted">平靜。上一次訊號：${esc((F.history || []).slice(-1)[0] || "—")}</p></div>`;
