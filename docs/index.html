@@ -350,9 +350,27 @@ function header(){
       <div class="gauge"><span>NDX vs 21 日 EMA</span><b class="${d21 >= 0 ? "up" : "dn"}">${pct(d21)}</b><div class="bar"><i style="width:${w(d21)}%"></i></div></div>
       <div class="gauge"><span>21 EMA vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
     </div>
-    <p class="small"><b>現金點擺：</b>${g ? "未用嘅現金買短期國債 ETF（<b>SGOV</b> 或 <b>BIL</b>）收息，要買股時先賣" : "賣晒股之後，現金買 <b>IEF</b>（7–10 年美國國債），轉返綠燈先賣"}</p>
+    <p class="small"><b>現金點擺：</b>${g ? "未用嘅現金留喺戶口，專注股票（唔買 SGOV／BIL）" : "賣晒股之後，現金買 <b>IEF</b>（7–10 年美國國債），轉返綠燈先賣"}</p>
     <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
-  </div>` + bounceCard() + fngCard("stock");
+  </div>` + fearCard() + bounceCard() + fngCard("stock");
+}
+// 恐慌買入訊號（2026-10-01，scan.py fear_info；回測 stock-strategy/LAB_FEAR*.md）：VIX ≥ 30 第一日 → 下一日開市 40% 買 β 最高 5 隻，揸 20 日
+function fearCard(){
+  const F = SCAN && SCAN.fear;
+  if (!F) return "";
+  const note = `<p class="small muted">回測（同一個帳戶，2000–2026）：VIX ≥ 30 第一日之後 60 日，β 最高 5 隻平均跑贏 QQQ 6–7%（2000–12 同 2013– 都成立）；但同 V2.2 同一個帳戶照做 40%：全期年化 19.7%（V2.2 20.7%）、最大回撤 −49%（V2.2 −36%），因為 2021–22 籃子蝕錢觸發 V2.2 回撤剎車，2023 年少賺。2000–2012 就有幫助（15.6% vs 11.8%）。只係訊號，唔改 V2.2，自己決定。</p>`;
+  if (!F.active){
+    if (F.vix < 25) return `<div class="card"><div class="row spread"><span class="small muted">VIX（恐慌買入訊號 ≥ 30）</span><b class="mono">${F.vix.toFixed(1)}</b></div>
+      <p class="small muted">平靜。上一次訊號：${esc((F.history || []).slice(-1)[0] || "—")}</p></div>`;
+    return `<div class="card"><div class="row spread"><div><div class="small muted">VIX 接近恐慌買入訊號</div><div class="status warnc" style="font-size:15px">VIX ${F.vix.toFixed(1)}（≥ 30 觸發）</div></div></div>
+      <p class="small">如果今晚收市 ≥ 30，下一日開市用 40% 資金平均買呢 5 隻（成交額頭 50 入面 β 最高）：${(F.preview || []).map(x => `<b>${esc(x.sym)}</b> β${x.beta}`).join("、")}</p>${note}</div>`;
+  }
+  const rows = (F.picks || []).map(x => `<tr><td class="mono"><b>${esc(x.sym)}</b><span class="ind">β ${x.beta}</span></td>
+      <td class="r mono">${x.entry != null ? f2(x.entry) : "—"}</td><td class="r mono">${f2(x.close)}</td><td class="r mono ${x.ret >= 0 ? "up" : "dn"}">${x.ret != null ? pct(x.ret) : "—"}</td></tr>`).join("");
+  const fs = (typeof MODEL !== "undefined" && MODEL) ? followState(MODEL) : null, cap = fs && fs.val ? fs.val : (S.capital || 0);
+  return `<div class="alert"><b>恐慌買入訊號：${esc(F.trigger)} VIX 收市 ${F.trigger_vix.toFixed(1)} ≥ 30</b>
+      <p class="small">${esc(F.buy_date)} 開市用 <b>40% 資金</b>平均買 5 隻（每隻 8%${cap ? `，約 ${f0(cap * 0.08)}` : ""}），揸 20 個交易日，<b>${esc(F.sell_date)} 開市賣</b>（唔跟 V2.2 止蝕）；之後資金返 V2.2，例如 V2.2 嘅突破買入照做。已揸 ${F.days_held} 日。</p></div>
+    <div class="card"><div class="tablewrap"><table><tr><th>恐慌籃子</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th></tr>${rows}</table></div>${note}</div>`;
 }
 
 // 比特幣燈號（2026-10-01；scanner/btc.py → feeds/btc.json，每 5 分鐘；回測 stock-strategy/LAB_BTC.md）
@@ -406,11 +424,48 @@ function fngCard(kind){
     <p class="small">${tip}</p>
     <p class="small muted">來源：${esc(F.src)} · ${esc(String(F.at).slice(0, 16).replace("T", " "))}${FNG.err && FNG.err[kind] ? ` · <span class="dn">今次讀取失敗，顯示上一份</span>` : ""}</p></div>`;
 }
+// Hyperliquid 巨鯨 + AI 加密重點（2026-10-01）：scanner/hyper.py → feeds/hyper.json；ai.py 寫 hyper.json 嘅 ai
+let HYP = null;
+async function fetchHyper(){
+  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "hyper.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
+    if (r.ok){ HYP = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
+}
+const usdM = v => Math.abs(v) >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e6).toFixed(Math.abs(v) >= 1e8 ? 0 : 1)}M`;
+function cryptoAiCard(){
+  const A = HYP && HYP.ai;
+  if (!A) return "";
+  return `<div class="card"><div class="row spread"><div class="lbl">AI 加密重點</div>${mdl(A.model)}</div>
+    <ul class="small" style="margin:6px 0 0;padding-left:18px">${A.points.map(p => `<li style="margin:4px 0">${esc(p)}</li>`).join("")}</ul>
+    ${A.whales ? `<p class="small"><b>巨鯨：</b>${esc(A.whales)}</p>` : ""}
+    <p class="small muted">${esc(A.generated)} · 根據加密快訊同 Hyperliquid 巨鯨倉位變動，AI 寫，唔係投資建議；每 28 分鐘先重寫，有 ≥ $5M 新巨鯨動作或者撳「重新整理」（設定咗 GitHub token）就即刻重寫。</p></div>`;
+}
+function whaleCard(){
+  if (!HYP || !HYP.whales) return "";
+  const ag = (HYP.agg || []).slice(0, 8).map(g => `<tr><td class="mono"><b>${esc(g.coin)}</b></td><td class="r mono up">${usdM(g.long)}<span class="ind">${g.n_long} 個</span></td>
+      <td class="r mono dn">${usdM(g.short)}<span class="ind">${g.n_short} 個</span></td><td class="r mono ${g.net >= 0 ? "up" : "dn"}">${g.net >= 0 ? "+" : "−"}${usdM(Math.abs(g.net))}</td></tr>`).join("");
+  const ev = (HYP.events || []).slice(0, 15).map(e => `<div class="news"><div><b class="${/多/.test(e.act) ? "up" : "dn"}">${esc(e.act)}</b> <b class="mono">${esc(e.coin)}</b> ${usdM(e.usd)}
+      <span class="small muted">· 而家倉位 ${usdM(e.pos_usd)}${e.lev ? ` · ${e.lev} 倍` : ""} · 價 ${e.px >= 100 ? f0(e.px) : (+e.px).toPrecision(4)}</span></div>
+      <div class="meta"><a href="https://hypurrscan.io/address/${esc(e.addr)}" target="_blank" rel="noopener">${esc(e.who)}</a><span>${ago(e.t)}</span></div></div>`).join("");
+  return `<div class="card"><div class="lbl">Hyperliquid 巨鯨（歷史盈利頭 25 + 上月頭 10，共 ${HYP.whales.length} 個）</div>
+    ${ag ? `<div class="tablewrap"><table><tr><th>幣</th><th class="r">多倉</th><th class="r">空倉</th><th class="r">淨</th></tr>${ag}</table></div>` : `<p class="small muted">巨鯨而家冇倉</p>`}
+    <div class="lbl" style="margin-top:8px">最近倉位變動（≥ $250K）</div>
+    ${ev || `<p class="small muted">暫時冇（每 5 分鐘比較一次持倉，有開倉／加倉／減倉／平倉就會出）</p>`}
+    <p class="small muted">更新 ${esc(String(HYP.generated).replace("T", " ").slice(0, 16))} UTC · 公開鏈上數據（Hyperliquid API），撳名打開 hypurrscan 睇全部倉位。巨鯨都會蝕錢，只作參考。${HYP.err && Object.keys(HYP.err).length ? ` · <span class="dn">部分讀取失敗</span>` : ""}</p></div>`;
+}
+function cryptoNewsCard(){
+  const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
+  if (!L.length) return "";
+  return `<div class="card" style="gap:0"><div class="lbl" style="margin-bottom:4px">加密快訊</div>${L.map(x => `<div class="news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
+      <div class="meta"><span>${esc(x.src)}</span><span>${ago(x.t)}</span>${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`).join("")}
+    <p class="small muted">CoinDesk、Cointelegraph、Decrypt、The Block，每 5 分鐘更新；新聞頁「加密」分類有更多。</p></div>`;
+}
 function viewCrypto(){
   if (!BTC) fetchBtc();
   if (!FNG) fetchFng();
+  if (!HYP) fetchHyper();
+  if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? ethCard() + fngCard("crypto") + btcCard() : `<p class="muted">載入中…</p>`);
+    + (BTC ? ethCard() + fngCard("crypto") + btcCard() : `<p class="muted">載入中…</p>`) + cryptoAiCard() + whaleCard() + cryptoNewsCard();
 }
 // ETH 策略 B（2026-10-01 用戶揀）：BTC 做市場情緒、只買賣 ETH；移動止蝕 25% + 抄底 + BTC 紅燈做空。scanner/btc.py eth_strategy()
 function ethCard(){
@@ -582,7 +637,10 @@ async function fetchLev(){
 const levOf = sym => (LEV && LEV[sym]) || [];
 const levNote = sym => { const L = levOf(sym); return L.length ? `<p class="small muted"><span class="tag t-dim">2 倍 ETF</span> ${L.slice(0, 2).join("／")}：唔借錢加槓桿，升跌約正股 2 倍（每日重設，長揸會有耗損）。規則冇用，買唔買自己決定；買入價同止蝕照睇正股。</p>` : ""; };
 const levInd = sym => { const L = levOf(sym); return L.length ? ` · 2倍 ${L[0]}` : ""; };
-const serTag = sym => { const o = SER && SER.by[sym]; return (o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : "") + trTag(sym); };
+const serTag = sym => { const o = SER && SER.by[sym]; return (o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : "") + trTag(sym) + cryTag(sym); };
+// 加密相關股（scan.py crypto_info）：過去 120 日同 BTC 相關 ≥ 0.5；顯示 BTC 燈號（> 365 日線）。回測：BTC 紅燈唔買冇穩定幫助（LAB_CRYPTOSTK.md），只作提醒
+const cryTag = sym => { const X = SCAN && SCAN.crypto, r = X && X.corr && X.corr[sym]; if (r == null) return "";
+  return ` <span class="tag ${X.green ? "t-buy" : "t-stop"}" title="過去 120 日同 BTC 相關 ${r}；BTC ${X.green ? "高過" : "低過"} 365 日線">₿${r.toFixed(2)} · BTC ${X.green ? "綠" : "紅"}</span>`; };
 // Trump（Truth Social）：2026-09-30 用戶要求追蹤佢提過嘅公司同講股市嘅貼文；只供參考，唔改規則
 let TR = null, TRALL = null, TRSYM = "", TRALL_ERR = null;
 async function fetchTrump(){
@@ -991,9 +1049,8 @@ function viewModel(){
         <td class="r mono dn">${f2(b.stop)}</td><td class="r mono">${Math.round(b.frac * 100)}%${sh(b.frac, b.trigger)}</td></tr>`).join("")}</table></div>
       <p class="small muted">有 ${M.slots} 個空位：邊隻先升穿買入價就先買，買夠 ${M.slots} 隻即刻取消其餘單；成交後喺止蝕價掛長期有效嘅止蝕單。${own ? "" : "喺上面「我嘅跟單帳戶」填本金就會計埋股數。"}</p>`);
   h += todo.length ? todo.join("") : `<div class="ok"><b>${v.green ? "冇嘢要做：揸住就得" : "大市紅燈：唔買，揸住嘅已經安排賣"}</b></div>`;
-  h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}
-    ${v.cash_frac < 0.01 ? "" : `<br><span class="muted">所以就算一隻股都冇揸，帳戶值都會每日變：${(() => { const ir = SCAN && SCAN.cash && SCAN.cash.irx10 ? SCAN.cash.irx10.filter(x => x != null).slice(-1)[0] : null;
-      return v.green ? `綠燈每個交易日加一日國債息${ir != null ? `（而家年息約 ${ir.toFixed(2)}%，即每 10 萬每日約 $${(1e5 * ir / 100 / 252).toFixed(0)}）` : ""}` : "紅燈跟 IEF 每日升跌（通常 ±0.2–1%）"; })()}；紅綠燈轉換嗰日扣 0.1% 買賣成本。</span>`}</div>`;
+  h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "綠燈：現金留喺戶口，專注股票（唔買 SGOV／BIL）" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}
+    ${v.cash_frac < 0.01 ? "" : `<br><span class="muted">${v.green ? "綠燈現金唔收息，所以全現金時帳戶值唔會郁；" : "紅燈現金跟 IEF 每日升跌（通常 ±0.2–1%），所以就算一隻股都冇揸，帳戶值都會變；"}轉入／轉出 IEF 嗰日扣 0.1% 買賣成本。2026-10-01 之前嘅日子綠燈現金有計國債息（舊規則）。</span>`}</div>`;
   h += viewHist();
 
   if ((A.fills || []).length) h += `<h2>最近成交（模型）</h2><div class="card" style="gap:4px">${A.fills.map(x =>
@@ -1098,7 +1155,7 @@ async function cloudRefresh(){
   const tick = async () => {
     await fetchFeeds(true);
     const now = FEED.news && FEED.news.generated;
-    if (now && now !== before){ FEED.cloud = "已更新（" + now + "）"; render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news") render(); }, 8000); return; }
+    if (now && now !== before){ FEED.cloud = "已更新（" + now + "）"; fetchHyper(); fetchBtc(); fetchFng(); render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news") render(); }, 8000); return; }
     if (Date.now() - t0 > 5 * 60e3){ FEED.cloud = "雲端仲未更新完，遲啲再撳"; render(); return; }
     FEED.cloud = `雲端更新中（約 1–2 分鐘）… ${Math.round((Date.now() - t0) / 1e3)} 秒`; render();
     setTimeout(tick, 15e3);
@@ -1115,7 +1172,7 @@ async function fetchFeeds(force){
     FEED.err = null; FEED.at = Date.now();
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;
-  if (TAB === "news") render();
+  if (TAB === "news" || TAB === "crypto") render();
 }
 
 // 經濟數據解釋（2026-09-30 用戶要求：數據出咗唔知代表咩、有咩影響）。
@@ -1229,7 +1286,7 @@ function viewEcon(){
 function viewNewsList(){
   const N = FEED.news.items;
   const mine = new Set(SCAN ? signals().list.map(r => r.sym) : []);
-  const cats = ["全部", "快訊", "買入訊號股", "市場", "經濟", "國際", "科技"];     // Serenity／Trump 已經有自己一頁
+  const cats = ["全部", "快訊", "買入訊號股", "市場", "經濟", "加密", "國際", "科技"];     // Serenity／Trump 已經有自己一頁
   if (!cats.includes(NCAT)) NCAT = "全部";
   let list = NCAT === "全部" ? N.filter(x => !x.sym) : NCAT === "買入訊號股" ? N.filter(x => x.sym && mine.has(x.sym)) : N.filter(x => x.cat === NCAT);
   const seen = new Set();
@@ -1326,7 +1383,7 @@ function bind(){
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
   on("#trReload", () => { fetchTrump(); });
-  on("#btcReload", () => { fetchBtc(); fetchFng(); });
+  on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { if (b.dataset.nt === "econ") FEED.scrolled = false; NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
@@ -1407,8 +1464,8 @@ fetchModel();
 fetchLive();
 fetchSer();
 fetchTrump();
-fetchBtc(); fetchFng();
-setInterval(() => { if (document.visibilityState === "visible"){ fetchBtc(); fetchFng(); } }, 5 * 60e3);
+fetchBtc(); fetchFng(); fetchHyper();
+setInterval(() => { if (document.visibilityState === "visible"){ fetchBtc(); fetchFng(); fetchHyper(); } }, 5 * 60e3);
 fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });

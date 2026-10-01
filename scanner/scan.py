@@ -80,7 +80,8 @@ def sectors(syms, nasdaq_info, max_age=180):
     return {s: zh(cache[s]["sector"], cache[s]["industry"]) if s in cache else ("", "") for s in syms}
 
 
-CASH_SYMS = ["IEF", "^IRX", "QQQ"]     # V2.2 現金：紅燈揸 IEF（7–10 年國債）、綠燈收短期國債息（^IRX = 13 週國債孳息，%）；QQQ = 比較基準（唔入股票池）
+CASH_SYMS = ["IEF", "^IRX", "QQQ", "^VIX", "BTC-USD"]   # V2.2 現金：紅燈揸 IEF（7–10 年國債）；^IRX 只作記錄；QQQ = 比較基準；
+# ^VIX = 恐慌買入訊號；BTC-USD = 加密相關股標示（都唔入股票池）
 
 
 def download(syms, end=None):
@@ -187,6 +188,78 @@ def bounce_info(ndx, ndx_lo, C, sma50, sma200, hi52, adv, piv, stop, rank, rs_al
     return out
 
 
+def fear_info(C, advF, cash_px, nxt):
+    """恐慌買入訊號（2026-10-01，stock-strategy/src/lab_fear*.py）：VIX 收市 ≥ 30 嘅第一日（之前 20 個交易日冇 ≥ 30 先算新一次），
+    收市揀成交額頭 50 入面 60 日 β（對 QQQ）最高 5 隻；下一日開市用 40% 資金平均買，揸 20 個交易日，第 21 日開市賣。只係訊號。"""
+    if "^VIX" not in cash_px or "QQQ" not in cash_px:
+        return None
+    idx = C.index
+    vix = cash_px["^VIX"].reindex(idx).ffill()
+    qr = np.log(cash_px["QQQ"].reindex(idx).ffill()).diff()
+    R = np.log(C).diff()
+    trig, last = [], -10 ** 9
+    for i, v in enumerate((vix >= 30).values):
+        if v:
+            if i - last > 20:
+                trig.append(i)
+            last = i
+
+    def picks(i):
+        a = advF.iloc[i]
+        c = C.iloc[i]
+        ok = (c >= 5) & (a >= 20e6) & (C.iloc[max(0, i - 60):i + 1].notna().sum() >= 60)
+        top = a[ok].sort_values(ascending=False).head(50).index
+        x, y = R[top].iloc[i - 59:i + 1], qr.iloc[i - 59:i + 1]
+        yy = y - y.mean()
+        b = ((x - x.mean()) * yy.values[:, None]).sum() / (yy ** 2).sum()
+        return b.dropna().sort_values(ascending=False).head(5)
+
+    n = len(idx) - 1
+    out = dict(vix=round(float(vix.iloc[-1]), 2), date=str(idx[-1].date()), fraction=0.4, hold=20,
+               history=[str(idx[i].date()) for i in trig[-5:]])
+    if trig and n - trig[-1] < 20:                 # 仲喺 20 日持有期內（第 20 日收市後就要賣）
+        T = trig[-1]
+        b = picks(T)
+        bi, si = T + 1, T + 21
+        buy_d = str(idx[bi].date()) if bi <= n else str(nxt.date())
+        sell_d = str(idx[si].date()) if si <= n else None
+        if sell_d is None:                          # 估計：之後嘅交易日
+            d, k = nxt, si - n
+            while k > 1:
+                d, k = next_trading_day(d), k - 1
+            sell_d = str(d.date())
+        rows = []
+        for s_, beta in b.items():
+            entry = None
+            if bi <= n:
+                from_open = cash_px.get("_O")
+                entry = float(from_open[s_].iloc[bi]) if from_open is not None and s_ in from_open and np.isfinite(from_open[s_].iloc[bi]) else None
+            c = float(C[s_].iloc[-1])
+            rows.append(dict(sym=s_, beta=round(float(beta), 2), signal_close=round(float(C[s_].iloc[T]), 4),
+                             entry=round(entry, 4) if entry else None, close=round(c, 4),
+                             ret=round(c / entry - 1, 4) if entry else None))
+        out.update(active=True, trigger=str(idx[T].date()), trigger_vix=round(float(vix.iloc[T]), 2), buy_date=buy_d,
+                   sell_date=sell_d, days_held=max(0, n - T), picks=rows)
+    else:
+        out.update(active=False, preview=[dict(sym=k, beta=round(float(v), 2)) for k, v in picks(n).items()])
+    return out
+
+
+def crypto_info(C, advF, cash_px, extra=()):
+    """加密相關股（2026-10-01，src/lab_cryptostk.py）：過去 120 個交易日每日回報同 BTC 相關 ≥ 0.5 嘅股（0.4 喺跌市好多銀行股都過），同 BTC 燈號（> 365 日線）。只係標示。"""
+    if "BTC-USD" not in cash_px:
+        return None
+    btc = cash_px["BTC-USD"].dropna()
+    ma = btc.rolling(365).mean()
+    br = np.log(btc.reindex(C.index).ffill()).diff()
+    top = list(advF.iloc[-1].dropna().sort_values(ascending=False).head(100).index) + [s for s in extra if s in C.columns]
+    R = np.log(C[sorted(set(top))]).diff().iloc[-120:]
+    cor = R.corrwith(br.iloc[-120:]).dropna()
+    return dict(btc=round(float(btc.iloc[-1]), 2), ma365=round(float(ma.iloc[-1]), 2) if np.isfinite(ma.iloc[-1]) else None,
+                green=bool(btc.iloc[-1] > ma.iloc[-1]) if np.isfinite(ma.iloc[-1]) else None, date=str(btc.index[-1].date()),
+                corr={k: round(float(v), 2) for k, v in cor.sort_values(ascending=False).items() if v >= 0.5})
+
+
 def must_have():
     """兩個模型帳戶嘅持倉同掛緊嘅 buy-stop：就算跌出成交額／市值頭 300 都要有數據（止蝕、出場、退市判斷靠佢）。"""
     out = set()
@@ -220,7 +293,8 @@ def scan(end=None):
     e21, s50n, s200n = ndx.ewm(span=21, adjust=False).mean(), ndx.rolling(50).mean(), ndx.rolling(200).mean()
     green = bool(ndx[t] > s200n[t] or (ndx[t] > e21[t] and e21[t] > s50n[t]))
     # 指標（全部預選股）
-    adv = (C * V).rolling(50, min_periods=50).mean().loc[t]
+    advF = (C * V).rolling(50, min_periods=50).mean()
+    adv = advF.loc[t]
     sma50, sma200 = C.rolling(50).mean().loc[t], C.rolling(200).mean().loc[t]
     hi52 = H.rolling(252, min_periods=252).max().loc[t]
     piv, swl = swing(H, 3, True).loc[t], swing(L, 3, False).loc[t]
@@ -274,6 +348,17 @@ def scan(end=None):
     except Exception as e:                                      # 提示出錯唔好影響主掃描
         print("見底提示計唔到：", e)
         bnc = None
+    try:
+        cash_px["_O"] = O
+        fear = fear_info(C, advF, cash_px, nxt)
+    except Exception as e:
+        print("恐慌訊號計唔到：", e)
+        fear = None
+    try:
+        cry = crypto_info(C, advF, cash_px, extra=list(must_have()) + [r["sym"] for r in ranking])
+    except Exception as e:
+        print("加密相關計唔到：", e)
+        cry = None
     out = dict(date=str(t.date()), next_day=str(nxt.date()), week_end=days_we[-1],
                days=[str(d.date()) for d in days], days_we=days_we,
                generated=pd.Timestamp.now(tz="Asia/Hong_Kong").strftime("%Y-%m-%d %H:%M HKT"),
@@ -283,7 +368,7 @@ def scan(end=None):
                          ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
                bench=dict(qqq10=r4(cash_px["QQQ"].reindex(days).ffill()) if "QQQ" in cash_px else None),   # 模型帳戶記低 QQQ 收市，app 比較「同期買 QQQ」
-               bounce=bnc, universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
+               bounce=bnc, fear=fear, crypto=cry, universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
                stocks=stocks)
     # 安全檢查：數據唔完整就唔覆蓋舊檔，令 app 繼續顯示上一份
     if len(ranking) < 40 or len(stocks) < 200:

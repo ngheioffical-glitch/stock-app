@@ -199,20 +199,20 @@ def delisted(st, p, d, actions):
 
 
 def cash_sleeve(st, sc, i):
-    """V2.2 現金：上一日收市綠燈 -> 收短期國債息（^IRX ÷ 252）；紅燈 -> 跟 IEF 升跌。轉換嗰日扣 0.1%。"""
+    """V2.2 現金：上一日收市綠燈 -> 現金留喺戶口（0 回報；2026-10-01 用戶：綠燈專注股票，唔買 SGOV／BIL）；
+    紅燈 -> 跟 IEF 升跌。轉入／轉出 IEF 嗰日扣 0.1%。"""
     cs = sc.get("cash") or {}
     g10, ief, irx = cs.get("green10"), cs.get("ief10"), cs.get("irx10")
     if not g10:
         return
     prev_green = g10[i - 1] if i > 0 else st.get("last_green", g10[i])
-    mode = "bill" if prev_green else "ief"
+    mode = "cash" if prev_green else "ief"
     r = 0.0
-    if mode == "bill" and irx and irx[i - 1 if i > 0 else i] is not None:
-        r = irx[i - 1 if i > 0 else i] / 100 / 252
-    elif mode == "ief" and ief and i > 0 and ief[i] and ief[i - 1]:
+    if mode == "ief" and ief and i > 0 and ief[i] and ief[i - 1]:
         r = ief[i] / ief[i - 1] - 1
+    old = {"bill": "cash"}.get(st.get("sleeve"), st.get("sleeve"))      # 舊版綠燈叫 bill（國債息），當現金
     if st["cash"] > 0:
-        if st.get("sleeve") and st["sleeve"] != mode:
+        if old and old != mode:
             st["cash"] -= st["cash"] * RULE["sleeve_cost"]
         st["cash"] *= 1 + r
     st["sleeve"], st["last_green"] = mode, g10[i]

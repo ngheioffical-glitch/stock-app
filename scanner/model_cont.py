@@ -29,7 +29,7 @@ def main(seed_path):
     SC.download = lambda s, end=None: {k: v.loc[:end] for k, v in full.items()}
     SC.nasdaq_universe = lambda: (syms, {})
     tmp = Path(tempfile.mkdtemp())
-    days = [d for d in full["Close"].index if str(d.date()) >= seed["date"]]
+    days = [d for d in full["Close"]["^NDX"].dropna().index if str(d.date()) >= seed["date"]]   # 只要交易日（BTC-USD 有週末）
 
     def scan_at(d):
         SC.OUT = tmp / f"scan_{d}.json"

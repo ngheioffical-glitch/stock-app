@@ -42,6 +42,10 @@ FEEDS = {
              ("CNBC", "https://www.cnbc.com/id/100727362/device/rss/rss.html"),
              ("Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"),
              ("港台國際", "https://rthk.hk/rthk/news/rss/c_expressnews_cinternational.xml")],
+    "加密": [("CoinDesk", "https://www.coindesk.com/arc/outboundfeeds/rss/"),     # 2026-10-01：加密快訊（app 加密頁）
+             ("Cointelegraph", "https://cointelegraph.com/rss"),
+             ("Decrypt", "https://decrypt.co/feed"),
+             ("The Block", "https://www.theblock.co/rss.xml")],
     "科技": [("CNBC", "https://www.cnbc.com/id/19854910/device/rss/rss.html"),
              ("BBC", "https://feeds.bbci.co.uk/news/technology/rss.xml")],
 }

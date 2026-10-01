@@ -33,7 +33,7 @@ MODELS_T = [m for m in (os.environ.get("GEMINI_MODEL_T"), "gemini-flash-lite-lat
                         "gemini-flash-latest") if m]
 _AVAIL = None
 API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
-CATS = ("快訊", "市場", "經濟")
+CATS = ("快訊", "市場", "經濟", "加密")
 GAP = int(os.environ.get("GEMINI_GAP_MIN", "28"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
@@ -492,6 +492,51 @@ def context():
         return "未知", []
 
 
+def crypto_digest(key, N, H, PH, out, now, force=False):
+    """加密重點（2026-10-01）：加密快訊 + Hyperliquid 巨鯨持倉變動 + 市場數字 → 廣東話「發生咩 → 對 BTC／ETH／加密股可能有咩影響」。
+    寫入 hyper.json 嘅 ai；最少隔 GAP 分鐘，有 ≥ 500 萬美元嘅新巨鯨事件或者手動更新就即刻重寫。"""
+    old = PH.get("ai") or {}
+    news = [x for x in N["items"] if x["cat"] == "加密" and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=18)]
+    news.sort(key=lambda x: x["t"], reverse=True)
+    ev = [e for e in H.get("events", []) if datetime.fromisoformat(e["t"].replace("Z", "+00:00")) > now - timedelta(hours=12)][:25]
+    big = [e for e in ev if e["usd"] >= 5e6 and e["t"] == H.get("generated")]
+    try:
+        last = datetime.fromisoformat(old["at"])
+    except Exception:  # noqa: BLE001
+        last = None
+    if last and now - last < timedelta(minutes=GAP) and not force and not big:
+        return old, f"加密重點：上次係 {int((now - last).total_seconds() // 60)} 分鐘前，今次沿用"
+    heads = [f"[{x['src']}] {x['title']}" for x in news[:30]]
+    whales = [f"{e['who']} {e['act']} {e['coin']} 約 ${e['usd'] / 1e6:.1f}M（而家倉位 ${e['pos_usd'] / 1e6:.1f}M，{e.get('lev') or '?'} 倍）" for e in ev]
+    agg = [f"{g['coin']}：巨鯨多倉 ${g['long'] / 1e6:.0f}M（{g['n_long']} 個）vs 空倉 ${g['short'] / 1e6:.0f}M（{g['n_short']} 個）" for g in H.get("agg", [])[:8]]
+    C = H.get("ctx") or {}
+    fmt = lambda v: f"{v:,.0f}" if v >= 100 else f"{v:.4g}"
+    mk = [f"{c} {fmt(C[c]['px'])}（24 小時 {C[c]['chg'] * 100:+.1f}%，資金費率年化 {C[c]['fund_ann'] * 100:+.1f}%）" for c in ("BTC", "ETH", "SOL", "HYPE") if c in C and C[c].get("chg") is not None]
+    F = load(out / "fng.json") or {}
+    fg = (F.get("crypto") or {}).get("score")
+    sig = hashlib.sha1(json.dumps([heads, whales], ensure_ascii=False).encode()).hexdigest()
+    if old.get("sig") == sig and not force:
+        return old, "加密新聞同巨鯨冇變，沿用"
+    if not heads and not whales:
+        return old, "冇加密新聞同巨鯨事件"
+    prompt = (f"你係加密貨幣市場助手，幫一個香港散戶睇加密市場。{STYLE}佢用 BTC 做市場情緒（BTC > 365 日線 = 綠燈），只買賣 ETH，亦會留意 MSTR、COIN 呢類加密股。\n"
+              f"市場實際數字（Hyperliquid 永續合約）：{'；'.join(mk) or '（冇）'}。加密恐慌貪婪指數：{fg if fg is not None else '—'}。\n"
+              "根據下面最近 18 小時嘅加密新聞同 12 小時內 Hyperliquid 歷史盈利最高嘅巨鯨嘅倉位變動，寫：\n"
+              "1. points：3–6 點最重要嘅事，每點一句「發生咩 → 對 BTC／ETH／加密股可能有咩影響」；\n"
+              "2. whales：一至兩句總結巨鯨整體偏多定偏空、主要喺邊隻幣加減倉（冇資料就寫空字串）。\n"
+              "事實規則：價錢升跌只可以用上面嘅實際數字；只根據提供嘅資料，唔好估未發生嘅事，唔好叫人買賣；巨鯨倉位只係參考，唔代表一定啱。\n"
+              "回覆 JSON：{\"points\": [..], \"whales\": \"..\"}。\n"
+              "新聞：\n" + ("\n".join(heads) or "（冇）") + "\n巨鯨倉位變動：\n" + ("\n".join(whales) or "（冇）")
+              + "\n巨鯨而家總倉位：\n" + ("\n".join(agg) or "（冇）"))
+    res, model = gemini(key, prompt, MODELS_D)
+    pts = [x for x in res.get("points", []) if isinstance(x, str) and x.strip()][:6]
+    if not pts:
+        raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
+    return ({"at": now.isoformat(timespec="seconds"), "generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
+             "model": model, "points": pts, "whales": str(res.get("whales") or "").strip(), "sig": sig},
+            f"加密重點 {len(pts)} 點（{model}）")
+
+
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "feeds_out"
     key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -567,6 +612,21 @@ def main():
             errs.append(f"重點：{str(e)[:300]}")
             if P.get("digest"):
                 N["digest"] = P["digest"]
+    # 4. 加密重點（hyper.json 嘅 ai）
+    H = load(out / "hyper.json")
+    if H is not None:
+        PH = prev("hyper.json")
+        try:
+            d, msg = crypto_digest(key, N, H, PH, out, now, force=manual)
+            if d:
+                H["ai"] = d
+            print("[ai] " + msg)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 加密重點失敗：{e}")
+            errs.append(f"加密重點：{str(e)[:300]}")
+            if PH.get("ai"):
+                H["ai"] = PH["ai"]
+        (out / "hyper.json").write_text(json.dumps(H, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     if errs:
         N["ai_err"] = "；".join(errs)
     (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")
