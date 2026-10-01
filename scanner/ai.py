@@ -434,14 +434,21 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     done = [r for r in E.get("rows", []) if r.get("actual") and r.get("imp", 0) >= 2][-12:]
     econ = [f"{r['t']} {r.get('zh') or r['name']}：實際 {r['actual']}／預測 {r.get('forecast') or '—'}／上次 {r.get('previous') or '—'}" for r in done]
     light, watch = context()
+    lc = light_change()
     sn = snapshot()
-    sig = hashlib.sha1(json.dumps([heads, econ, watch], ensure_ascii=False).encode()).hexdigest()
+    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
+    lc_txt = ""
+    if lc:
+        lc_txt = (f"重要：大市燈號喺 {lc['date']} 收市由{lc['frm']}轉咗{lc['to']}（{lc['detail']}；規則：綠燈 = NDX 高過 200 日線，或者 NDX > 21 日 EMA > 50 日線）。"
+                  f"points 第一點一定要講：根據下面新聞同數據，點解大市會轉{lc['to']}（邊單新聞、數據或者事件最有關），"
+                  + ("同埋規則下一個交易日開市會賣晒股、現金轉 IEF。" if lc["to"] == "紅燈" else "同埋規則下一個交易日開始可以買突破股。") + chr(10))
     base = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
+            f"{lc_txt}"
             "根據下面最近 18 小時嘅新聞標題、Trump 貼文（如有，只揀對市場有影響嘅，例如關稅、公司、聯儲局、股市）、"
             "Serenity 推文（如有，佢係 X 上面嘅美股分析師，講邊隻股同點解；有重要觀點就寫一點，註明係 Serenity 嘅睇法）同已公佈經濟數據，寫：\n"
             "1. points：3–6 點今日最重要嘅事，每點一句講「發生咩 → 對美股／科技股可能有咩影響」；有提到佢留意嘅股就講埋；\n"
@@ -464,7 +471,8 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
         prompt = base + "\n\n你上一版有錯，要改正：" + "；".join(bad) + "。"
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
-             "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries},
+             "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
+             "light_change": lc},
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
@@ -490,6 +498,20 @@ def context():
         return ("綠燈" if sc.get("green") else "紅燈"), watch
     except Exception:  # noqa: BLE001
         return "未知", []
+
+
+def light_change():
+    """大市燈號啱啱轉咗（scan.json 最近兩個交易日 green10 唔同）就返轉燈資料，否則 None（2026-10-01 用戶：無啦啦轉紅燈，今日重點要講點解）。"""
+    try:
+        sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
+        g = (sc.get("cash") or {}).get("green10") or []
+        if len(g) < 2 or g[-1] == g[-2]:
+            return None
+        to = "綠燈" if g[-1] else "紅燈"
+        return dict(date=sc["date"], to=to, frm="紅燈" if g[-1] else "綠燈", next_day=sc.get("next_day"),
+                    detail=f"NDX 收市 {sc['ndx']:,.0f}；200 日線 {sc['ndx_s200']:,.0f}；21 日 EMA {sc['ndx_e21']:,.0f}；50 日線 {sc['ndx_s50']:,.0f}")
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def crypto_digest(key, N, H, PH, out, now, force=False):
@@ -590,6 +612,10 @@ def main():
     new_econ = [r["name"] for r in fresh_econ(E, now) if r["name"] not in set((P.get("digest") or {}).get("econ_done", []))]
     if new_econ and last_ai:
         print(f"[ai] 新公佈經濟數據 {new_econ}，即刻重寫今日重點")
+        last_ai = None
+    lc = light_change()                                                  # 大市啱啱轉燈而上一份重點未講：即刻重寫
+    if lc and (P.get("digest") or {}).get("light_change") != lc and last_ai:
+        print(f"[ai] 大市 {lc['date']} 轉{lc['to']}，即刻重寫今日重點")
         last_ai = None
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"   # app 撳「重新整理」叫嘅：即刻重寫
     if manual:

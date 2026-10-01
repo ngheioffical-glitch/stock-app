@@ -1040,6 +1040,11 @@ function viewModel(){
     <p class="small muted">照 V2.2 規則自動行嘅虛擬帳戶，每日收市後更新（數據 ${esc(v.data_date)}）。照抄：模型買你就買、模型賣你就賣、止蝕照改。${M.braking ? "<b class='dn'>回撤剎車生效：最多 2 隻。</b>" : ""}</p></div>` + followCard(M);
   for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
 
+  h += `<h2>模型持倉</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th><th class="r">止蝕</th></tr>
+    ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
+      <td class="r mono">${f2(p.entry)}</td><td class="r mono">${f2(p.close)}<span class="ind">${chg(p.day_chg)}</span></td><td class="r mono">${chg(p.ret)}</td>
+      <td class="r mono dn">${f2(p.stop)}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">未有持倉（全現金）</p></div>`);
+
   h += `<h2>${esc(P.for || v.next_day)} 要做</h2>`;
   const todo = [];
   if ((P.sells || []).length) todo.push(`<div class="alert"><b>開市賣出</b>${P.sells.map(x => `<p class="small"><b class="mono">${x.sym}</b>：${esc(x.reason)}</p>`).join("")}</div>`);
@@ -1052,15 +1057,11 @@ function viewModel(){
   h += `<div class="info small"><b>現金 ${Math.round(v.cash_frac * 100)}%：</b>${v.green ? "買短期國債 ETF（SGOV／BIL）收息；要買股嗰日先賣返夠錢" : "紅燈：現金買 IEF（7–10 年國債）；轉返綠燈先賣"}
     ${v.cash_frac < 0.01 ? "" : `<br><span class="muted">所以就算一隻股都冇揸，帳戶值都會每日變：${(() => { const ir = SCAN && SCAN.cash && SCAN.cash.irx10 ? SCAN.cash.irx10.filter(x => x != null).slice(-1)[0] : null;
       return v.green ? `綠燈每個交易日加一日國債息${ir != null ? `（而家年息約 ${ir.toFixed(2)}%，即每 10 萬每日約 $${(1e5 * ir / 100 / 252).toFixed(0)}）` : ""}` : "紅燈跟 IEF 每日升跌（通常 ±0.2–1%）"; })()}；紅綠燈轉換嗰日扣 0.1% 買賣成本。</span>`}</div>`;
-  h += viewHist();
-
   if ((A.fills || []).length) h += `<h2>最近成交（模型）</h2><div class="card" style="gap:4px">${A.fills.map(x =>
     `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${x.side}</span> <b class="mono">${x.sym}</b> ${esc(x.date)} @ <span class="num">${f2(x.px)}</span>${x.ret != null ? ` ${chg(x.ret)} · ${esc(x.reason)}` : ""}</p>`).join("")}</div>`;
 
-  h += `<h2>模型持倉</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th><th class="r">止蝕</th></tr>
-    ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${serTag(p.sym)}<span class="ind">${esc(p.date.slice(5))} · 佔 ${Math.round(p.weight * 100)}%${p.be ? " · 已保本" : ""}</span></td>
-      <td class="r mono">${f2(p.entry)}</td><td class="r mono">${f2(p.close)}<span class="ind">${chg(p.day_chg)}</span></td><td class="r mono">${chg(p.ret)}</td>
-      <td class="r mono dn">${f2(p.stop)}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">未有持倉（全現金）</p></div>`);
+
+  h += viewHist();
 
   const T = (M.trades || []).slice().reverse().slice(0, 20);
   if (T.length) h += `<h2>已完成交易</h2><div class="tablewrap"><table><tr><th>股票</th><th>買入 → 賣出</th><th class="r">回報</th></tr>
