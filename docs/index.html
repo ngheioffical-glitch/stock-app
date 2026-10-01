@@ -202,6 +202,8 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .gear svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.7;stroke-linecap:round}
 .gear.on svg{stroke:var(--cyan);filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
 .qcmp{border-top:1px dashed var(--line2);padding-top:8px}
+.btcchart{width:100%;height:90px;display:block}
+details.card>summary::-webkit-details-marker{display:none}
 /* 動畫（2026-09-30）：分頁滑入、卡片逐張浮入、底部指示條、撳落回饋、載入骨架 */
 :root{--ease:cubic-bezier(.22,.9,.24,1)}
 .rise{animation:rise .4s var(--ease) both;animation-delay:calc(var(--i,0) * 38ms)}
@@ -348,6 +350,49 @@ function header(){
   </div>` + bounceCard();
 }
 
+// 比特幣燈號（2026-10-01；scanner/btc.py → feeds/btc.json，每 5 分鐘；回測 stock-strategy/LAB_BTC.md）
+let BTC = null;
+async function fetchBtc(){
+  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "btc.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
+    if (r.ok){ BTC = await r.json(); if (TAB === "today") render(); } } catch(e){}
+}
+function btcChart(C){
+  if (!C || C.length < 10) return "";
+  const W = 320, Hh = 90, xs = C.map(x => x[1]).concat(C.map(x => x[2])), lo = Math.min(...xs), hi = Math.max(...xs);
+  const X = i => (i / (C.length - 1) * W).toFixed(1), Y = v => (Hh - 4 - (v - lo) / (hi - lo || 1) * (Hh - 8)).toFixed(1);
+  const pl = k => C.map((x, i) => `${X(i)},${Y(x[k])}`).join(" ");
+  return `<svg viewBox="0 0 ${W} ${Hh}" class="btcchart" preserveAspectRatio="none"><polyline points="${pl(2)}" fill="none" stroke="var(--warn)" stroke-width="1.4" stroke-dasharray="4 3"/>
+    <polyline points="${pl(1)}" fill="none" stroke="var(--cyan)" stroke-width="1.6"/></svg>
+    <div class="small muted" style="display:flex;justify-content:space-between"><span>${esc(C[0][0])}</span><span><span style="color:var(--cyan)">━</span> BTC　<span style="color:var(--warn)">┅</span> 365 日線</span><span>${esc(C[C.length - 1][0])}</span></div>`;
+}
+function btcCard(){
+  const B = BTC;
+  if (!B) return "";
+  const W = B.weekly, Sb = B.stable, L = B.live, px = L ? L.px : B.close.px, dist = px / B.ma365 - 1, g = W.hold;
+  const mv = B.mvrv, mvz = mv == null ? "" : mv < 1 ? "持有者整體蝕緊（歷史大底區）" : mv < 2 ? "正常" : mv < 3 ? "偏熱" : mv < 3.5 ? "熱" : "過熱（歷史頂部區）";
+  const F = B.funding14, R = B.rates;
+  const sw = (W.switches || []).slice(-4).reverse().map(x => `<span class="tag ${x[1] ? "t-buy" : "t-stop"}">${esc(x[0])} ${x[1] ? "轉持有" : "轉空倉"}</span>`).join(" ");
+  return `<details class="card" open><summary class="row spread" style="list-style:none"><div class="light"><span class="orb ${g ? "g" : "r"}"></span><div>
+      <div class="status ${g ? "up" : "dn"}" style="font-size:15px">比特幣 · ${g ? "持有" : "空倉"}</div>
+      <div class="small muted">週線收市 ${g ? "高過" : "低過"} 365 日線（${esc(W.since)} 起）</div></div></div>
+      <div style="text-align:right"><div class="mono" style="font-size:20px;font-weight:800">${f0(px)}</div><div class="small ${dist >= 0 ? "up" : "dn"}">距 365 日線 ${pct(dist)}</div></div></summary>
+    <div class="kv">
+      <div><span>365 日線</span><b>${f0(B.ma365)}</b></div>
+      <div><span>穩陣版（跌穿 5% 先走）</span><b class="${Sb.hold ? "up" : "dn"}">${Sb.hold ? "持有" : "空倉"}</b><span class="small muted">${Sb.hold ? "失效線 " + f0(Sb.exit_line) : "升穿 " + f0(B.ma365) + " 先入"}</span></div>
+      <div><span>200 週線</span><b>${f0(B.wma200)}</b></div>
+    </div>
+    ${btcChart(B.chart)}
+    <div class="small" style="display:flex;flex-direction:column;gap:4px">
+      <div><b>MVRV ${mv == null ? "—" : mv.toFixed(2)}</b>：${esc(mvz)}<span class="muted">（市值 ÷ 全市場平均持有成本）</span></div>
+      ${F ? `<div><b>資金費率</b> 14 日平均年化 ${pct(F.ann)}：${F.ann > 0.5 ? "槓桿過熱" : F.ann > 0.2 ? "偏熱" : F.ann < 0 ? "淡友多（偏底部）" : "正常"}<span class="muted">（BitMEX，數據至 ${esc(F.date)}）</span></div>` : ""}
+      ${R ? `<div><b>利率</b>：10 年美債 ${R.tnx.toFixed(2)}%（3 個月 ${R.tnx_3m >= 0 ? "+" : ""}${R.tnx_3m.toFixed(2)}）· 聯邦基金 ${R.ff.toFixed(2)}%${R.ff_3m >= 0.25 ? "（3 個月內有加息）" : ""}</div>` : ""}
+    </div>
+    ${sw ? `<div class="small muted">最近轉換（週線）：${sw}</div>` : ""}
+    <p class="small muted">規則（PDF「牛市訊號懶人包」①）：每週一次，香港星期一早上 8 點（週線收市）睇比特幣收市係咪高過 365 日線：高過 = 持有，低過 = 賣出轉現金。穩陣版 = 升穿就入、跌穿 5% 先走（少啲假警號）。
+    回測 2012–2026：年化 96%（買入持有 93%），最大回撤 −72%（持有 −85%），四輪熊市損失約減半，但牛市初段會遲入、少賺。MVRV、資金費率、利率只作參考（回測加入規則冇穩定改善）。即時價 ${L ? esc(L.at) : "—"}（Yahoo）；日線 ${esc(B.close.date)}（Coin Metrics）。唔係投資建議。</p>
+  </details>`;
+}
+
 // 牛市回調見底提示 + 抗跌領導股（只係提示，模型唔會自動買；回測見 LAB_REBOUND.md）
 function bounceCard(){
   const b = SCAN && SCAN.bounce;
@@ -410,7 +455,7 @@ function liveStatus(){
 
 function viewToday(){
   const o = signals();
-  let h = topbar() + header();
+  let h = topbar() + header() + btcCard();
   h += `<div class="row spread"><h2>買入訊號 · ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
@@ -1283,6 +1328,8 @@ fetchModel();
 fetchLive();
 fetchSer();
 fetchTrump();
+fetchBtc();
+setInterval(() => { if (document.visibilityState === "visible") fetchBtc(); }, 5 * 60e3);
 fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
