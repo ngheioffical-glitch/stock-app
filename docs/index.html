@@ -285,7 +285,7 @@ function load(){
     const s = cur || JSON.parse(localStorage.getItem("v21-app")) || {};       // 第一次：沿用舊版嘅數據網址
     return {...defaults, ...Object.fromEntries(Object.entries({capital: cur ? +cur.capital || 0 : 0,   // 舊版「現金」係餘額，唔當資金
       dataUrl: s.dataUrl, feedUrl: s.feedUrl, liveUrl: s.liveUrl, ghToken: cur ? cur.ghToken : "", follow: cur ? cur.follow : null,
-      acct: cur ? cur.acct : ""}).filter(([, v]) => v))};
+      acct: cur ? cur.acct : "", cm: cur ? cur.cm : null}).filter(([, v]) => v))};
   } catch(e){ return {...defaults}; }
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
@@ -467,7 +467,89 @@ function viewCrypto(){
   if (!HYP) fetchHyper();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? ethCard() + fngCard("crypto") + btcCard() : `<p class="muted">載入中…</p>`) + cryptoAiCard() + whaleCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cmodelCard() + ethCard() + fngCard("crypto") + btcCard() : `<p class="muted">載入中…</p>`) + cryptoAiCard() + whaleCard() + cryptoNewsCard();
+}
+
+// BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
+function btc100Card(){
+  const M = BTC && BTC.ma100; if (!M) return "";
+  const b = M.btc, e = M.eth, near = Math.abs(M.dist) < 0.03;
+  const cell = (x, n) => { const v = x.ma[n], d = x.px / v - 1; return `<td class="r mono ${d >= 0 ? "up" : "dn"}">${d >= 0 ? "▲" : "▼"} ${pct(Math.abs(d), 1).replace("+", "")}</td>`; };
+  const last = (M.flips || []).slice(-4).reverse().map(([d, v]) => `${esc(d.slice(2))} ${v ? "轉綠" : "轉紅"}`).join("、");
+  return `<div class="card"><div class="row spread"><div class="light"><span class="orb ${M.hold ? "g" : "r"}"></span><div>
+      <div class="status ${M.hold ? "up" : "dn"}" style="font-size:15px">BTC 100 日線 · ${M.hold ? "綠燈：可以揸 BTC／ETH" : "紅燈：轉現金"}</div>
+      <div class="small muted">${M.since ? esc(M.since) + " 起" : ""} · BTC 收市 ${f0(b.px)}（${esc(b.date)}）· 100 日線 ${f0(b.ma["100"])}</div></div></div>
+      <span class="tag ${M.dist >= 0 ? "t-buy" : "t-stop"}">${M.dist >= 0 ? "高過" : "低過"} ${pct(Math.abs(M.dist), 1).replace("+", "")}</span></div>
+    ${near ? `<div class="info small"><span class="tag t-warn">黃燈</span> <b>BTC 離 100 日線只差 ${pct(Math.abs(M.dist), 1).replace("+", "")}，就快${M.hold ? "轉紅" : "轉綠"}。</b>
+      ${M.hold ? `如果收市跌穿 ${f0(b.ma["100"])}，下一個美股交易日收市前賣晒 BTC／ETH ETF 轉現金。` : `如果收市升穿 ${f0(b.ma["100"])}，下一個美股交易日收市前按你嘅比例買入 BTC／ETH ETF。`}單一條線喺附近會有假訊號（例如 2026-04-16 至 04-20 轉咗三次）。</div>` : ""}
+    <div class="tablewrap"><table><tr><th>收市 vs 均線</th><th class="r">21 日</th><th class="r">50 日</th><th class="r">100 日</th><th class="r">200 日</th></tr>
+      <tr><td><b>BTC</b> <span class="ind">${f0(b.px)}</span></td>${cell(b, "21")}${cell(b, "50")}${cell(b, "100")}${cell(b, "200")}</tr>
+      <tr><td><b>ETH</b> <span class="ind">${f0(e.px)}</span></td>${cell(e, "21")}${cell(e, "50")}${cell(e, "100")}${cell(e, "200")}</tr></table></div>
+    <p class="small muted">規則：BTC 每日收市（UTC 00:00 = 香港早上 8 點）高過 100 日線 = 綠燈，揸 BTC 同 ETH；跌穿 = 轉現金。ETH 都係睇 BTC 嘅線（ETH 自己嘅均線假訊號多）。下一個美股交易日收市前用 ETF 執行。最近轉燈：${last || "—"}。
+    冇偷睇測試（每年只用之前數據喺 21／50／100／200 日線各種組合入面揀，2021 起年年揀中 BTC 100 日線）：用 BTC 線揸 ETH 2020– 年化 88%、最大回撤 −52%（ETH 一直揸 58%、−78%）；
+    BTC 樣本外 2011–2016：年化 353%、回撤 −70%（一直揸 286%、−93%），2014 年 −2%（一直揸 −56%）。其他均線（21／50 太敏感、200 同黃金交叉太遲）冇幫助；做空冇著數。
+    2 倍 ETF（BITX／ETHU）用期貨，每年大約多 20% 成本，回撤大約變 2 倍。回測，唔係投資建議。</p></div>`;
+}
+
+// 加密模型倉（2026-10-02 用戶）：自己揀 BTC／ETH 比例、1 倍或者 2 倍、本金同開始日；照 BTC 100 日線燈號計（app 自己計，數據 btc.json ma100.cm）
+function cmSim(c){
+  const M = BTC && BTC.ma100; if (!M || !M.cm || !M.cm.length) return null;
+  const R = M.cm, n = R.length - 1, wb = c.wb / 100, we = 1 - wb, L = c.lev;
+  const day = L === 2 ? (r => 2 * r - (0.04 + 0.196) / 252) : (r => r - 0.004 / 252);     // 2 倍：借貸約 4% + 期貨升水約 19.6%（LAB_CRYPTOETF 校準）
+  let k = R.findIndex(r => r[0] >= c.start); if (k < 2) k = Math.max(2, k < 0 ? n : k);
+  let cash = c.capital, vb = 0, ve = 0, inn = false, path = [], trades = [], ent = null, hb = c.capital * wb, he = c.capital * we, hold = [];
+  const pos = i => !!R[i - 2][3];                    // t 日收市訊號 → t+1 收市成交 → t+2 回報
+  if (pos(k + 1 <= n ? k + 1 : k)){ vb = cash * wb; ve = cash * we; cash = 0; inn = true; ent = {d: R[k][0], v: c.capital}; }
+  path.push(c.capital); hold.push(c.capital);
+  for (let i = k + 1; i <= n; i++){
+    const rb = R[i][1] / R[i - 1][1] - 1, re = R[i][2] / R[i - 1][2] - 1;
+    if (inn){ vb *= 1 + day(rb); ve *= 1 + day(re); }
+    hb *= 1 + day(rb); he *= 1 + day(re);
+    const want = i + 1 <= n ? pos(i + 1) : !!R[i - 1][3];
+    if (want && !inn){ const v = cash * 0.999; vb = v * wb; ve = v * we; cash = 0; inn = true; ent = {d: R[i][0], v}; }
+    else if (!want && inn){ const v = (vb + ve) * 0.999; trades.push({a: ent.d, b: R[i][0], r: v / ent.v - 1}); cash = v; vb = ve = 0; inn = false; }
+    const me = i < n && R[i + 1][0].slice(0, 7) !== R[i][0].slice(0, 7);
+    if (me && inn){ const t = vb + ve, d = Math.abs(vb - t * wb); vb = t * wb - d * 0.001 * wb; ve = t * we - d * 0.001 * we; }
+    if (me){ const t = hb + he; hb = t * wb; he = t * we; }
+    path.push(cash + vb + ve); hold.push(hb + he);
+  }
+  if (inn) trades.push({a: ent.d, b: null, r: (vb + ve) / ent.v - 1});
+  const val = path[path.length - 1], yrs = (Date.parse(R[n][0]) - Date.parse(R[k][0])) / 31557600e3;
+  const g = v => yrs >= 1 ? Math.pow(v / c.capital, 1 / yrs) - 1 : v / c.capital - 1;
+  const yr = {}; path.forEach((v, j) => { yr[R[k + j][0].slice(0, 4)] = v; });
+  const hy = {}; hold.forEach((v, j) => { hy[R[k + j][0].slice(0, 4)] = v; });
+  return {val, vb, ve, cash, inn, trades, start: R[k][0], last: R[n][0], ret: val / c.capital - 1, cagr: g(val), dd: mdd(path), lab: yrs >= 1 ? "年化" : "期間",
+    hval: hold[hold.length - 1], hcagr: g(hold[hold.length - 1]), hdd: mdd(hold), yr, hy, next: !!R[n][3], now: inn, nextDay: null};
+}
+function cmodelCard(){
+  const M = BTC && BTC.ma100; if (!M || !M.cm) return "";
+  const c = S.cm, R = M.cm;
+  const form = `<div class="grid2 fform"><label>本金（美元）<input id="cmCap" type="number" inputmode="decimal" step="any" placeholder="例如 10000" value="${c ? c.capital : ""}"></label>
+      <label>由邊日收市開始（2017 年起）<input id="cmStart" type="date" min="2017-01-05" max="${esc(R[R.length - 1][0])}" value="${esc(c ? c.start : R[R.length - 1][0])}"></label>
+      <label>BTC 佔幾多 %（其餘 ETH）<input id="cmWb" type="number" min="0" max="100" step="5" value="${c ? c.wb : 50}"></label>
+      <label>槓桿<select id="cmLev"><option value="1" ${!c || c.lev === 1 ? "selected" : ""}>1 倍（IBIT／ETHA）</option><option value="2" ${c && c.lev === 2 ? "selected" : ""}>2 倍（BITX／ETHU）</option></select></label></div>
+    <div class="row"><button class="primary" id="cmGo">${c ? "重設" : "開始"}</button>${c ? `<button id="cmClear">清除</button>` : ""}</div>`;
+  if (!c) return `<div class="card"><b>加密模型倉</b><p class="small muted">自己揀 BTC／ETH 比例同 1 倍或者 2 倍 ETF，照 BTC 100 日線燈號行：綠燈揸、紅燈現金。揀以前嘅日子 = 睇下嗰日開始而家會變成幾多。</p>${form}</div>`;
+  const r = cmSim(c); if (!r) return "";
+  const tb = c.lev === 2 ? "BITX" : "IBIT", te = c.lev === 2 ? "ETHU" : "ETHA", P = M.etf || {};
+  const sh = (v, t) => P[t] ? ` · 約 ${f0(Math.floor(v / P[t]))} 股 @ ${f2(P[t])}` : "";
+  const hold = r.now ? `${c.wb > 0 ? `<tr><td class="mono"><b>${tb}</b><span class="ind">BTC ${c.lev} 倍 · 佔 ${Math.round(r.vb / r.val * 100)}%${sh(r.vb, tb)}</span></td><td class="r mono">${f0(r.vb)}</td></tr>` : ""}
+      ${c.wb < 100 ? `<tr><td class="mono"><b>${te}</b><span class="ind">ETH ${c.lev} 倍 · 佔 ${Math.round(r.ve / r.val * 100)}%${sh(r.ve, te)}</span></td><td class="r mono">${f0(r.ve)}</td></tr>` : ""}` : `<tr><td>現金</td><td class="r mono">${f0(r.cash)}</td></tr>`;
+  const todo = r.next !== r.now ? (r.next ? `<div class="info"><b>下一個美股交易日收市前：買入</b><p class="small">BTC 轉綠燈：用 ${f0(r.val)} 按 ${c.wb}% BTC（${tb}）／${100 - c.wb}% ETH（${te}）買入。</p></div>`
+      : `<div class="alert"><b>下一個美股交易日收市前：賣晒</b><p class="small">BTC 跌穿 100 日線：賣晒 ${tb}／${te}，轉現金。</p></div>`) : `<div class="ok small"><b>${r.now ? "冇嘢要做：揸住" : "冇嘢要做：等 BTC 升穿 100 日線"}</b></div>`;
+  const yrs = Object.keys(r.yr), ys = yrs.map((y, i) => { const p0 = i ? r.yr[yrs[i - 1]] : c.capital, h0 = i ? r.hy[yrs[i - 1]] : c.capital;
+    return `<tr><td>${y}</td><td class="r mono">${chg(r.yr[y] / p0 - 1)}</td><td class="r mono">${chg(r.hy[y] / h0 - 1)}</td></tr>`; }).join("");
+  const T = r.trades.slice(-8).reverse().map(t => `<tr><td class="mono small">${esc(t.a.slice(2))} → ${t.b ? esc(t.b.slice(2)) : "揸緊"}</td><td class="r mono">${chg(t.r)}</td></tr>`).join("");
+  return `<div class="card"><div class="row spread"><div><div class="lbl">加密模型倉 · ${c.wb}% BTC／${100 - c.wb}% ETH · ${c.lev} 倍 · ${esc(r.start)} 收市開始 → ${esc(r.last)}</div><div class="price">${f0(r.val)}</div></div>
+      <span class="tag ${r.ret >= 0 ? "t-buy" : "t-stop"}">${chg(r.ret)}</span></div>
+    <div class="kv"><div><span>本金</span><b>${f0(c.capital)}</b></div><div><span>${r.lab}</span><b>${pct(r.cagr)}</b></div><div><span>最大回撤</span><b class="dn">${pct(r.dd)}</b></div>
+      <div><span>同比例一直揸</span><b>${f0(r.hval)}</b><span class="small muted">${r.lab} ${pct(r.hcagr)} · 回撤 ${pct(r.hdd)}</span></div></div>
+    <div class="tablewrap"><table><tr><th>${r.now ? "你而家應該揸" : "你而家應該揸"}</th><th class="r">金額</th></tr>${hold}</table></div>
+    ${todo}
+    <details class="exp"><summary>逐年、最近進出、改設定</summary>
+      <div class="tablewrap"><table><tr><th>年</th><th class="r">模型倉</th><th class="r">一直揸</th></tr>${ys}</table></div>
+      ${T ? `<div class="tablewrap"><table><tr><th>最近進出</th><th class="r">回報</th></tr>${T}</table></div>` : ""}${form}</details>
+    <p class="small muted">每月最後一個美股交易日將 BTC／ETH 調返你揀嘅比例；每次買賣扣 0.1%；現金冇計利息。2 倍按每日 2 倍幣價減大約 23.6%／年（借貸 + 期貨升水，LAB_CRYPTOETF 校準）計，同真 ETF 會有出入。2024 年前 IBIT／ETHA／BITX／ETHU 未上市，用幣價模擬。股數按最新 ETF 價。回測，唔係投資建議。</p></div>`;
 }
 // ETH 策略 B（2026-10-01 用戶揀）：BTC 做市場情緒、只買賣 ETH；移動止蝕 25% + 抄底 + BTC 紅燈做空。scanner/btc.py eth_strategy()
 function ethCard(){
@@ -1451,6 +1533,11 @@ function bind(){
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
   on("#trReload", () => { fetchTrump(); });
+  on("#cmGo", () => { const cap = +$("#cmCap").value, d = $("#cmStart").value, wb = Math.min(100, Math.max(0, +$("#cmWb").value)), lev = +$("#cmLev").value;
+    if (!(cap > 0)){ alert("請填本金（美元）"); return; }
+    if (!d || d < "2017-01-05"){ alert("開始日期要喺 2017-01-05 之後"); return; }
+    S.cm = {capital: cap, start: d, wb: isFinite(wb) ? wb : 50, lev: lev === 2 ? 2 : 1}; save(); render("f"); });
+  on("#cmClear", () => { if (confirm("清除加密模型倉設定？")){ S.cm = null; save(); render("f"); } });
   on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });

@@ -9,6 +9,9 @@ ETH 策略 B（2026-10-01 用戶揀；回測 stock-strategy/LAB_ETH.md，2017–
   抄底：BTC 跌穿 200 週線／BTC MVRV < 0.8／BTC 週 RSI < 30 → 就算紅燈都做多 ETH（照移動止蝕）；
   做空：BTC 紅燈 + ETH 收市低過 50 日線 → 做空 ETH；平倉：由最低收市反彈 25%、BTC 轉綠燈或者 ETH 收市高過 50 日線。
   全部用每日收市（UTC 00:00）判斷，下一日照做。
+BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇測試 stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md）：
+  BTC 每日收市（UTC 00:00）> 100 日線 = 綠燈 → 揸 BTC 同 ETH（用 ETF：1 倍 IBIT／ETHA 或者 2 倍 BITX／ETHU），跌穿 = 轉現金。
+  輸出 ma100（燈號、距離、21／50／100／200 日線位置）同 cm（2017 起美股交易日 BTC、ETH 收市 + 燈號，app 模型倉自己計）。
 輸出 <out>/btc.json（feeds 分支，每 5 分鐘）。用法：python scanner/btc.py <out>
 """
 from __future__ import annotations
@@ -101,6 +104,43 @@ def eth_strategy(b, e):
     return st
 
 
+def trading_days():
+    """美股交易日（Yahoo ^GSPC 日線 10 年）。"""
+    r = json.loads(get("https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=10y&interval=1d", 30))["chart"]["result"][0]
+    return pd.DatetimeIndex(pd.to_datetime(r["timestamp"], unit="s")).tz_localize("UTC").tz_convert("America/New_York").tz_localize(None).normalize()
+
+
+def ma100_block(b, e):
+    """BTC 100 日線燈號 + 兩隻幣均線位置 + 模型倉用嘅每日數據。"""
+    out = {}
+    for nm, px in (("btc", b.px), ("eth", e.px)):
+        px = px.dropna()
+        last = px.index[-1]
+        out[nm] = dict(date=str(last.date()), px=round(float(px.iloc[-1]), 2),
+                       ma={str(n): round(float(px.rolling(n).mean().iloc[-1]), 2) for n in (21, 50, 100, 200)})
+    bp = b.px.dropna()
+    m100 = bp.rolling(100).mean()
+    up = (bp > m100).dropna()
+    flips = up[up != up.shift(1)].iloc[1:]
+    out.update(hold=bool(up.iloc[-1]), dist=round(float(bp.iloc[-1] / m100.iloc[-1] - 1), 4), since=str(flips.index[-1].date()) if len(flips) else None,
+               flips=[[str(t.date()), bool(v)] for t, v in flips.tail(10).items()])
+    days = trading_days()
+    days = days[days >= "2017-01-03"]
+    ep = e.px.dropna()
+    sig = up.reindex(days, method="ffill")
+    bb, ee = bp.reindex(days, method="ffill"), ep.reindex(days, method="ffill")
+    out["cm"] = [[str(t.date()), round(float(x), 2), round(float(y), 2), int(bool(z))] for t, x, y, z in zip(days, bb, ee, sig) if x == x and y == y]
+    etf = {}
+    for t in ("IBIT", "ETHA", "BITX", "ETHU"):
+        try:
+            m = json.loads(get(f"https://query1.finance.yahoo.com/v8/finance/chart/{t}?range=1d&interval=5m", 20))["chart"]["result"][0]["meta"]
+            etf[t] = round(float(m["regularMarketPrice"]), 2)
+        except Exception as ex:  # noqa: BLE001
+            print(f"[btc] {t} 價攞唔到：{ex}")
+    out["etf"] = etf
+    return out
+
+
 def fred(sid):
     since = (datetime.now(timezone.utc) - pd.Timedelta(days=400)).date().isoformat()     # FRED 對瀏覽器 User-Agent 會好慢：用預設
     raw = urllib.request.urlopen(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={sid}&cosd={since}", timeout=60).read().decode()
@@ -127,11 +167,18 @@ def main(out):
     except Exception:  # noqa: BLE001
         prev = {}
     d = coinmetrics("btc")
+    e_cm = None
     try:
-        o_eth = eth_strategy(d, coinmetrics("eth"))
+        e_cm = coinmetrics("eth")
+        o_eth = eth_strategy(d, e_cm)
     except Exception as ex:  # noqa: BLE001
         print("[btc] ETH 策略計唔到：", ex)
         o_eth = prev.get("eth")
+    try:
+        o_ma = ma100_block(d, e_cm) if e_cm is not None else prev.get("ma100")
+    except Exception as ex:  # noqa: BLE001
+        print("[btc] 100 日線燈號計唔到：", ex)
+        o_ma = prev.get("ma100")
     d["ma365"] = d.px.rolling(365).mean()
     d["wma200"] = d.px.rolling(1400).mean()
     d = d.dropna(subset=["ma365"])
@@ -157,6 +204,8 @@ def main(out):
                          since=str(sw.index[-1].date()), switches=[[str(t.date()), bool(v)] for t, v in sw.tail(8).items()]),
              stable=dict(hold=bool(cur), since=str(since.date()) if since is not None else None, exit_line=round(last.ma365 * (1 - EXIT_BAND), 2)),
              chart=[[str(t.date()), round(r.px, 0), round(r.ma365, 0)] for t, r in d.iloc[-730::3].iterrows()])
+    if o_ma:
+        o["ma100"] = o_ma
     if o_eth:
         o["eth"] = o_eth
         try:
