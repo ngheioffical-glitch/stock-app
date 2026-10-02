@@ -68,7 +68,7 @@ main>*{min-width:0;max-width:100%}
 .status{font-family:var(--brand);font-size:18px;font-weight:800;letter-spacing:.12em}
 .gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .gauge{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
-.gauge span{display:block;font-size:11px;color:var(--muted);letter-spacing:.04em}
+.gauge span{display:block;font-size:11px;color:var(--muted);letter-spacing:.04em;line-height:1.6;min-height:3.2em}   /* 2026-10-02：標籤一律留兩行高，三格嘅數字同 bar 先對齊 */
 .gauge b{font-family:var(--mono);font-size:15px}
 .bar{height:4px;border-radius:2px;background:rgba(120,200,255,.12);overflow:hidden;margin-top:6px}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--buy));box-shadow:0 0 10px var(--cyan)}

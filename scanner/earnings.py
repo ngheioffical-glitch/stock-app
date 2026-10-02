@@ -2,7 +2,7 @@
 
 股票：模型持倉（docs/model_cont.json，唔計 TQQQ／IEF）+ RS 排名頭 15（docs/scan.json）。
 1. 業績日期：yfinance get_earnings_dates（EPS 預測、實際、驚喜 %）→ 下次業績日期（之後 100 日內）。
-2. 啱啱出咗業績（最近 4 日、未分析過）→ Gemini + Google 搜尋（真係上網查業績新聞同業績會），用廣東話照框架總結；每次最多 3 間（慳免費額度）。
+2. 啱啱出咗業績（最近 10 日、未分析過；失敗下個鐘再試）→ Gemini + Google 搜尋（真係上網查業績新聞同業績會），用廣東話照框架總結；每次最多 3 間（慳免費額度）。
 3. 每 55 分鐘先做一次（feeds 每 5 分鐘跑，其餘時間沿用上一份）；分析結果留 60 日。
 輸出 <out>/earnings.json：{generated, checked, upcoming: [...], reports: [...], errs}
 用法：python scanner/earnings.py out（要 GEMINI_API_KEY 先會做 AI 分析；冇 key 都會更新業績日期）
@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 HK = ZoneInfo("Asia/Hong_Kong")
-MAX_AI, KEEP_DAYS, EVERY_MIN, RECENT_DAYS = 3, 60, 55, 4
+MAX_AI, KEEP_DAYS, EVERY_MIN, RECENT_DAYS = 3, 60, 55, 10   # 2026-10-02：Gemini 搜尋額度 429 會失敗，留 10 日畀之後每個鐘再試
 
 PROMPT = ("美股 {sym} 喺 {date}（美國時間）公佈咗最新一季業績（EPS 預測 {est}，實際 {act}）。用 Google 搜尋呢份業績嘅新聞、新聞稿同業績電話會（earnings call）內容，"
           "用香港廣東話口語總結，數字要具體（例如收入幾多億美元、按年 +x%）。重點睇管理層：之前做得好嘅地方今季保持到嗎？之前做得差嘅地方今季有冇改善？"
