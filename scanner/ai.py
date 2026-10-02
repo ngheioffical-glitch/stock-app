@@ -581,6 +581,109 @@ def tq_alert():
         return None
 
 
+# ---------------------------------------------------------------- AI 宏觀思考（2026-10-02 用戶：想 AI 好似評論文章咁，畀多啲角度思考；冇客觀答案）
+NL = chr(10)
+THINK_GAP = int(os.environ.get("THINK_GAP_MIN", "360"))   # 分鐘：最少隔 6 個鐘先再寫；債息異動、轉燈就即刻寫
+THINK_SYMS = [("SPY", "S&P 500"), ("RSP", "S&P 500 等權"), ("QQQ", "納指 100"), ("SMH", "半導體"), ("IWM", "羅素 2000 細價股"), ("^VIX", "VIX")]
+
+
+def mkt_perf():
+    """1 個月、3 個月表現（Yahoo 日線 6 個月）；VIX 用水平。"""
+    out = []
+    for s_, nm in THINK_SYMS:
+        try:
+            d = json.loads(urllib.request.urlopen(urllib.request.Request(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(s_)}?range=6mo&interval=1d", headers=UA), timeout=20).read())
+            c = [x for x in d["chart"]["result"][0]["indicators"]["quote"][0]["close"] if x is not None]
+            if s_ == "^VIX":
+                out.append(f"VIX {c[-1]:.1f}（3 個月前 {c[-63]:.1f}）")
+            else:
+                out.append(f"{nm} 1 個月 {(c[-1] / c[-22] - 1) * 100:+.1f}%、3 個月 {(c[-1] / c[-64] - 1) * 100:+.1f}%")
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] {s_} 表現攞唔到：{e}")
+    return out
+
+
+def breadth():
+    """scan.json 嘅股票（Nasdaq 成交額／市值頭幾百隻）有幾多高過 200 日線。"""
+    try:
+        sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
+        v = [x for x in sc.get("stocks", {}).values() if x.get("sma200") and x.get("close")]
+        return f"Nasdaq 大型股 {len(v)} 隻入面 {sum(1 for x in v if x['close'] > x['sma200']) / len(v) * 100:.0f}% 高過 200 日線" if v else ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def gemini_search(key, prompt):
+    """Gemini + Google 搜尋（grounding）；返 (dict, 型號)。唔得就退返冇搜尋嘅 gemini()。"""
+    body = {"contents": [{"parts": [{"text": prompt + NL + "用 Google 搜尋補充最新背景，只根據搜尋結果同上面數據；最後只回覆一個 JSON object，唔好加其他文字。"}]}],
+            "tools": [{"google_search": {}}], "generationConfig": {"temperature": 0.5}}
+    last = ""
+    for m in pick(key, MODELS_D):
+        try:
+            req = urllib.request.Request(API.format(m=m), data=json.dumps(body).encode(), method="POST",
+                                         headers={"Content-Type": "application/json", "x-goog-api-key": key})
+            d = json.loads(urllib.request.urlopen(req, timeout=180).read())
+            txt = "".join(x.get("text", "") for x in d["candidates"][0]["content"]["parts"] if not x.get("thought"))
+            j = re.search(r"\{.*\}", txt, re.S)
+            if j:
+                return json.loads(j.group(0)), m + "（Google 搜尋）"
+            last = f"{m} 冇 JSON"
+        except Exception as e:  # noqa: BLE001
+            last = f"{m}：{str(e)[:80]}"
+    print(f"[ai] 宏觀思考 Google 搜尋失敗（{last}），改用冇搜尋版本")
+    return gemini(key, prompt, MODELS_D)
+
+
+def think(key, N, P, now, force=False):
+    """AI 宏觀思考：現象、核心問題、2–3 個情景（會點、確認訊號、對我哋規則嘅影響）、反方、要留意。返 (dict 或 None, 訊息)。"""
+    old = P.get("think") or {}
+    ra, lc = rates_alert(), light_change()
+    trig = json.dumps([ra, lc], ensure_ascii=False)
+    last = datetime.fromisoformat(old["at"]) if old.get("at") else None
+    if not force and last and now - last < timedelta(minutes=THINK_GAP) and old.get("trig") == trig:
+        return None, f"宏觀思考：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
+    heads = [x.get("zh") or x["title"] for x in N["items"] if x.get("cat") in ("市場", "經濟", "快訊", "國際")
+             and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=36)][:45]
+    R = load(OUTDIR / "rates.json") if OUTDIR else None
+    rates = "；".join(f"{r['name']} {r['y']:.2f}%（1 個月 {r['m']:+.0f} 基點、一年 {r['yr']:+.0f} 基點）" for r in (R or {}).get("rows", [])) or "（冇）"
+    F = load(OUTDIR / "fng.json") if OUTDIR else None
+    fng = ""
+    try:
+        st_ = F["stock"]
+        fng = (f"CNN 恐慌貪婪指數 {st_['score']:.0f}（{st_['rating']}；1 星期前 {st_['week']:.0f}、1 個月前 {st_['month']:.0f}、1 年前 {st_['year']:.0f}；"
+               + "、".join(f"{x['name']} {x['score']:.0f}" for x in st_.get("parts", [])) + "）")
+        if F.get("crypto") and F["crypto"].get("score") is not None:
+            fng += f"；加密恐慌貪婪 {F['crypto']['score']:.0f}"
+    except Exception:  # noqa: BLE001
+        pass
+    light, watch = context()
+    tq = (lambda t: f"V2.3 TQQQ 腳而家{'揸 TQQQ' if t and t.get('held') else '揸 IEF'}" if t else "")(
+        (json.loads((ROOT / "docs" / "model_cont.json").read_text(encoding="utf-8")).get("view") or {}).get("tq") if (ROOT / "docs" / "model_cont.json").exists() else None)
+    prompt = (f"你係一個有獨立思考嘅美股宏觀評論人，幫一個香港散戶從多個角度諗而家個市。{STYLE}{NL}"
+              f"佢嘅策略（規則唔會因為你嘅分析改變）：60% 美股大型科技龍頭動能（突破買、大市紅燈清倉）+ 40% TQQQ（綠燈而且 QQQ 波幅 < 35% 先揸）；加密睇 BTC 100 日線。"
+              f"大市燈號而家係{light}；{tq}。{NL}"
+              f"市場數據：{'；'.join(mkt_perf())}；{breadth()}；美債息：{rates}；{fng}。{NL}"
+              f"今日實際數字：{snap_text(snapshot())}。{NL}"
+              + (f"債息異動：{'；'.join(ra['alert'])}。{NL}" if ra else "") + (f"大市啱啱轉{lc['to']}。{NL}" if lc else "")
+              + "最近 36 小時新聞標題：" + NL + NL.join(heads[:45]) + NL
+              + "寫一份「宏觀思考」，好似專欄咁有觀點，但要講清楚冇客觀答案：" + NL
+              + "1. phenomena：3–5 點而家最值得留意嘅現象（例如指數係咪靠少數大股撐住、市寬、債息、情緒去到幾極端），每點一句，要有上面嘅數字；" + NL
+              + "2. question：而家投資最重要嘅一個問題（一句）；" + NL
+              + "3. scenarios：2–3 個可能情景，每個有 name（短名）、what（會點發展，一至兩句）、signals（2–3 個睇到就代表呢個情景發生緊嘅具體訊號，例如某個數據、債息去到幾多、某條線）、"
+              + "lean（你主觀覺得機會 較大／一半半／較細，同一句點解）、impact（對佢策略嘅影響：邊個燈號或者部分會先郁；規則照做，唔好叫人買賣）；" + NL
+              + "4. contrarian：一段反方睇法（市場主流諗法可能錯喺邊）；" + NL
+              + "5. watch：之後 1–2 星期要留意嘅數據或者事件（有日期就寫）。" + NL
+              + "數字只可以用上面提供嘅或者搜尋到嘅，唔好作。回覆 JSON：{\"phenomena\": [..], \"question\": \"..\", \"scenarios\": [{\"name\": \"..\", \"what\": \"..\", "
+              + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..]}")
+    res, model = gemini_search(key, prompt)
+    if not res.get("scenarios"):
+        raise RuntimeError(f"宏觀思考冇 scenarios：{json.dumps(res, ensure_ascii=False)[:200]}")
+    d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
+             generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
+    return d, f"宏觀思考：用 {model} 寫好"
+
+
 def crypto_digest(key, N, H, PH, out, now, force=False):
     """加密重點（2026-10-01）：加密快訊 + Hyperliquid 巨鯨持倉變動 + 市場數字 → 廣東話「發生咩 → 對 BTC／ETH／加密股可能有咩影響」。
     寫入 hyper.json 嘅 ai；最少隔 GAP 分鐘，有 ≥ 500 萬美元嘅新巨鯨事件或者手動更新就即刻重寫。"""
@@ -715,6 +818,16 @@ def main():
             errs.append(f"重點：{str(e)[:300]}")
             if P.get("digest"):
                 N["digest"] = P["digest"]
+    # 3b. AI 宏觀思考：每 6 個鐘；債息異動或者轉燈就即刻寫；失敗沿用上一份
+    try:
+        d, msg = think(key, N, P, now, force=manual)
+        N["think"] = d or P.get("think")
+        print("[ai] " + msg)
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 宏觀思考失敗：{e}")
+        errs.append(f"宏觀思考：{str(e)[:300]}")
+        if P.get("think"):
+            N["think"] = P["think"]
     # 4. 加密重點（hyper.json 嘅 ai）
     H = load(out / "hyper.json")
     if H is not None:

@@ -413,7 +413,7 @@ function fngCard(kind){
   const v = F.score, cmp = [["昨日", F.prev], ["1 星期前", F.week], ["1 個月前", F.month], ["1 年前", F.year]].filter(x => x[1] != null);
   const tip = kind === "stock"
     ? `<b>點配合用：</b>只作參考，唔改 V2.2 規則。2020-07 起（得 2022 同 2025 兩次大跌，樣本好細）：V2.2 紅燈而指數 &lt; 25 嘅日子，NDX 之後 60 日平均 +7.8%；紅燈但只係 25–55，之後 60 日平均 −1.4%。即係<b>紅燈 + 極度恐慌 = 留意見底</b>（配合上面「牛市回調」卡同大市突破）；2025-04-09 大陽燭嗰日指數得 10。`
-    : `<b>訊號：</b>指數 ≤ 20 = <b>加密極度恐慌抄底訊號</b>（唔改 ETH 策略，自己決定）。2018 起回測：ETH 策略 B 加「≤ 20 都當抄底」年化 62% → 78%、Sharpe 1.03 → 1.16（主要係極度恐慌時唔好追空）；「≥ 80–90 就走」冇幫助。`;
+    : `<b>訊號：</b>指數 ≤ 20 = <b>加密極度恐慌抄底訊號</b>（唔改 BTC 100 日線燈號，自己決定）。2018 起回測：ETH 策略 B 加「≤ 20 都當抄底」年化 62% → 78%、Sharpe 1.03 → 1.16（主要係極度恐慌時唔好追空）；「≥ 80–90 就走」冇幫助。`;
   const sig = kind === "crypto" && v <= 20 ? `<div class="alert"><b>加密極度恐慌訊號：指數 ${Math.round(v)} ≤ 20</b><p class="small">歷史上係抄底／唔好追空嘅時候（只係訊號，ETH 策略照舊）。</p></div>` : "";
   return sig + `<div class="card"><div class="row spread"><div><div class="small muted">${kind === "stock" ? "股市" : "加密"}恐慌貪婪指數</div>
       <div class="status ${fngCls(v)}" style="font-size:16px">${esc(F.rating)}</div></div>
@@ -467,7 +467,7 @@ function viewCrypto(){
   if (!HYP) fetchHyper();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? btc100Card() + cmodelCard() + ethCard() + fngCard("crypto") + btcCard() : `<p class="muted">載入中…</p>`) + cryptoAiCard() + whaleCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + cryptoAiCard() + whaleCard() + cryptoNewsCard();
 }
 
 // BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
@@ -1280,6 +1280,21 @@ async function fetchFeeds(force){
   if (TAB === "news" || TAB === "crypto" || TAB === "model") render();
 }
 
+// AI 宏觀思考（2026-10-02 用戶：好似評論文章咁畀多啲角度；冇客觀答案）：scanner/ai.py think()，每 6 個鐘，債息異動／轉燈即刻寫
+function thinkCard(){
+  const K = FEED.news && FEED.news.think; if (!K || !(K.scenarios || []).length) return "";
+  const ul = a => (a || []).length ? `<ul class="small" style="margin:4px 0;padding-left:18px;line-height:1.55">${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+  const lean = t => /較大/.test(t || "") ? "t-buy" : /較細/.test(t || "") ? "t-dim" : "t-warn";
+  return `<details class="card"><summary><b>AI 宏觀思考</b> <span class="small muted">· ${esc(K.generated || "")}</span> ${mdl(K.model)}${K.question ? `<div class="small" style="margin-top:4px"><b>核心問題：</b>${esc(K.question)}</div>` : ""}</summary>
+    <p class="small" style="margin-top:6px"><b>而家嘅現象</b></p>${ul(K.phenomena)}
+    ${K.scenarios.map((x, i) => `<div class="info small" style="margin-top:6px"><b>情景 ${i + 1}：${esc(x.name || "")}</b> <span class="tag ${lean(x.lean)}">${esc((x.lean || "").split(/[，,。]/)[0])}</span>
+      <p>${esc(x.what || "")}</p>${(x.signals || []).length ? `<p><b>睇到呢啲就係發生緊：</b></p>${ul(x.signals)}` : ""}
+      ${x.lean && x.lean.length > 6 ? `<p class="muted">${esc(x.lean)}</p>` : ""}${x.impact ? `<p><b>對我哋規則嘅影響：</b>${esc(x.impact)}</p>` : ""}</div>`).join("")}
+    ${K.contrarian ? `<p class="small" style="margin-top:6px"><b>反方睇法：</b>${esc(K.contrarian)}</p>` : ""}
+    ${(K.watch || []).length ? `<p class="small"><b>之後要留意</b></p>${ul(K.watch)}` : ""}
+    <p class="small muted">AI（${esc(K.model || "")}）根據市場數字、債息、恐慌指數、市寬同最近新聞自動寫，用嚟幫你多角度諗；冇客觀答案，情景機會係 AI 主觀判斷，可能錯。V2.3 規則唔會因為呢度改變，照燈號同「要做」執行。</p></details>`;
+}
+
 // 美債息（2026-10-02 用戶）：財政部官方收市 + Yahoo 盤中（scanner/rates.py）。只係資訊。
 function ratesCard(){
   const R = FEED.rates; if (!R || !(R.rows || []).length) return "";
@@ -1494,6 +1509,7 @@ function viewNews(){
     <p class="small muted">${esc(D.model || "AI")} 根據最近 18 小時新聞標題、已公佈數據同上面實際市場數字自動生成，可能有錯漏，唔係投資建議；撳新聞睇原文。注意：經濟數據解讀嘅市場反應係「公佈後至今」，同呢度嘅「全日」可以方向唔同。</p></details>`;
   }
   if (NT === "earn") return h + viewEarn();
+  h += thinkCard();
   h += fedCard();
   if (NT === "econ") h += ratesCard();
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
