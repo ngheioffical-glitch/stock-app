@@ -337,7 +337,13 @@ def ai_search(prompt):
     body = {"contents": [{"parts": [{"text": prompt + "\n用 Google 搜尋查證，只根據搜尋結果答；唔肯定就答 unknown。最後只回覆一個 JSON object，唔好加其他文字。"}]}],
             "tools": [{"google_search": {}}], "generationConfig": {"temperature": 0.1}}
     last = ""
-    for m in ("gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"):
+    base = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"]
+    try:                                       # 2026-10-02：舊型號名會 404；同今日重點一樣先問 Google 有邊啲型號（新版本排先）
+        import ai as _ai
+        base = _ai.pick(key, base) or base
+    except Exception as e:  # noqa: BLE001
+        print(f"[model] 型號清單攞唔到，用預設：{e}")
+    for m in base:
         req = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent", data=json.dumps(body).encode(),
                                      method="POST", headers={"Content-Type": "application/json", "x-goog-api-key": key})
         try:

@@ -1430,7 +1430,7 @@ function render(anim){
     app.classList.remove("fadein"); void app.offsetWidth; app.classList.add("fadein");
   }
   bind();
-  if (TAB === "news" && NT === "econ" && FEED.econ && !FEED.scrolled) jumpToday();   // 每次入經濟日曆：跳去今日（冇今日就下一個數據）
+  // 2026-10-02 用戶：入新聞頁停喺最頂（睇 AI 重點、債息），今日數據自己撳「今日」先跳
 }
 
 function bind(){
@@ -1452,7 +1452,7 @@ function bind(){
   on("#serReload", () => { fetchSer(); });
   on("#trReload", () => { fetchTrump(); });
   on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
-  document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { if (b.dataset.nt === "econ") FEED.scrolled = false; NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); });
+  document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
   const hy = $("#histY"); if (hy) hy.onchange = () => histYear(hy.value);
@@ -1476,7 +1476,7 @@ function go(tab){
   if (tab === "set") LASTTAB = TAB;
   const dir = tab === "set" ? "r" : (TAB === "set" ? "l" : (ORDER.indexOf(tab) > ORDER.indexOf(TAB) ? "r" : "l"));
   TAB = tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){}
-  if (tab === "news") FEED.scrolled = false;          // 每次入新聞：經濟日曆跳返今日
+  if (tab === "news") FEED.scrolled = true;           // 2026-10-02 用戶：入新聞唔自動跳去今日
   try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch(e){}
   window.scrollTo(0,0); render(dir);
 }
