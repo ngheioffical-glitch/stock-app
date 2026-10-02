@@ -81,6 +81,14 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: 宏觀來源（X 知名人士每 30 分鐘、Polymarket 每次；失敗就沿用上一份）
+        run: |
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/macro_src.json" -o out/macro_src.json || true
+          python scanner/macro_src.py out
+        continue-on-error: true
+        timeout-minutes: 3
+        env:
+          PYTHONIOENCODING: utf-8
       - name: AI 翻譯（新聞 + 加密 + Serenity + Trump，即時）、今日重點、加密重點；Gemini 優先、GitHub Models 後備；出錯都唔影響新聞
         run: python scanner/ai.py out
         continue-on-error: true
@@ -95,6 +103,6 @@ jobs:
           git init -q -b feeds
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json earnings.json 2>/dev/null)
+          git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json earnings.json macro_src.json 2>/dev/null)
           git commit -q -m "feeds $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" feeds

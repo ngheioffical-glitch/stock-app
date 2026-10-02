@@ -1291,8 +1291,13 @@ function thinkCard(){
       <p>${esc(x.what || "")}</p>${(x.signals || []).length ? `<p><b>睇到呢啲就係發生緊：</b></p>${ul(x.signals)}` : ""}
       ${x.lean && x.lean.length > 6 ? `<p class="muted">${esc(x.lean)}</p>` : ""}${x.impact ? `<p><b>對我哋規則嘅影響：</b>${esc(x.impact)}</p>` : ""}</div>`).join("")}
     ${K.contrarian ? `<p class="small" style="margin-top:6px"><b>反方睇法：</b>${esc(K.contrarian)}</p>` : ""}
+    ${(K.voices || []).length ? `<p class="small" style="margin-top:6px"><b>知名人士（X）點睇</b></p>${ul(K.voices)}` : ""}
+    ${(K.odds || []).length ? `<p class="small"><b>預測市場（Polymarket）點押注</b></p>${ul(K.odds)}` : ""}
+    ${(K.src_pm || []).length ? `<details class="exp small"><summary>Polymarket 原始概率（${K.src_pm.length} 個）</summary><ul style="margin:4px 0;padding-left:18px">${K.src_pm.map(m => `<li><a href="https://polymarket.com/market/${esc(m.slug || "")}" target="_blank" rel="noopener">${esc(m.q)}</a>：<b>${(m.yes * 100).toFixed(1)}%</b></li>`).join("")}</ul></details>` : ""}
+    ${(K.history || []).length ? `<p class="small"><b>歷史參考</b></p>${ul(K.history)}` : ""}
+    ${(K.season || []).length ? `<details class="exp small"><summary>歷史季節性數字</summary>${ul(K.season)}<p class="muted">Yahoo 月線，只計已完咗嘅月；中期選舉年 = 年份 ÷ 4 餘 2。歷史唔代表將來。</p></details>` : ""}
     ${(K.watch || []).length ? `<p class="small"><b>之後要留意</b></p>${ul(K.watch)}` : ""}
-    <p class="small muted">AI（${esc(K.model || "")}）根據市場數字、債息、恐慌指數、市寬同最近新聞自動寫，用嚟幫你多角度諗；冇客觀答案，情景機會係 AI 主觀判斷，可能錯。V2.3 規則唔會因為呢度改變，照燈號同「要做」執行。</p></details>`;
+    <p class="small muted">AI（${esc(K.model || "")}）根據市場數字、債息、恐慌指數、市寬、最近新聞、${K.src_x ? K.src_x + " 條 X 知名宏觀人士帖（Timiraos、El-Erian、Sonders、Bianco、Lyn Alden 等）、" : ""}Polymarket 預測市場概率、歷史季節性自動寫，用嚟幫你多角度諗；冇客觀答案，情景機會係 AI 主觀判斷，可能錯。V2.3 規則唔會因為呢度改變，照燈號同「要做」執行。</p></details>`;
 }
 
 // 美債息（2026-10-02 用戶）：財政部官方收市 + Yahoo 盤中（scanner/rates.py）。只係資訊。

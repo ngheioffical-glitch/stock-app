@@ -614,6 +614,38 @@ def breadth():
         return ""
 
 
+def season(now):
+    """歷史季節性（2026-10-02 用戶：例如 10–12 月歷史上多數升）：Yahoo 月線（S&P 500 1985 起、納指 100 1985-10 起），
+    計今個月、今個月至年尾、中期選舉年（年份 ÷ 4 餘 2）同期、中期選舉年今個月起之後 12 個月。只計已經完咗嘅月。返文字 list。"""
+    out = []
+    m0, y0 = now.month, now.year
+    st = lambda a: f"{sum(1 for x in a if x > 0)}/{len(a)} 年升、平均 {sum(a) / len(a) * 100:+.1f}%" if a else "—"
+    for sym, nm in (("^GSPC", "S&P 500"), ("^NDX", "納指 100")):
+        try:
+            d = json.loads(urllib.request.urlopen(urllib.request.Request(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.request.quote(sym)}?period1=-631152000&period2={int(time.time())}&interval=1mo",
+                headers=UA), timeout=30).read())["chart"]["result"][0]
+            px = {}
+            for t, c in zip(d["timestamp"], d["indicators"]["quote"][0]["close"]):
+                dt = datetime.fromtimestamp(t, timezone.utc)
+                if c is not None and (dt.year, dt.month) < (y0, m0):
+                    px[(dt.year, dt.month)] = c
+            ks = sorted(px)
+            r = {b: px[b] / px[a] - 1 for a, b in zip(ks, ks[1:])}
+            prod = lambda keys: (lambda v: v - 1)(__import__("math").prod(1 + r[k] for k in keys)) if all(k in r for k in keys) else None
+            ys = sorted({y for y, _ in r if y < y0})
+            mon = [r[(y, m0)] for y in ys if (y, m0) in r]
+            rest = [v for v in (prod([(y, m) for m in range(m0, 13)]) for y in ys) if v is not None]
+            mid = [y for y in ys if y % 4 == 2]
+            rest_mid = [v for v in (prod([(y, m) for m in range(m0, 13)]) for y in mid) if v is not None]
+            nxt12 = [v for v in (prod([((y + (m0 + i - 1) // 12), (m0 + i - 1) % 12 + 1) for i in range(12)]) for y in mid) if v is not None]
+            out.append(f"{nm}（{ys[0]} 起）：{m0} 月 {st(mon)}；{m0}–12 月 {st(rest)}；中期選舉年（{', '.join(str(y) for y in mid[-4:])} 等）{m0}–12 月 {st(rest_mid)}；"
+                       f"中期選舉年 {m0} 月起之後 12 個月 {st(nxt12)}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] {sym} 月線攞唔到：{e}")
+    return out
+
+
 def gemini_search(key, prompt):
     """Gemini + Google 搜尋（grounding）；返 (dict, 型號)。唔得就退返冇搜尋嘅 gemini()。"""
     body = {"contents": [{"parts": [{"text": prompt + NL + "用 Google 搜尋補充最新背景，只根據搜尋結果同上面數據；最後只回覆一個 JSON object，唔好加其他文字。"}]}],
@@ -657,6 +689,12 @@ def think(key, N, P, now, force=False):
             fng += f"；加密恐慌貪婪 {F['crypto']['score']:.0f}"
     except Exception:  # noqa: BLE001
         pass
+    MS = (load(OUTDIR / "macro_src.json") if OUTDIR else None) or {}
+    xs = "".join(NL + f"- @{t['user']}（{t['name']}，{datetime.fromtimestamp(t['ts'], timezone.utc).astimezone(ZoneInfo('Asia/Hong_Kong')).strftime('%m-%d %H:%M')}）：{t['text'][:350]}"
+                 for t in (MS.get("x") or [])[:40]) or "（冇）"
+    pm = "".join(NL + f"- {m['q']}：是 {m['yes'] * 100:.1f}%" + (f"（24 小時 {float(m['chg1d']) * 100:+.1f} 點）" if m.get("chg1d") not in (None, "") else "")
+                 for m in (MS.get("pm") or [])[:15]) or "（冇）"
+    hist = season(now)
     light, watch = context()
     tq = (lambda t: f"V2.3 TQQQ 腳而家{'揸 TQQQ' if t and t.get('held') else '揸 IEF'}" if t else "")(
         (json.loads((ROOT / "docs" / "model_cont.json").read_text(encoding="utf-8")).get("view") or {}).get("tq") if (ROOT / "docs" / "model_cont.json").exists() else None)
@@ -667,19 +705,27 @@ def think(key, N, P, now, force=False):
               f"今日實際數字：{snap_text(snapshot())}。{NL}"
               + (f"債息異動：{'；'.join(ra['alert'])}。{NL}" if ra else "") + (f"大市啱啱轉{lc['to']}。{NL}" if lc else "")
               + "最近 36 小時新聞標題：" + NL + NL.join(heads[:45]) + NL
+              + "知名宏觀人士喺 X 最近 36 小時嘅帖（原文）：" + xs + NL
+              + "Polymarket 預測市場（真金白銀押注嘅概率）：" + pm + NL
+              + f"歷史季節性（今日係 {now.year} 年 {now.month} 月；{now.year} 年{'係' if now.year % 4 == 2 else '唔係'}中期選舉年）：" + NL + NL.join(hist) + NL
               + "寫一份「宏觀思考」，好似專欄咁有觀點，但要講清楚冇客觀答案：" + NL
               + "1. phenomena：3–5 點而家最值得留意嘅現象（例如指數係咪靠少數大股撐住、市寬、債息、情緒去到幾極端），每點一句，要有上面嘅數字；" + NL
               + "2. question：而家投資最重要嘅一個問題（一句）；" + NL
               + "3. scenarios：2–3 個可能情景，每個有 name（短名）、what（會點發展，一至兩句）、signals（2–3 個睇到就代表呢個情景發生緊嘅具體訊號，例如某個數據、債息去到幾多、某條線）、"
               + "lean（你主觀覺得機會 較大／一半半／較細，同一句點解）、impact（對佢策略嘅影響：邊個燈號或者部分會先郁；規則照做，唔好叫人買賣）；" + NL
               + "4. contrarian：一段反方睇法（市場主流諗法可能錯喺邊）；" + NL
-              + "5. watch：之後 1–2 星期要留意嘅數據或者事件（有日期就寫）。" + NL
+              + "5. watch：之後 1–2 星期要留意嘅數據或者事件（有日期就寫）；" + NL
+              + "6. voices：揀 3–5 個上面 X 知名人士嘅重要觀點，每點「人名：佢講咩（一句）→ 同市場主流一致定相反」；冇就空陣列；" + NL
+              + "7. odds：揀 3–5 個 Polymarket 概率，每點「事件：概率 → 代表市場點諗、同你嘅情景有咩關係」；冇就空陣列；" + NL
+              + "8. history：2–4 點歷史參考（用上面嘅季節性數字，例如今個月至年尾歷史上幾多年升、中期選舉年點樣；可以加你知道嘅相似歷史時期，例如債息急升或者市寬好差嘅年份之後點），"
+              + "每點講埋今次同歷史有咩唔同，提醒歷史唔代表將來。" + NL
+              + "情景同反方要盡量用到 X 觀點同 Polymarket 概率做證據（例如市場押注加息嘅概率）。" + NL
               + "數字只可以用上面提供嘅或者搜尋到嘅，唔好作。回覆 JSON：{\"phenomena\": [..], \"question\": \"..\", \"scenarios\": [{\"name\": \"..\", \"what\": \"..\", "
-              + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..]}")
+              + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..], \"voices\": [..], \"odds\": [..], \"history\": [..]}")
     res, model = gemini_search(key, prompt)
     if not res.get("scenarios"):
         raise RuntimeError(f"宏觀思考冇 scenarios：{json.dumps(res, ensure_ascii=False)[:200]}")
-    d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
+    d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig, src_x=len(MS.get("x") or []), src_pm=(MS.get("pm") or [])[:8], season=hist,
              generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
     return d, f"宏觀思考：用 {model} 寫好"
 
