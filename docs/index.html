@@ -1081,7 +1081,9 @@ function followCard(M){
   if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.3 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
   if (fs.loading) return `<div class="card"><b>我嘅跟單帳戶</b><p class="muted">${fs.err ? "讀唔到回測數據：" + esc(fs.err) : "載入緊 2000 年起嘅回測數據（約 1 MB）…"}</p>${fs.err ? form : ""}</div>`;
   if (!FEED.news && !FEED.err) fetchFeeds();
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${p.leg ? "" : serTag(p.sym) + earnTag(p.sym)}<span class="ind">佔 ${Math.round(p.weight * 100)}% · ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}${p.leg ? " · TQQQ 腳" : ""}</span></td>
+  // 2026-10-03 用戶：冇寫幾時幾錢買入、「佔 13% · 729」唔知咩嚟 → 寫明模型買入日同價，金額標明係市值
+  const late = p => p.date && fs.start > p.date;
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${p.leg ? "" : serTag(p.sym) + earnTag(p.sym)}<span class="ind">${p.date ? `${esc(p.date.slice(5))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}${p.leg ? " · TQQQ 腳" : ""}</span></td>
       <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${p.sym === "IEF" ? "" : chg(p.ret)}</td><td class="r mono ${p.leg ? "muted" : "dn"}">${p.leg ? "唔設" : f2(p.stop)}</td></tr>`).join("");
   return `<div class="card"><div class="row spread"><div><div class="lbl">我嘅跟單帳戶 · ${esc(fs.start)} 收市開始 → 計到 <b>${esc(fs.last)}</b> 收市</div><div class="price">${f0(fs.val)}</div></div>
       <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
@@ -1094,7 +1096,8 @@ function followCard(M){
       ${fs.qt ? `<tr><td>QQQ + 大市燈號<span class="ind">綠燈揸 QQQ、紅燈現金</span></td><td class="r mono">${f0(fs.qt.val)}</td><td class="r mono">${chg(fs.qt.val / fs.capital - 1)}</td><td class="r mono dn">${pct(fs.qt.dd)}</td></tr>` : ""}
       </table></div>
       <p class="small muted">「QQQ + 大市燈號」= 用同一個紅綠燈規則（NDX &gt; 200 日線，或 NDX &gt; 21 日 EMA &gt; 50 日線），上一日收市綠燈就揸 QQQ、紅燈就賣晒轉現金（保守：現金唔計利息），每次轉換扣 0.1%。策略贏佢嘅部分 = 揀股嘅功勞；贏「QQQ 揸住」但輸「QQQ + 燈號」= 主要靠避開熊市。QQQ 用收市價，冇計派息（約每年 0.6%）。</p></div>` : ""}
-    ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">股數</th><th class="r">回報</th><th class="r">止蝕</th></tr>${rows}</table></div>` : ""}
+    ${v.holdings.length ? `<div class="tablewrap"><table><tr><th>你而家應該揸</th><th class="r">股數</th><th class="r">回報</th><th class="r">止蝕</th></tr>${rows}</table></div>
+      <p class="small muted">「買入 @」= 模型嘅買入日同價（回報由呢個價計）；「市值」= 按你帳戶值計，嗰隻而家值幾多美元；股數 = 市值 ÷ 最新收市價。${v.holdings.some(late) ? `寫「照抄」嘅係你開始跟之前模型已經揸住嘅：假設你 ${esc(fs.start)} 收市用當日價照抄，你自己嘅成本會同模型唔同。` : ""}</p>` : ""}
     <p class="small muted">每日美股收市、雲端掃描完會自動計到最新一日，唔使重新設定；想由第二日開始或者改本金就撳下面。</p>
     <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
     <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.3 回測（2000 年起連續行、Tiingo 全美股），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。<b>注意：呢度假設你開始嗰日即刻照抄模型當時嘅持倉</b>；如果全現金開始、等新突破先買，結果可以好唔同（例如 2026 年：照抄持倉 +25%，1 月 2 日全現金開始 −11%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
