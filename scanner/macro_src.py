@@ -4,7 +4,8 @@
    每 30 分鐘先抓一次（其餘時間沿用上一份）。帳戶清單喺 ACCOUNTS，可以自己加減。
 2. Polymarket 預測市場（gamma-api.polymarket.com，公開）：按 24 小時成交額排，揀同宏觀有關嘅（聯儲局、通脹、衰退、股市、債息、關稅、選舉、地緣、加密）頭 15 個，
    顯示「是」嘅概率同 24 小時變化。每次都抓。
-輸出 <out>/macro_src.json：{generated, x_checked, x: [...], pm: [...], errs}；scanner/ai.py think() 用。
+3. 加密：CRYPTO_ACCOUNTS 嘅帖（x_c）、加密中長期 Polymarket（pm_c，去走單日／單週價格賭局）→ ai.py think_crypto()。
+輸出 <out>/macro_src.json：{generated, x_checked, x, x_c, pm, pm_c, errs}；scanner/ai.py think()／think_crypto() 用。
 用法：python scanner/macro_src.py out
 """
 from __future__ import annotations
@@ -24,7 +25,12 @@ ACCOUNTS = [("NickTimiraos", "Nick Timiraos（WSJ 聯儲局記者）"), ("eleria
             ("biancoresearch", "Jim Bianco"), ("DiMartinoBooth", "Danielle DiMartino Booth"), ("LynAldenContact", "Lyn Alden"),
             ("charliebilello", "Charlie Bilello"), ("KobeissiLetter", "Kobeissi Letter"), ("RayDalio", "Ray Dalio"), ("BillAckman", "Bill Ackman"),
             ("NorthmanTrader", "Sven Henrich"), ("DeItaone", "Walter Bloomberg（快訊）")]
+CRYPTO_ACCOUNTS = [("EricBalchunas", "Eric Balchunas（Bloomberg ETF 分析師）"), ("CryptoHayes", "Arthur Hayes"), ("lookonchain", "Lookonchain（鏈上）"),
+                   ("WuBlockchain", "吳說區塊鏈"), ("glassnode", "Glassnode（鏈上數據）"), ("saylor", "Michael Saylor"), ("APompliano", "Anthony Pompliano")]
 X_EVERY_MIN, X_HOURS = 30, 36
+PMC_KEEP = re.compile(r"Bitcoin|BTC|Ethereum|\bETH\b|crypto|Solana|stablecoin|MicroStrategy|Strategy|Coinbase|Binance|XRP|ETF", re.I)
+PMC_DROP = re.compile(r"(up|down) or (up|down)|on (January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}\?|"
+                      r"(January|February|March|April|May|June|July|August|September|October|November|December) \d{1,2}\s*[-–]\s*(\w+ )?\d{1,2}|price of .* (be )?(above|below|between)", re.I)
 PM_KEEP = re.compile(r"\bFed\b|interest rate|rate (cut|hike)|recession|inflation|CPI|unemployment|jobs report|GDP|S&P|Nasdaq|stock market|Treasury|yield|"
                      r"tariff|shutdown|debt ceiling|Powell|Warsh|Hassett|midterm|House|Senate|Balance of Power|Trump|China|Taiwan|Iran|Russia|Ukraine|oil|"
                      r"Bitcoin|BTC|Ethereum|ETH|crypto|dollar|gold|NVIDIA|Nvidia|AI ", re.I)
@@ -37,9 +43,9 @@ def get(url, timeout=30):
     return json.loads(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout).read().decode("utf-8"))
 
 
-def x_posts(now):
+def x_posts(now, accounts=None):
     out, errs = [], []
-    for u, nm in ACCOUNTS:
+    for u, nm in (accounts or ACCOUNTS):
         try:
             d = get("https://api.fxtwitter.com/2/search?" + urllib.parse.urlencode({"q": f"from:{u}", "feed": "latest", "count": "20"}))
             for t in d.get("results") or []:
@@ -61,8 +67,28 @@ def x_posts(now):
     return keep, errs
 
 
-def polymarket():
-    d = get("https://gamma-api.polymarket.com/markets?" + urllib.parse.urlencode({"closed": "false", "order": "volume24hr", "ascending": "false", "limit": 300}))
+def polymarket_crypto(d):
+    """加密相關嘅中長期市場（去走單日、單週價格賭局），頭 12 個。"""
+    out = []
+    for m in d:
+        q = m.get("question") or ""
+        if not PMC_KEEP.search(q) or PMC_DROP.search(q):
+            continue
+        try:
+            oc, px = json.loads(m.get("outcomes") or "[]"), [float(x) for x in json.loads(m.get("outcomePrices") or "[]")]
+        except Exception:  # noqa: BLE001
+            continue
+        if not px or oc[:1] != ["Yes"]:
+            continue
+        out.append(dict(q=q, yes=round(px[0], 3), chg1d=m.get("oneDayPriceChange"), vol24=round(float(m.get("volume24hr") or 0)),
+                        end=(m.get("endDate") or "")[:10], slug=m.get("slug")))
+        if len(out) >= 12:
+            break
+    return out
+
+
+def polymarket(raw=None):
+    d = raw if raw is not None else get("https://gamma-api.polymarket.com/markets?" + urllib.parse.urlencode({"closed": "false", "order": "volume24hr", "ascending": "false", "limit": 300}))
     out = []
     for m in d:
         q = m.get("question") or ""
@@ -91,16 +117,21 @@ def main(out):
     res = dict(prev)
     if not prev.get("x_checked") or now - datetime.fromisoformat(prev["x_checked"]) >= timedelta(minutes=X_EVERY_MIN):
         x, e = x_posts(now)
-        errs += e
+        xc, e2 = x_posts(now, CRYPTO_ACCOUNTS)
+        errs += e + e2
         if x or not prev.get("x"):
             res.update(x=x, x_checked=now.isoformat(timespec="seconds"))
+        if xc or not prev.get("x_c"):
+            res["x_c"] = xc
     try:
-        res["pm"] = polymarket()
+        raw = get("https://gamma-api.polymarket.com/markets?" + urllib.parse.urlencode({"closed": "false", "order": "volume24hr", "ascending": "false", "limit": 500}))
+        res["pm"] = polymarket(raw)
+        res["pm_c"] = polymarket_crypto(raw)
     except Exception as e:  # noqa: BLE001
         errs.append(f"Polymarket：{str(e)[:80]}")
     res.update(generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"), errs=errs)
     f.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
-    print(f"[macro] X {len(res.get('x') or [])} 條（{res.get('x_checked')}）；Polymarket {len(res.get('pm') or [])} 個；錯誤 {errs or '冇'}")
+    print(f"[macro] X {len(res.get('x') or [])} 條、加密 X {len(res.get('x_c') or [])} 條（{res.get('x_checked')}）；Polymarket {len(res.get('pm') or [])} 個、加密 {len(res.get('pm_c') or [])} 個；錯誤 {errs or '冇'}")
 
 
 if __name__ == "__main__":

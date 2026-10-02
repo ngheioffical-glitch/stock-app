@@ -467,7 +467,7 @@ function viewCrypto(){
   if (!HYP) fetchHyper();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + cryptoAiCard() + whaleCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + cryptoNewsCard();
 }
 
 // BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
@@ -1281,11 +1281,11 @@ async function fetchFeeds(force){
 }
 
 // AI 宏觀思考（2026-10-02 用戶：好似評論文章咁畀多啲角度；冇客觀答案）：scanner/ai.py think()，每 6 個鐘，債息異動／轉燈即刻寫
-function thinkCard(){
-  const K = FEED.news && FEED.news.think; if (!K || !(K.scenarios || []).length) return "";
+function thinkCard(K0, title){
+  const K = K0 || (FEED.news && FEED.news.think); if (!K || !(K.scenarios || []).length) return "";
   const ul = a => (a || []).length ? `<ul class="small" style="margin:4px 0;padding-left:18px;line-height:1.55">${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
   const lean = t => /較大/.test(t || "") ? "t-buy" : /較細/.test(t || "") ? "t-dim" : "t-warn";
-  return `<details class="card"><summary><b>AI 宏觀思考</b> <span class="small muted">· ${esc(K.generated || "")}</span> ${mdl(K.model)}${K.question ? `<div class="small" style="margin-top:4px"><b>核心問題：</b>${esc(K.question)}</div>` : ""}</summary>
+  return `<details class="card"><summary><b>${esc(title || "AI 宏觀思考")}</b> <span class="small muted">· ${esc(K.generated || "")}</span> ${mdl(K.model)}${K.question ? `<div class="small" style="margin-top:4px"><b>核心問題：</b>${esc(K.question)}</div>` : ""}</summary>
     <p class="small" style="margin-top:6px"><b>而家嘅現象</b></p>${ul(K.phenomena)}
     ${K.scenarios.map((x, i) => `<div class="info small" style="margin-top:6px"><b>情景 ${i + 1}：${esc(x.name || "")}</b> <span class="tag ${lean(x.lean)}">${esc((x.lean || "").split(/[，,。]/)[0])}</span>
       <p>${esc(x.what || "")}</p>${(x.signals || []).length ? `<p><b>睇到呢啲就係發生緊：</b></p>${ul(x.signals)}` : ""}

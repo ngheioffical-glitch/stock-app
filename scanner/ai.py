@@ -730,6 +730,123 @@ def think(key, N, P, now, force=False):
     return d, f"宏觀思考：用 {model} 寫好"
 
 
+HALVINGS = ["2012-11-28", "2016-07-09", "2020-05-11", "2024-04-20"]
+
+
+def btc_history(now):
+    """BTC 季節性（Yahoo 月線 2014-09 起）同 4 年減半週期（Coin Metrics 每日 2010 起）：而家喺週期邊個位置、以前同一位置之後點。"""
+    out = []
+    m0, y0 = now.month, now.year
+    st = lambda a: f"{sum(1 for x in a if x > 0)}/{len(a)} 年升、平均 {sum(a) / len(a) * 100:+.1f}%、中位 {sorted(a)[len(a) // 2] * 100:+.1f}%" if a else "—"
+    try:
+        d = json.loads(urllib.request.urlopen(urllib.request.Request(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?period1=1262304000&period2={int(time.time())}&interval=1mo", headers=UA), timeout=30).read())["chart"]["result"][0]
+        px = {}
+        for t, c in zip(d["timestamp"], d["indicators"]["quote"][0]["close"]):
+            dt = datetime.fromtimestamp(t, timezone.utc)
+            if c is not None and (dt.year, dt.month) < (y0, m0):
+                px[(dt.year, dt.month)] = c
+        ks = sorted(px)
+        r = {b: px[b] / px[a] - 1 for a, b in zip(ks, ks[1:])}
+        ys = sorted({y for y, _ in r if y < y0})
+        mon = [r[(y, m0)] for y in ys if (y, m0) in r]
+        rest = []
+        for y in ys:
+            if all((y, m) in r for m in range(m0, 13)):
+                v = 1.0
+                for m in range(m0, 13):
+                    v *= 1 + r[(y, m)]
+                rest.append(v - 1)
+        out.append(f"BTC 季節性（{ys[0]} 起）：{m0} 月 {st(mon)}；{m0}–12 月 {st(rest)}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] BTC 月線攞唔到：{e}")
+    try:
+        url = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=PriceUSD&frequency=1d&page_size=10000&start_time=2010-07-18"
+        rows = []
+        while url:
+            j = json.loads(urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=60).read())
+            rows += j["data"]
+            url = j.get("next_page_url")
+        px = {r_["time"][:10]: float(r_["PriceUSD"]) for r_ in rows if r_.get("PriceUSD")}
+        days = sorted(px)
+        H = [datetime.fromisoformat(h).replace(tzinfo=timezone.utc) for h in HALVINGS]
+        last = H[-1]
+        k = (now - last).days
+        lines = []
+        for i, h in enumerate(H[:-1]):
+            dk = (h + timedelta(days=k)).date().isoformat()
+            seg = [x for x in days if h.date().isoformat() <= x <= dk]
+            if not seg:
+                continue
+            peak = max(seg, key=lambda x: px[x])
+            nx = lambda dd: px.get(min((x for x in days if x >= dd), default=days[-1]))
+            p0 = px[seg[-1]]
+            f6, f12 = nx((h + timedelta(days=k + 182)).date().isoformat()), nx((h + timedelta(days=k + 365)).date().isoformat())
+            lines.append(f"{h.year} 年減半後第 {k} 日（{seg[-1]}）：距週期高位（{peak}）{p0 / px[peak] - 1:+.0%}，之後 6 個月 {f6 / p0 - 1:+.0%}、12 個月 {f12 / p0 - 1:+.0%}")
+        seg = [x for x in days if x >= last.date().isoformat()]
+        peak = max(seg, key=lambda x: px[x])
+        out.append(f"4 年減半週期：而家係 2024-04-20 減半後第 {k} 日（約 {k / 365:.1f} 年），今個週期高位 {peak}（{px[peak]:,.0f}），而家距高位 {px[seg[-1]] / px[peak] - 1:+.0%}。以前同一位置：" + "；".join(lines))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] BTC 減半週期計唔到：{e}")
+    return out
+
+
+def think_crypto(key, N, H, PH, now, force=False):
+    """加密宏觀思考（2026-10-02 用戶）：同 think() 一樣嘅格式，寫入 hyper.json 嘅 think。"""
+    old = PH.get("think") or {}
+    B = (load(OUTDIR / "btc.json") if OUTDIR else None) or {}
+    F = (load(OUTDIR / "fng.json") if OUTDIR else None) or {}
+    M = B.get("ma100") or {}
+    cf = (F.get("crypto") or {}).get("score")
+    trig = json.dumps([M.get("hold"), None if cf is None else (cf <= 20, cf >= 80)])
+    last = datetime.fromisoformat(old["at"]) if old.get("at") else None
+    if not force and last and now - last < timedelta(minutes=THINK_GAP) and old.get("trig") == trig:
+        return None, f"加密宏觀思考：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
+    MS = (load(OUTDIR / "macro_src.json") if OUTDIR else None) or {}
+    hk = lambda ts: datetime.fromtimestamp(ts, timezone.utc).astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%m-%d %H:%M")
+    xs = "".join(NL + f"- @{t['user']}（{t['name']}，{hk(t['ts'])}）：{t['text'][:350]}" for t in (MS.get("x_c") or [])[:35]) or "（冇）"
+    pm = "".join(NL + f"- {m['q']}：是 {m['yes'] * 100:.1f}%" for m in (MS.get("pm_c") or [])[:12]) or "（冇）"
+    news = [x.get("zh") or x["title"] for x in N["items"] if x.get("cat") == "加密"
+            and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=36)][:35]
+    whales = "；".join(f"{g['coin']} 多 ${g['long'] / 1e6:.0f}M／空 ${g['short'] / 1e6:.0f}M" for g in (H.get("agg") or [])[:6]) or "（冇）"
+    dom = ""
+    try:
+        g = json.loads(urllib.request.urlopen(urllib.request.Request("https://api.coingecko.com/api/v3/global", headers=UA), timeout=20).read())["data"]
+        dom = f"BTC 市佔 {g['market_cap_percentage']['btc']:.1f}%、ETH 市佔 {g['market_cap_percentage']['eth']:.1f}%、加密總市值 24 小時 {g['market_cap_change_percentage_24h_usd']:+.1f}%"
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] CoinGecko 攞唔到：{e}")
+    R = (load(OUTDIR / "rates.json") if OUTDIR else None) or {}
+    rates = "；".join(f"{r['name']} {r['y']:.2f}%（1 個月 {r['m']:+.0f} 基點）" for r in R.get("rows", []) if r["name"] in ("2 年", "10 年")) or "（冇）"
+    b, e = M.get("btc") or {}, M.get("eth") or {}
+    pos = lambda x: "、".join(f"{n} 日線 {x['px'] / v - 1:+.1%}" for n, v in (x.get("ma") or {}).items()) if x else ""
+    hist = btc_history(now)
+    prompt = (f"你係一個有獨立思考嘅加密貨幣宏觀評論人，幫一個香港散戶從多個角度諗而家加密市場。{STYLE}{NL}"
+              f"佢嘅加密規則（唔會因為你嘅分析改變）：BTC 每日收市高過 100 日線 = 綠燈，用 ETF 揸 BTC 同 ETH（佢會用 2 倍 BITX／ETHU 食一段波幅），跌穿 = 轉現金。"
+              f"而家燈號：{'綠燈' if M.get('hold') else '紅燈'}（{M.get('since') or ''} 起，BTC 距 100 日線 {(M.get('dist') or 0) * 100:+.1f}%）。{NL}"
+              f"數據：BTC {b.get('px', 0):,.0f}（{pos(b)}）；ETH {e.get('px', 0):,.0f}（{pos(e)}）；{dom}；"
+              f"加密恐慌貪婪 {cf}；MVRV {B.get('mvrv')}；BitMEX 資金費率 14 日年化 {((B.get('funding14') or {}).get('ann') or 0) * 100:+.1f}%；"
+              f"Hyperliquid 大戶淨倉：{whales}；美債息：{rates}；今日實際：{snap_text(snapshot())}。{NL}"
+              + "最近 36 小時加密新聞：" + NL + NL.join(news) + NL
+              + "加密知名人士喺 X 最近 36 小時嘅帖（原文）：" + xs + NL
+              + "Polymarket 加密預測市場：" + pm + NL
+              + "歷史參考：" + NL + NL.join(hist) + NL
+              + "寫一份「加密宏觀思考」，好似專欄咁有觀點，但要講清楚冇客觀答案：" + NL
+              + "1. phenomena：3–5 點而家最值得留意嘅現象（例如 ETF 資金、巨鯨同資金費率、BTC 市佔、同美股／美元／債息嘅關係、情緒），每點要有上面嘅數字；" + NL
+              + "2. question：而家加密最重要嘅一個問題（一句）；" + NL
+              + "3. scenarios：2–3 個情景，每個有 name、what、signals（2–3 個具體訊號，例如 BTC 去到幾多、跌穿 100 日線、資金費率、ETF 流向）、lean（較大／一半半／較細 + 點解）、impact（對佢 BTC 100 日線規則同 2 倍 ETF 嘅影響；規則照做，唔好叫人買賣）；" + NL
+              + "4. contrarian：反方睇法；5. watch：之後 1–2 星期要留意（有日期就寫）；" + NL
+              + "6. voices：3–5 個 X 加密人士重要觀點（人名：講咩 → 同主流一致定相反）；7. odds：3–5 個 Polymarket 概率（事件：概率 → 代表咩）；" + NL
+              + "8. history：2–4 點歷史參考（季節性、減半週期同一位置以前點樣、類似時期），每點講埋今次有咩唔同，提醒歷史唔代表將來。" + NL
+              + "數字只可以用上面提供嘅或者搜尋到嘅，唔好作。回覆 JSON：{\"phenomena\": [..], \"question\": \"..\", \"scenarios\": [{\"name\": \"..\", \"what\": \"..\", "
+              + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..], \"voices\": [..], \"odds\": [..], \"history\": [..]}")
+    res, model = gemini_search(key, prompt)
+    if not res.get("scenarios"):
+        raise RuntimeError(f"加密宏觀思考冇 scenarios：{json.dumps(res, ensure_ascii=False)[:200]}")
+    d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig, src_x=len(MS.get("x_c") or []), src_pm=(MS.get("pm_c") or [])[:8], season=hist,
+             generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
+    return d, f"加密宏觀思考：用 {model} 寫好"
+
+
 def crypto_digest(key, N, H, PH, out, now, force=False):
     """加密重點（2026-10-01）：加密快訊 + Hyperliquid 巨鯨持倉變動 + 市場數字 → 廣東話「發生咩 → 對 BTC／ETH／加密股可能有咩影響」。
     寫入 hyper.json 嘅 ai；最少隔 GAP 分鐘，有 ≥ 500 萬美元嘅新巨鯨事件或者手動更新就即刻重寫。"""
@@ -888,6 +1005,15 @@ def main():
             errs.append(f"加密重點：{str(e)[:300]}")
             if PH.get("ai"):
                 H["ai"] = PH["ai"]
+        try:                                                      # 加密宏觀思考：每 6 個鐘；BTC 轉燈、加密恐慌指數去到極端就即刻寫
+            d, msg = think_crypto(key, N, H, PH, now, force=manual)
+            H["think"] = d or PH.get("think")
+            print("[ai] " + msg)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 加密宏觀思考失敗：{e}")
+            errs.append(f"加密宏觀思考：{str(e)[:300]}")
+            if PH.get("think"):
+                H["think"] = PH["think"]
         (out / "hyper.json").write_text(json.dumps(H, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     if errs:
         N["ai_err"] = "；".join(errs)
