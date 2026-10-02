@@ -249,7 +249,7 @@ def reaction(t_utc):
 
 
 # ---------------------------------------------------------------- 今日市場實際數字同事實核對（2026-09-30 用戶：AI 講美元回落，但實際美元升）
-SNAP = [("QQQ", "QQQ", "%"), ("^TNX", "10 年債息", "bp"), ("DX-Y.NYB", "美元指數", "%"), ("CL=F", "紐約原油", "%"), ("GC=F", "金價", "%")]
+SNAP = [("QQQ", "QQQ", "%"), ("^TNX", "10 年債息", "bp"), ("^TYX", "30 年債息", "bp"), ("DX-Y.NYB", "美元指數", "%"), ("CL=F", "紐約原油", "%"), ("GC=F", "金價", "%")]
 YQ = "https://query1.finance.yahoo.com/v8/finance/chart/{s}?range=1d&interval=5m&includePrePost=false"
 
 
@@ -436,8 +436,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     light, watch = context()
     lc = light_change()
     ta = tq_alert()
+    ra = rates_alert()
     sn = snapshot()
-    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta], ensure_ascii=False).encode()).hexdigest()
+    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
@@ -456,6 +457,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
                        + "、".join(ta["why"]) + f"。{ta['detail']}。points 要有一點講：根據新聞同數據，點解市況會出現呢啲變化（邊單新聞、數據或者事件最有關），"
                        + ("同埋如果轉紅燈或者 QQQ 波幅去到 35%，規則下一個交易日收市前會賣晒 TQQQ 轉 IEF。" if ta["kind"] == "sell"
                           else "同埋如果轉返綠燈而且 QQQ 波幅低過 35%，規則下一個交易日收市前會買返 TQQQ。") + NL)
+    if ra:
+        lc_txt += (f"重要：美債息有大變動：{'；'.join(ra['alert'])}（{ra['detail']}；10 年減 2 年息差 {(ra.get('curve') or {}).get('10y_2y', '—')} 基點）。"
+                   "points 要有一點講：根據下面新聞同數據，點解債息會咁郁（例如通脹、聯儲局、財政赤字、發債、經濟數據），同埋對科技股估值有咩影響。" + NL)
     base = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
@@ -483,7 +487,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
              "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
-             "light_change": lc, "tq_alert": ta},
+             "light_change": lc, "tq_alert": ta, "rates_alert": ra},
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
@@ -521,6 +525,23 @@ def light_change():
         to = "綠燈" if g[-1] else "紅燈"
         return dict(date=sc["date"], to=to, frm="紅燈" if g[-1] else "綠燈", next_day=sc.get("next_day"),
                     detail=f"NDX 收市 {sc['ndx']:,.0f}；200 日線 {sc['ndx_s200']:,.0f}；21 日 EMA {sc['ndx_e21']:,.0f}；50 日線 {sc['ndx_s50']:,.0f}")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+OUTDIR = None
+
+
+def rates_alert():
+    """美債息急升／急跌（10 年或 30 年單日 ≥ 10 基點）或者創 52 週新高（2026-10-02 用戶）：返 dict，否則 None。scanner/rates.py 同一次 feeds 寫嘅 rates.json。"""
+    try:
+        R = load(OUTDIR / "rates.json") if OUTDIR else None
+        if not R or not R.get("alert"):
+            return None
+        rows = {r["name"]: r for r in R.get("rows", [])}
+        txt = "；".join(f"{n} {r['y']:.2f}%（今日 {r['d']:+.0f} 基點、1 個月 {r['m']:+.0f} 基點、一年 {r['yr']:+.0f} 基點）"
+                       for n, r in rows.items() if n in ("2 年", "10 年", "30 年") and r.get("d") is not None)
+        return dict(alert=R["alert"], detail=txt, curve=R.get("curve"))
     except Exception:  # noqa: BLE001
         return None
 
@@ -606,7 +627,9 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
 
 
 def main():
+    global OUTDIR
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "feeds_out"
+    OUTDIR = out
     key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not key:
         print("[ai] 冇 GEMINI_API_KEY，跳過")
@@ -662,6 +685,10 @@ def main():
     lc = light_change()                                                  # 大市啱啱轉燈而上一份重點未講：即刻重寫
     if lc and (P.get("digest") or {}).get("light_change") != lc and last_ai:
         print(f"[ai] 大市 {lc['date']} 轉{lc['to']}，即刻重寫今日重點")
+        last_ai = None
+    ra = rates_alert()                                                   # 債息急升／新高而上一份重點未講：即刻重寫
+    if ra and (P.get("digest") or {}).get("rates_alert") != ra and last_ai:
+        print(f"[ai] 債息 {ra['alert']}，即刻重寫今日重點")
         last_ai = None
     ta = tq_alert()                                                      # TQQQ 黃燈／轉換而上一份重點未講：即刻重寫
     if ta and (P.get("digest") or {}).get("tq_alert") != ta and last_ai:

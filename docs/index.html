@@ -998,7 +998,8 @@ function followCard(M){
     <div class="row"><button class="primary" id="fGo">${fs ? "重設" : "開始跟"}</button>${fs ? `<button id="fClear">停止跟</button>` : ""}</div>`;
   if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.3 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
   if (fs.loading) return `<div class="card"><b>我嘅跟單帳戶</b><p class="muted">${fs.err ? "讀唔到回測數據：" + esc(fs.err) : "載入緊 2000 年起嘅回測數據（約 1 MB）…"}</p>${fs.err ? form : ""}</div>`;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${p.leg ? "" : serTag(p.sym)}<span class="ind">佔 ${Math.round(p.weight * 100)}% · ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}${p.leg ? " · TQQQ 腳" : ""}</span></td>
+  if (!FEED.news && !FEED.err) fetchFeeds();
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b>${p.leg ? "" : serTag(p.sym) + earnTag(p.sym)}<span class="ind">佔 ${Math.round(p.weight * 100)}% · ${f0(fs.val * p.weight)}${p.be ? " · 已保本" : ""}${p.leg ? " · TQQQ 腳" : ""}</span></td>
       <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${p.sym === "IEF" ? "" : chg(p.ret)}</td><td class="r mono ${p.leg ? "muted" : "dn"}">${p.leg ? "唔設" : f2(p.stop)}</td></tr>`).join("");
   return `<div class="card"><div class="row spread"><div><div class="lbl">我嘅跟單帳戶 · ${esc(fs.start)} 收市開始 → 計到 <b>${esc(fs.last)}</b> 收市</div><div class="price">${f0(fs.val)}</div></div>
       <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
@@ -1189,11 +1190,54 @@ async function fetchFeeds(force){
   try {
     const base = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/";
     const get = async f => { const r = await fetch(base + f + "?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
-    [FEED.news, FEED.econ] = await Promise.all([get("news.json"), get("econ.json")]);
+    const opt = async f => { try { return await get(f); } catch(e){ return null; } };
+    [FEED.news, FEED.econ, FEED.rates, FEED.earn] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json")]);
     FEED.err = null; FEED.at = Date.now();
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;
-  if (TAB === "news" || TAB === "crypto") render();
+  if (TAB === "news" || TAB === "crypto" || TAB === "model") render();
+}
+
+// 美債息（2026-10-02 用戶）：財政部官方收市 + Yahoo 盤中（scanner/rates.py）。只係資訊。
+function ratesCard(){
+  const R = FEED.rates; if (!R || !(R.rows || []).length) return "";
+  const bp = x => x == null ? "—" : `<span class="${x > 0 ? "dn" : x < 0 ? "up" : "muted"}">${x > 0 ? "+" : ""}${x.toFixed(0)}</span>`;
+  const c = R.curve || {};
+  return `<div class="card"><div class="row spread"><b>美債息</b><span class="small muted">${esc(R.generated)}</span></div>
+    ${(R.alert || []).length ? `<div class="info small"><span class="tag t-warn">債息異動</span> ${R.alert.map(esc).join("；")}。點解會咁：睇上面 AI 今日重點。</div>` : ""}
+    <div class="tablewrap"><table><tr><th>年期</th><th class="r">孳息</th><th class="r">今日</th><th class="r">1 週</th><th class="r">1 個月</th><th class="r">1 年</th><th class="r hide-sm">52 週高／低</th></tr>
+    ${R.rows.map(r => `<tr><td>${esc(r.name)}<span class="ind">${esc(r.src)}</span></td><td class="r mono"><b>${r.y.toFixed(2)}%</b></td><td class="r mono">${bp(r.d)}</td><td class="r mono">${bp(r.w)}</td>
+      <td class="r mono">${bp(r.m)}</td><td class="r mono">${bp(r.yr)}</td><td class="r mono hide-sm">${r.hi52.toFixed(2)}／${r.lo52.toFixed(2)}</td></tr>`).join("")}</table></div>
+    <p class="small muted">變動單位係基點（0.01%）；紅 = 債息升（通常壓科技股估值、債價跌），綠 = 債息跌。息差：10 年 − 2 年 ${c["10y_2y"] != null ? (c["10y_2y"] > 0 ? "+" : "") + c["10y_2y"] + " 基點" : "—"}、10 年 − 3 個月 ${c["10y_3m"] != null ? (c["10y_3m"] > 0 ? "+" : "") + c["10y_3m"] + " 基點" : "—"}（負數 = 倒掛，歷史上常見於衰退之前）。長債息升唔一定因為聯儲局：減息都可以因為通脹、赤字、發債多而令長債息升。只係資訊，唔改 V2.3 規則。</p></div>`;
+}
+
+// 業績（2026-10-02 用戶）：持倉 + 排名頭 15 嘅下次業績日期同 AI 業績重點（scanner/earnings.py）。只係資訊。
+const earnNext = sym => { const E = FEED.earn; return E ? (E.upcoming || []).find(u => u.sym === sym) : null; };
+function earnTag(sym){
+  const u = earnNext(sym); if (!u) return "";
+  const days = Math.round((Date.parse(u.date) - Date.now()) / 864e5);
+  return days <= 14 ? ` <span class="tag ${days <= 3 ? "t-stop" : "t-warn"}" title="下次業績 ${u.date} ${u.when}">業績 ${u.date.slice(5)}</span>` : "";
+}
+function viewEarn(){
+  const E = FEED.earn;
+  if (!E) return `<div class="card"><p class="muted">未有業績數據（雲端每小時更新一次；第一次要等下一輪）。</p></div>`;
+  const li = a => (a || []).filter(x => x && x !== "搵唔到").map(x => `<li>${esc(x)}</li>`).join("");
+  let h = "";
+  if ((E.reports || []).length) h += E.reports.map(r => `<details class="card" ${r === E.reports[0] ? "open" : ""}><summary><b class="mono">${esc(r.sym)}</b>${r.held ? ` <span class="tag t-cyan">模型持倉</span>` : ""} <span class="small muted">${esc(r.date)} 業績</span>
+      ${r.surprise != null ? ` <span class="tag ${r.surprise >= 0 ? "t-buy" : "t-stop"}">EPS ${r.surprise >= 0 ? "勝" : "遜"}預期 ${Math.abs(r.surprise)}%</span>` : ""}<div class="small" style="margin-top:4px">${esc(r.headline || "")}</div></summary>
+      <div class="kv small"><div><span>EPS</span><b>${esc(r.eps || "—")}</b></div><div><span>收入</span><b>${esc(r.revenue || "—")}</b></div></div>
+      ${r.guidance ? `<p class="small"><b>指引：</b>${esc(r.guidance)}</p>` : ""}
+      ${li(r.kept) ? `<p class="small"><b>做得好嘅地方，保持到嗎？</b></p><ul class="small" style="margin:2px 0;padding-left:18px">${li(r.kept)}</ul>` : ""}
+      ${li(r.fixed) ? `<p class="small"><b>做得差嘅地方，有改善嗎？</b></p><ul class="small" style="margin:2px 0;padding-left:18px">${li(r.fixed)}</ul>` : ""}
+      ${li(r.mgmt) ? `<p class="small"><b>管理層重點</b></p><ul class="small" style="margin:2px 0;padding-left:18px">${li(r.mgmt)}</ul>` : ""}
+      ${li(r.risks) ? `<p class="small"><b>要留意</b></p><ul class="small" style="margin:2px 0;padding-left:18px">${li(r.risks)}</ul>` : ""}
+      ${r.reaction && r.reaction !== "搵唔到" ? `<p class="small"><b>股價反應：</b>${esc(r.reaction)}</p>` : ""}
+      <p class="small muted">AI（Gemini + Google 搜尋）${esc(r.at || "")} 整理，來源：${esc(r.src || "")}；可能有錯漏，唔係投資建議。</p></details>`).join("");
+  else h += `<div class="card"><p class="muted">最近 60 日持倉同排名頭 15 冇新業績分析。</p></div>`;
+  const U = E.upcoming || [];
+  h += `<h2>未來業績（持倉 + 排名頭 15）</h2>` + (U.length ? `<div class="tablewrap"><table><tr><th>股票</th><th>日期</th><th class="r">EPS 預測</th></tr>
+    ${U.map(u => `<tr><td class="mono"><b>${esc(u.sym)}</b>${u.held ? ` <span class="tag t-cyan">持倉</span>` : ""}</td><td class="mono">${esc(u.date)} <span class="ind">${esc(u.when)}（美國時間）</span></td><td class="r mono">${u.est != null ? f2(u.est) : "—"}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">冇</p></div>`);
+  return h + `<p class="small muted">更新 ${esc(E.generated)}（每小時）。出咗業績之後 AI 會上網睇新聞同業績會，照「做得好保持到？做得差改善咗？」整理；每次最多分析 3 間，持倉先做${(E.pending || []).length ? `；排緊隊：${E.pending.map(esc).join("、")}` : ""}。測過用盈利增長做買賣規則冇改善（LAB_CANSLIM.md），所以只係資訊，唔改 V2.3。</p>`;
 }
 
 // 經濟數據解釋（2026-09-30 用戶要求：數據出咗唔知代表咩、有咩影響）。
@@ -1351,7 +1395,7 @@ function viewSerList(){
 
 function viewNews(){
   if (!FEED.news && !FEED.err) fetchFeeds();
-  let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button></div>
+  let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button><button data-nt="earn" aria-pressed="${NT === "earn"}">業績</button></div>
     <button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`;
   if (FEED.cloud) h += `<p class="small" style="color:var(--cyan)">${esc(FEED.cloud)}</p>`;
   if (FEED.err) h += `<div class="alert"><b>讀唔到新聞數據</b><p class="small">${esc(FEED.err)}</p></div>`;
@@ -1367,7 +1411,9 @@ function viewNews(){
     ${sn ? `<div class="snap small"><span class="muted">全日實際（最新 vs 上日收市${D.snap[0] && D.snap[0].at ? "，" + esc(D.snap[0].at) : ""}）</span>${sn}</div>` : ""}${fc}
     <p class="small muted">${esc(D.model || "AI")} 根據最近 18 小時新聞標題、已公佈數據同上面實際市場數字自動生成，可能有錯漏，唔係投資建議；撳新聞睇原文。注意：經濟數據解讀嘅市場反應係「公佈後至今」，同呢度嘅「全日」可以方向唔同。</p></details>`;
   }
+  if (NT === "earn") return h + viewEarn();
   h += fedCard();
+  if (NT === "econ") h += ratesCard();
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
