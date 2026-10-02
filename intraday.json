@@ -1,0 +1,320 @@
+{
+ "day": "2026-10-02",
+ "scan_date": "2026-10-01",
+ "scan_next_day": "2026-10-02",
+ "stale_scan": false,
+ "green": true,
+ "in_session": false,
+ "cands": [],
+ "runs": [
+  {
+   "run_utc": "2026-10-02T13:04:59Z",
+   "run_hk": "21:04:59",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T13:22:04Z",
+   "run_hk": "21:22:04",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T13:37:27Z",
+   "run_hk": "21:37:27",
+   "fetch_s": 2.6,
+   "last_bar_end": "09:35",
+   "delay_min": 2.5,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T13:51:33Z",
+   "run_hk": "21:51:33",
+   "fetch_s": 1.3,
+   "last_bar_end": "09:50",
+   "delay_min": 1.6,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T14:01:08Z",
+   "run_hk": "22:01:08",
+   "fetch_s": 1.4,
+   "last_bar_end": "10:00",
+   "delay_min": 1.1,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T14:15:09Z",
+   "run_hk": "22:15:09",
+   "fetch_s": 1.0,
+   "last_bar_end": "10:15",
+   "delay_min": 0.2,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T14:32:34Z",
+   "run_hk": "22:32:34",
+   "fetch_s": 2.5,
+   "last_bar_end": "10:30",
+   "delay_min": 2.6,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T14:48:52Z",
+   "run_hk": "22:48:52",
+   "fetch_s": 1.2,
+   "last_bar_end": "10:45",
+   "delay_min": 3.9,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T15:00:23Z",
+   "run_hk": "23:00:23",
+   "fetch_s": 1.3,
+   "last_bar_end": "11:00",
+   "delay_min": 0.4,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T15:13:39Z",
+   "run_hk": "23:13:39",
+   "fetch_s": 1.6,
+   "last_bar_end": "11:10",
+   "delay_min": 3.7,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T15:30:36Z",
+   "run_hk": "23:30:36",
+   "fetch_s": 0.9,
+   "last_bar_end": "11:30",
+   "delay_min": 0.6,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T15:45:15Z",
+   "run_hk": "23:45:15",
+   "fetch_s": 2.7,
+   "last_bar_end": "11:45",
+   "delay_min": 0.3,
+   "n_ok": 9
+  },
+  {
+   "run_utc": "2026-10-02T15:56:56Z",
+   "run_hk": "23:56:56",
+   "fetch_s": 2.4,
+   "last_bar_end": "11:55",
+   "delay_min": 1.9,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T16:05:05Z",
+   "run_hk": "00:05:05",
+   "fetch_s": 1.5,
+   "last_bar_end": "12:05",
+   "delay_min": 0.1,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T16:21:11Z",
+   "run_hk": "00:21:11",
+   "fetch_s": 1.7,
+   "last_bar_end": "12:20",
+   "delay_min": 1.2,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T16:37:06Z",
+   "run_hk": "00:37:06",
+   "fetch_s": 1.0,
+   "last_bar_end": "12:35",
+   "delay_min": 2.1,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T16:50:31Z",
+   "run_hk": "00:50:31",
+   "fetch_s": 1.6,
+   "last_bar_end": "12:50",
+   "delay_min": 0.5,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T16:59:35Z",
+   "run_hk": "00:59:35",
+   "fetch_s": 1.0,
+   "last_bar_end": "12:55",
+   "delay_min": 4.6,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T17:10:35Z",
+   "run_hk": "01:10:35",
+   "fetch_s": 0.7,
+   "last_bar_end": "13:10",
+   "delay_min": 0.6,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T17:25:20Z",
+   "run_hk": "01:25:20",
+   "fetch_s": 1.5,
+   "last_bar_end": "13:25",
+   "delay_min": 0.3,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T17:36:31Z",
+   "run_hk": "01:36:31",
+   "fetch_s": 1.1,
+   "last_bar_end": "13:35",
+   "delay_min": 1.5,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T17:48:01Z",
+   "run_hk": "01:48:01",
+   "fetch_s": 1.3,
+   "last_bar_end": "13:45",
+   "delay_min": 3.0,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T17:57:51Z",
+   "run_hk": "01:57:51",
+   "fetch_s": 1.5,
+   "last_bar_end": "13:55",
+   "delay_min": 2.9,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T18:08:45Z",
+   "run_hk": "02:08:45",
+   "fetch_s": 0.9,
+   "last_bar_end": "14:05",
+   "delay_min": 3.8,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T18:27:36Z",
+   "run_hk": "02:27:36",
+   "fetch_s": 0.9,
+   "last_bar_end": "14:25",
+   "delay_min": 2.6,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T18:42:50Z",
+   "run_hk": "02:42:50",
+   "fetch_s": 1.0,
+   "last_bar_end": "14:40",
+   "delay_min": 2.8,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T18:55:11Z",
+   "run_hk": "02:55:11",
+   "fetch_s": 1.3,
+   "last_bar_end": "14:55",
+   "delay_min": 0.2,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T19:03:28Z",
+   "run_hk": "03:03:28",
+   "fetch_s": 1.0,
+   "last_bar_end": "15:00",
+   "delay_min": 3.5,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T19:18:41Z",
+   "run_hk": "03:18:41",
+   "fetch_s": 1.1,
+   "last_bar_end": "15:15",
+   "delay_min": 3.7,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T19:33:10Z",
+   "run_hk": "03:33:10",
+   "fetch_s": 1.4,
+   "last_bar_end": "15:30",
+   "delay_min": 3.2,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T19:46:57Z",
+   "run_hk": "03:46:57",
+   "fetch_s": 1.0,
+   "last_bar_end": "15:45",
+   "delay_min": 2.0,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T19:56:58Z",
+   "run_hk": "03:56:58",
+   "fetch_s": 1.1,
+   "last_bar_end": "15:55",
+   "delay_min": 2.0,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T20:04:42Z",
+   "run_hk": "04:04:42",
+   "fetch_s": 0.9,
+   "last_bar_end": "16:00",
+   "delay_min": 4.7,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-02T20:18:46Z",
+   "run_hk": "04:18:46",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T20:31:41Z",
+   "run_hk": "04:31:41",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T20:44:59Z",
+   "run_hk": "04:44:59",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T20:56:16Z",
+   "run_hk": "04:56:16",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T21:03:34Z",
+   "run_hk": "05:03:34",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T21:18:09Z",
+   "run_hk": "05:18:09",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T21:31:14Z",
+   "run_hk": "05:31:14",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T21:44:07Z",
+   "run_hk": "05:44:07",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T21:53:52Z",
+   "run_hk": "05:53:52",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-02T21:59:31Z",
+   "run_hk": "05:59:31",
+   "skip": "收市時間"
+  }
+ ],
+ "generated": "2026-10-03 05:59:31 HKT"
+}
