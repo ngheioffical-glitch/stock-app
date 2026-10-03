@@ -191,11 +191,26 @@ def x_mentions(now, rows):
                     M[r["key"]].append(t)
                 if t not in hit:
                     hit.append(t)
-    return {k: sorted(v, key=lambda t: -t["ts"])[:4] for k, v in M.items()}, hit, errs
+    return {k: sorted(v, key=lambda t: -t["ts"])[:4] for k, v in M.items()}, hit, errs, posts
+
+
+def ai_json(prompt):
+    """Gemini + Google 搜尋；額度用晒（429）就改用冇搜尋嘅 Gemini／GitHub Models。返 (dict 或 None, 來源, 有冇上網)。meme.py、narr.py 共用。"""
+    import model as Mo
+    res, src = Mo.ai_search(prompt)
+    if res:
+        return res, src, True
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    try:
+        import ai as A
+        res2, m = A.gemini(key, A.STYLE + prompt.replace("用 Google 搜尋查證", "（今次冇得上網，只用你已知嘅資料；唔肯定嘅寫「唔清楚」，唔好估）查證")
+                           + " 只回覆 JSON。", A.MODELS_D)
+        return res2, f"{m}（冇上網查證；搜尋版失敗：{str(src)[:60]}）", False
+    except Exception as e:  # noqa: BLE001
+        return None, f"{src}｜後備：{str(e)[:80]}", False
 
 
 def ai_one(r, xs):
-    import model as Mo                       # Gemini + Google 搜尋（同業績分析一樣）
     tok = f"代幣 {r['sym']}" if r["sym"] else "未有代幣"
     val = (f"流通市值 {r['mcap'] / 1e6:.0f} 百萬美元、市值 ÷ 年化收入 {r['pe_mc']} 倍（全流通 {r['pe_fdv']} 倍）、幣價 30 日 {r['chg30'] * 100:+.0f}%"
            if r.get("mcap") and r.get("pe_mc") is not None and r.get("chg30") is not None else "冇市值數據")
@@ -204,18 +219,7 @@ def ai_one(r, xs):
     xt = "；".join(f"@{t['user']}：{t['text'][:200]}" for t in xs[:3]) or "冇"
     prompt = AI_PROMPT.format(name=r["name"], sym=r["sym"] or "冇代幣", cat=r["cat"] or "—", rev=rev,
                               growth=g, tok=tok, val=val, x=xt)
-    res, src = Mo.ai_search(prompt)
-    if res:
-        return res, src, True
-    # 2026-10-03：Google 搜尋額度（同業績、宏觀思考共用）用晒會 429 → 改用冇搜尋嘅 Gemini／GitHub Models，標明冇上網查證，24 小時後再試搜尋版
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    try:
-        import ai as A
-        res2, m = A.gemini(key, A.STYLE + prompt.replace("用 Google 搜尋查證（官網、文件、新聞、X），", "（今次冇得上網，只用你已知嘅資料；唔肯定嘅寫「唔清楚」，唔好估）")
-                           + " 只回覆 JSON。", A.MODELS_D)
-        return res2, f"{m}（冇上網查證；搜尋版失敗：{str(src)[:60]}）", False
-    except Exception as e:  # noqa: BLE001
-        return None, f"{src}｜後備：{str(e)[:80]}", False
+    return ai_json(prompt)
 
 
 def brief(r, a):
@@ -303,8 +307,9 @@ def main(out):
 
     allrows = list({r["key"]: r for k in ("notoken", "hot", "growth", "new", "big") for r in R[k]
                     if not (k == "hot" and r["sym"] in ("BTC", "ETH", "USDT", "USDC"))}.values())
-    XM, hit, errs = x_mentions(now, allrows)
+    XM, hit, errs, posts = x_mentions(now, allrows)
     R["x"], R["x_n"] = XM, len(hit)
+    R["x_posts"] = sorted(posts, key=lambda t: -t["ts"])[:40]          # narr.py（前瞻敘事）用
     # AI 逐個分析：舊分析未過 3 日就沿用；優先次序 = 未發幣、增長、新上榜、最大
     old = prev.get("ai") or {}
     R["ai"] = {k: v for k, v in old.items()

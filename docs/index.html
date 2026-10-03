@@ -380,7 +380,7 @@ function fearCard(){
 let BTC = null;
 async function fetchBtc(){
   try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "btc.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
-    if (r.ok){ BTC = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
+    if (r.ok){ BTC = await r.json(); if (TAB === "crypto" || TAB === "radar") render(); } } catch(e){}
 }
 function btcChart(C){
   if (!C || C.length < 10) return "";
@@ -539,10 +539,96 @@ function radarCard(){
     <p class="small muted">撳項目睇 AI 分析（Google 搜尋：做緊乜、代幣、前景、優勢、風險、判斷）同 X 研究人士（Ignas、Miles Deutscher、Route 2 FI、0xngmi、Haseeb、Ansem、Mert、Messari、Token Terminal、DefiLlama）近 7 日點講。
     數據：DefiLlama 協議收入、CoinGecko 市值，每 6 個鐘更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）${R.ai_pending ? `；仲有 ${R.ai_pending} 個未分析` : ""}。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以只供觀察同學習，唔係買入建議；AI 都會錯，重要嘢自己核實。</p></div>`;
 }
-// 2026-10-03 用戶：加密頁太亂 → 新項目雷達自己一頁（加密隔離）
+// 2026-10-04 用戶：雷達頁分三部分：前瞻敘事（RWA、代幣化、穩定幣、AI 代理支付…）｜項目雷達｜Meme（熱度 × 安全）
+let NARR = null, MEME = null;
+let RSEC = (() => { try { const v = localStorage.getItem("rsec"); return ["narr", "proj", "meme"].includes(v) ? v : "narr"; } catch(e){ return "narr"; } })();
+async function fetchRadarAll(){
+  const b = (S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/").replace(/\/feeds\/$/, "/radar/"), t = "?t=" + Math.floor(Date.now() / 600e3);
+  await Promise.all([fetchRadar(),
+    fetch(b + "narr.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) NARR = j; }).catch(() => {}),
+    fetch(b + "meme.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) MEME = j; }).catch(() => {})]);
+  if (TAB === "radar") render();
+}
+const stageTag = s => !s ? "" : `<span class="tag ${/早期/.test(s) ? "t-cyan" : /升溫/.test(s) ? "t-buy" : /過熱/.test(s) ? "t-stop" : "t-dim"}">${esc(s)}</span>`;
+function narrCard(){
+  const N = NARR;
+  if (!N) return `<div class="card"><p class="small muted">雲端仲未有前瞻敘事（每 6 個鐘更新數據，AI 每日寫一次）。</p></div>`;
+  const A = N.ai, Dd = N.data || {}, li = a => (a || []).filter(Boolean).map(t => `<li>${esc(t)}</li>`).join("");
+  const ul = a => (a || []).length ? `<ul style="margin:2px 0 4px;padding-left:18px">${li(a)}</ul>` : "";
+  const st = Dd.stable, gr = x => x == null ? "—" : chg(x, 0);
+  const dataHtml = `<details class="exp small"><summary>數據證據（DefiLlama）</summary>
+      ${st ? `<p><b>穩定幣總量</b> $${(st.now / 1e9).toFixed(0)}B · 30 日 ${chg(st.d30, 1)} · 90 日 ${chg(st.d90, 1)} · 1 年 ${chg(st.d365, 0)}</p>` : ""}
+      ${(Dd.chains || []).length ? `<p style="margin:6px 0 2px"><b>各條鏈資金（TVL）</b></p><div class="tablewrap"><table><tr><th>鏈</th><th class="r">TVL</th><th class="r">30 日</th><th class="r">90 日</th></tr>${Dd.chains.map(c => `<tr><td>${esc(c.name)}</td><td class="r mono">$${(c.tvl / 1e9).toFixed(1)}B</td><td class="r mono">${gr(c.d30)}</td><td class="r mono">${gr(c.d90)}</td></tr>`).join("")}</table></div>` : ""}
+      ${(Dd.chain_rev || []).length ? `<p style="margin:6px 0 2px"><b>各條鏈近 30 日收入</b></p><p>${Dd.chain_rev.map(c => `${esc(c.name)} ${usdM(c.rev30)} ${gr(c.g)}`).join("、")}</p>` : ""}
+      ${(Dd.cat_rev || []).length ? `<p style="margin:6px 0 2px"><b>各類項目近 30 日收入</b></p><p>${Dd.cat_rev.map(c => `${esc(c.name)} ${usdM(c.rev30)} ${gr(c.g)}`).join("、")}</p>` : ""}
+      ${(Dd.cat_tvl || []).length ? `<p style="margin:6px 0 2px"><b>資金增長最快嘅類別（30 日）</b></p><p>${Dd.cat_tvl.map(c => `${esc(c.name)} $${(c.tvl / 1e9).toFixed(1)}B ${gr(c.d30)}`).join("、")}</p>` : ""}
+    </details>`;
+  if (!A) return `<div class="card"><p class="small muted">AI 敘事未寫好（${esc((N.errs || []).join("；"))}）。</p>${dataHtml}</div>`;
+  const items = (A.narratives || []).map(n => `<details class="exp" style="padding:6px 0;border-bottom:1px solid var(--line)">
+      <summary><b>${esc(n.name)}</b> ${stageTag(n.stage)}<span class="ind">${esc(n.what || "")}</span></summary>
+      <div class="small" style="margin:4px 0 8px">
+        ${n.why_now ? `<p><b>點解係而家：</b>${esc(n.why_now)}</p>` : ""}
+        ${(n.evidence || []).length ? `<p><b>數據證據</b></p>${ul(n.evidence)}` : ""}
+        ${(n.early || []).length ? `<p><b>普通人點早期參與</b></p>${ul(n.early)}` : ""}
+        ${(n.projects || []).length ? `<p><b>相關項目／鏈：</b>${esc(n.projects.join("、"))}</p>` : ""}
+        ${(n.risks || []).length ? `<p><b>風險</b></p>${ul(n.risks)}` : ""}
+        ${n.horizon ? `<p><b>幾耐見效：</b>${esc(n.horizon)}</p>` : ""}
+      </div></details>`).join("");
+  return `<div class="card">
+    <div class="lbl"><span class="tag t-dim">前瞻，唔係買入信號</span></div>
+    ${A.summary ? `<p class="small" style="margin:6px 0">${esc(A.summary)}</p>` : ""}
+    <div>${items}</div>
+    ${(A.learn || []).length ? `<div class="info small" style="margin-top:8px"><b>趁市靜最值得學</b>${ul(A.learn)}</div>` : ""}
+    ${A.contrarian ? `<p class="small"><b>反方睇法：</b>${esc(A.contrarian)}</p>` : ""}
+    ${dataHtml}
+    ${A.grounded === false ? `<p class="small dn">今次冇上網查證（Google 搜尋額度用晒），數字可能過時，6 個鐘內會再試。</p>` : ""}
+    <p class="small muted">AI（${esc(String(A.src || "").slice(0, 60))}）根據 DefiLlama 數據、X 研究人士近 7 日帖同 Google 搜尋寫，每日更新一次（${esc(String(A.at || "").slice(5, 16).replace("T", " "))} UTC）。「早期」唔等於會升：大部分敘事最後都唔會成真，參與最好用產品、學習、試空投，唔好重注買幣。</p></div>`;
+}
+function memeCard(){
+  const Mm = MEME;
+  if (!Mm || !Mm.top) return `<div class="card"><p class="small muted">雲端仲未有 Meme 雷達（每 6 個鐘更新）。</p></div>`;
+  const AI = Mm.ai || {}, li = a => (a || []).filter(Boolean).map(t => `<li>${esc(t)}</li>`).join("");
+  const ul = a => (a || []).length ? `<ul style="margin:2px 0 4px;padding-left:18px">${li(a)}</ul>` : "";
+  const vtag = v => !v ? "" : `<span class="tag ${/值得/.test(v) ? "t-buy" : /小心/.test(v) ? "t-stop" : "t-dim"}">${esc(v)}</span>`;
+  const sTag = s => `<span class="tag ${s >= 70 ? "t-buy" : s >= 40 ? "t-warn" : "t-stop"}">安全 ${s}</span>`;
+  const M100 = BTC && BTC.ma100;
+  const light = M100 ? `<div class="${M100.hold ? "ok" : "alert"} small"><b>BTC 100 日線：${M100.hold ? "綠燈" : "紅燈"}</b> · meme 同 BTC 每日相關約 0.7，BTC 跌 10% 大 meme 平均跌 15–19%。${M100.hold ? "" : "紅燈時 meme 通常跌得仲勁，只研究、唔好買。"}</div>` : "";
+  const G = Mm.guide;
+  const guide = G ? `<div class="info small" style="margin:6px 0"><b>AI 導讀</b>${G.mood ? `<p style="margin:4px 0">${esc(G.mood)}</p>` : ""}
+      ${(G.watch || []).length ? `<p style="margin:4px 0 2px"><b>值得研究</b></p>${ul(G.watch)}` : ""}
+      ${(G.danger || []).length ? `<p style="margin:4px 0 2px"><b>最危險</b></p>${ul(G.danger)}` : ""}
+      ${(G.how || []).length ? `<details class="exp"><summary>新手保命規則</summary>${ul(G.how)}</details>` : ""}</div>` : "";
+  const item = (r, i) => {
+    const a = AI[r.key];
+    const meta = `${esc(r.sym)} · ${esc(r.chain)}${r.rank ? ` · 市值排名 #${r.rank}` : ""} · 市值 ${usdM(r.mcap || r.fdv || 0)} · 24h 成交 ${usdM(r.vol)} · 24h ${chg(r.chg, 0)}${r.chg7 != null ? " · 7 日 " + chg(r.chg7, 0) : ""}${r.liq != null ? ` · 流動性 ${usdM(r.liq)}` : ""}${r.age_d != null ? ` · 出咗 ${r.age_d} 日` : ""}`;
+    return `<details class="exp" style="padding:6px 0;border-bottom:1px solid var(--line)">
+      <summary><b>#${i + 1} ${esc(r.name)}</b> ${sTag(r.safe)} <span class="tag t-dim">熱度 ${r.heat}</span>${a ? " " + vtag(a.verdict) : ""}${a && /唔係/.test(a.kind || "") ? ` <span class="tag t-dim">唔係 meme</span>` : ""}${(r.x || []).length ? ` <span class="tag t-dim">X ${r.x.length}</span>` : ""}<span class="ind">${meta}</span></summary>
+      <div class="small" style="margin:4px 0 8px">
+        ${(r.flags || []).length ? `<p><b>安全檢查：</b>${esc(r.flags.join("；"))}</p>` : `<p><b>安全檢查：</b>冇明顯問題</p>`}
+        ${a ? `${a.story ? `<p><b>敘事：</b>${esc(a.story)}</p>` : ""}${a.community ? `<p><b>社群：</b>${esc(a.community)}</p>` : ""}
+          ${a.outlook ? `<p><b>前景：</b>${esc(a.outlook)}</p>` : ""}${a.rug ? `<p><b>捲款走跡象：</b>${esc(a.rug)}</p>` : ""}
+          ${(a.risks || []).length ? `<p><b>風險</b></p>${ul(a.risks)}` : ""}<p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>
+          ${a.grounded === false ? `<p class="dn">今次冇上網查證，可能過時。</p>` : ""}` : `<p class="muted">AI 分析排緊隊（每 6 個鐘做 5 隻）。</p>`}
+        ${(r.x || []).map(t => `<p style="margin:3px 0"><a href="${esc(t.url)}" target="_blank" rel="noopener">@${esc(t.user)}</a>：${esc(t.text.slice(0, 200))}</p>`).join("")}
+        <p><a href="${esc(r.url)}" target="_blank" rel="noopener">睇圖表（${esc(r.src)}）</a></p>
+      </div></details>`;
+  };
+  return light + `<div class="card"><div class="lbl"><span class="tag t-dim">研究排名，唔係買入排名</span></div>
+    ${guide}
+    <p class="small" style="margin:8px 0 2px"><b>新 meme（鏈上熱門，熱度 × 安全排名）</b></p>
+    <div>${Mm.top.map(item).join("")}</div>
+    ${(Mm.big || []).length ? `<p class="small" style="margin:10px 0 2px"><b>大型 meme（成交最大）</b></p><div>${Mm.big.map(item).join("")}</div>` : ""}
+    <p class="small muted">排名 = 熱度（24 小時成交、交易次數）× 安全分 ÷ 100。安全分：流動性、幾耐之前出、全流通市值 ÷ 流動性、RugCheck（Solana）／GoPlus（BNB、Base、Ethereum）合約風險同大戶集中；大型 meme 合約風險低，主要係價格風險。
+    來源：GeckoTerminal 熱門池、CoinGecko meme 成交最大，每 6 個鐘更新（${esc(String(Mm.at || "").slice(5, 16).replace("T", " "))} UTC）。
+    冇偷睇測試（LAB_MEME.md）：追升幅或者熱度揸 meme 2024 年起年化 −30%、最大回撤 −90%，所以呢度只係研究同避雷。玩嘅話只用蝕晒都唔心痛嘅錢；任何要助記詞嘅都係騙局。</p></div>`;
+}
 function viewRadar(){
-  if (!RADAR) fetchRadar();
-  return topbar() + `<div class="row spread"><h2>新項目雷達</h2><button id="radarReload" class="small">重新整理</button></div>` + radarCard();
+  if (!RADAR && !NARR && !MEME) fetchRadarAll();
+  if (!BTC) fetchBtc();
+  const secs = [["narr", "前瞻敘事"], ["proj", "項目雷達"], ["meme", "Meme"]];
+  return topbar() + `<div class="row spread"><h2>雷達</h2><button id="radarReload" class="small">重新整理</button></div>
+    <div class="chips mtabs">${secs.map(([k, l]) => `<button data-rsec="${k}" aria-pressed="${RSEC === k}">${l}</button>`).join("")}</div>`
+    + (RSEC === "narr" ? narrCard() : RSEC === "meme" ? memeCard() : radarCard());
 }
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
@@ -1645,7 +1731,8 @@ function bind(){
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
   on("#radarRun", () => radarRun());
-  on("#radarReload", () => { RADAR_MSG = ""; fetchRadar(); });
+  on("#radarReload", () => { RADAR_MSG = ""; fetchRadarAll(); });
+  document.querySelectorAll("[data-rsec]").forEach(b => b.onclick = () => { RSEC = b.dataset.rsec; try { localStorage.setItem("rsec", RSEC); } catch(e){} render(); window.scrollTo(0, 0); });
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });

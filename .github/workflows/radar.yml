@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
   push:                    # 改雷達程式 push 上嚟就即刻行一次（用戶登入唔到 GitHub 撳 Run workflow）
     branches: [main]
-    paths: [scanner/radar.py, .github/workflows/radar.yml]
+    paths: [scanner/radar.py, scanner/meme.py, scanner/narr.py, .github/workflows/radar.yml]
 permissions:
   contents: write
   models: read
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   radar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,12 +32,33 @@ jobs:
           PYTHONIOENCODING: utf-8
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 前瞻敘事（穩定幣、各鏈、各類項目數據 + X + AI；AI 每日寫一次；失敗唔影響其他）
+        run: |
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/narr.json" -o out/narr.json || true
+          python scanner/narr.py out
+        continue-on-error: true
+        timeout-minutes: 8
+        env:
+          PYTHONIOENCODING: utf-8
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Meme 雷達（熱門池、安全檢查、熱度 × 安全排名、AI；失敗唔影響其他）
+        run: |
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/meme.json" -o out/meme.json || true
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/btc.json" -o out/btc.json || true
+          python scanner/meme.py out
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          PYTHONIOENCODING: utf-8
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: 推去 radar 分支
         working-directory: out
         run: |
           git init -q -b radar
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add radar.json
+          git add radar.json $(ls narr.json meme.json 2>/dev/null)
           git commit -q -m "radar $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" radar
