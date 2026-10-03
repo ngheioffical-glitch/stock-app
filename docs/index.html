@@ -487,7 +487,7 @@ function radarCard(){
   const item = x => {
     const a = AI[x.key], xs = XM[x.key] || [], isNew = (x.first > (R.since || "") && daysAgo(x.first) <= 14) || daysAgo(x.listed) <= 60;
     const head = `<summary><b>${esc(x.name)}</b> ${isNew ? `<span class="tag t-cyan">新</span>` : ""}${a ? vtag(a.verdict) : ""}${xs.length ? ` <span class="tag t-dim">X ${xs.length}</span>` : ""}
-        <span class="ind">${x.sym ? esc(x.sym) : `<span class="up">未發幣</span>`} · ${esc(x.cat || "")} · 30 日收入 ${usdM(x.rev30)}${x.growth == null ? "" : " " + chg(x.growth, 0)}${pe(x)}${x.chg30 == null ? "" : " · 幣價 " + chg(x.chg30, 0)}${x.buyback ? " · 有回購" : ""}</span></summary>`;
+        <span class="ind">${x.sym ? esc(x.sym) : `<span class="up">未發幣</span>`} ${x.cat ? " · " + esc(x.cat) : ""}${x.rank ? ` · 市值排名 #${x.rank}` : ""} · ${x.rev30 == null ? `<span class="dn">冇鏈上收入數據</span>` : `30 日收入 ${usdM(x.rev30)}${x.growth == null ? "" : " " + chg(x.growth, 0)}`}${pe(x)}${x.chg7 == null ? "" : " · 幣價 7 日 " + chg(x.chg7, 0)}${x.chg30 == null ? "" : " · 30 日 " + chg(x.chg30, 0)}${x.buyback ? " · 有回購" : ""}</span></summary>`;
     const body = a ? `<div class="small" style="margin:4px 0 8px">
         <p><b>做緊乜：</b>${esc(a.what || "")}</p>${a.why ? `<p><b>收入點解咁：</b>${esc(a.why)}</p>` : ""}
         <p><b>代幣：</b>${esc(a.token || "")}${a.airdrop ? `｜${esc(a.airdrop)}` : ""}</p>${a.value ? `<p><b>價值有冇流去代幣：</b>${esc(a.value)}</p>` : ""}
@@ -500,11 +500,12 @@ function radarCard(){
     const xh = xs.length ? `<div class="small"><b>X 研究人士提到：</b>${xs.map(t => `<p style="margin:3px 0"><a href="${esc(t.url)}" target="_blank" rel="noopener">@${esc(t.user)}</a>（${esc(t.name)}）：${esc(t.text.slice(0, 220))}</p>`).join("")}</div>` : "";
     return `<details class="exp" style="padding:6px 0;border-bottom:1px solid var(--line)">${head}${body}${xh}</details>`;
   };
-  const tabs = [["growth", "收入增長"], ["big", "收入最大"], ["notoken", "未發幣"], ["new", "新上榜"], ["unlock", "解鎖"]];
+  const tabs = [["growth", "收入增長"], ["big", "收入最大"], ["notoken", "未發幣"], ["new", "新上榜"], ["hot", "熱門"], ["unlock", "解鎖"]];
   const note = {growth: "近 30 日收入 ≥ 100 萬美元，同對上 30 日比較。升得快通常係有新產品或者炒作，可以好快冷卻。",
     big: "有代幣、近 30 日收入最大。「市值 ÷ 年收入」似股票市盈率（用流通市值）：越低越平，但幣唔一定分到收入，要睇「價值有冇流去代幣」。",
     notoken: "近 30 日收入 ≥ 50 萬美元但未有代幣：可能將來發幣、派空投（好似當年 Hyperliquid）。AI 用 Google 查咗邊個有積分計劃、邊個係公司產品表明唔發幣（收埋喺最底）。小心假「領空投」網站，任何要助記詞嘅都係騙局。",
     new: "DefiLlama 半年內新收錄、近 30 日收入 ≥ 20 萬美元（市值 ≥ 10 億美元嘅舊幣唔計）。新出嘅項目會自動出現喺度，每 6 個鐘更新。",
+    hot: "CoinGecko 最多人搜尋嘅 15 隻幣（約每 6 個鐘更新），用嚟捉大熱話題，例如中心化交易所 Backpack 呢類 DefiLlama 唔計收入嘅項目。熱度唔等於好項目：寫「冇鏈上收入數據」嘅即係升跌主要靠話題同炒作，要特別小心；對到 DefiLlama 嘅就會顯示收入。",
     unlock: "之後 30 日解鎖（團隊、投資者等代幣可以開始賣），按佔流通市值排，大過 2% 通常有賣壓。DefiLlama 有排程嘅用數據計；冇排程嘅（例如 HYPE）用 AI 上網搵到嘅資料補充。"}[RTAB];
   let body;
   if (RTAB === "unlock"){

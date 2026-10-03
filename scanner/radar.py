@@ -72,11 +72,12 @@ def markets(ids):
     out = {}
     ids = sorted(set(ids))
     for k in range(0, len(ids), 100):   # CoinGecko 一次最多 100 隻（200 隻會失敗）
-        u = ("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&price_change_percentage=30d&ids="
+        u = ("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&price_change_percentage=7d,30d&ids="
              + ",".join(ids[k:k + 100]))
         for m in get(u):
             out[m["id"]] = dict(px=m.get("current_price"), mcap=m.get("market_cap") or None, fdv=m.get("fully_diluted_valuation") or None,
-                                chg30=(m.get("price_change_percentage_30d_in_currency") or 0) / 100, circ=m.get("circulating_supply"))
+                                chg30=(m.get("price_change_percentage_30d_in_currency") or 0) / 100, circ=m.get("circulating_supply"),
+                                chg7=(m.get("price_change_percentage_7d_in_currency") or 0) / 100)
         time.sleep(2)
     return out
 
@@ -152,6 +153,16 @@ GUIDE_PROMPT = ("你係加密研究導師，用香港廣東話口語幫一個新
                 "\"how\": [\"教新手用呢張卡判斷嘅 2–3 個要點（結合今次例子）\"]}}")
 
 
+def trending():
+    """CoinGecko 搜尋熱度頭 15（2026-10-03 用戶：Backpack 大熱但冇上榜，因為 DefiLlama 唔計中心化交易所收入）。返 [(id, name, sym, rank)]"""
+    try:
+        return [(c["item"]["id"], c["item"]["name"], (c["item"]["symbol"] or "").upper(), c["item"].get("market_cap_rank"))
+                for c in get("https://api.coingecko.com/api/v3/search/trending").get("coins") or []]
+    except Exception as e:  # noqa: BLE001
+        print(f"[radar] 熱門攞唔到：{e}")
+        return []
+
+
 def x_mentions(now, rows):
     """研究人士近 7 日帖，對返雷達項目（名或者 $代號）。返 ({key: [帖]}, 全部有提到項目嘅帖, errs)"""
     posts, errs = [], []
@@ -189,8 +200,9 @@ def ai_one(r, xs):
     val = (f"流通市值 {r['mcap'] / 1e6:.0f} 百萬美元、市值 ÷ 年化收入 {r['pe_mc']} 倍（全流通 {r['pe_fdv']} 倍）、幣價 30 日 {r['chg30'] * 100:+.0f}%"
            if r.get("mcap") and r.get("pe_mc") is not None and r.get("chg30") is not None else "冇市值數據")
     g = "冇比較" if r.get("growth") is None else f"{r['growth'] * 100:+.0f}%"
+    rev = f"{r['rev30'] / 1e6:.1f} 百萬美元" if r.get("rev30") is not None else "冇（DefiLlama 冇鏈上收入數據：可能係中心化公司、收入唔喺鏈上，或者未有收入）"
     xt = "；".join(f"@{t['user']}：{t['text'][:200]}" for t in xs[:3]) or "冇"
-    prompt = AI_PROMPT.format(name=r["name"], sym=r["sym"] or "冇代幣", cat=r["cat"], rev=f"{r['rev30'] / 1e6:.1f} 百萬美元",
+    prompt = AI_PROMPT.format(name=r["name"], sym=r["sym"] or "冇代幣", cat=r["cat"] or "—", rev=rev,
                               growth=g, tok=tok, val=val, x=xt)
     res, src = Mo.ai_search(prompt)
     if res:
@@ -208,7 +220,8 @@ def ai_one(r, xs):
 
 def brief(r, a):
     g = "—" if r.get("growth") is None else f"{r['growth'] * 100:+.0f}%"
-    s = f"{r['name']}（{r['sym'] or '未發幣'}，{r['cat']}）收入 {r['rev30'] / 1e6:.1f}M，增長 {g}"
+    rv = "冇鏈上收入" if r.get("rev30") is None else f"{r['rev30'] / 1e6:.1f}M"
+    s = f"{r['name']}（{r['sym'] or '未發幣'}，{r['cat'] or '—'}）收入 {rv}，增長 {g}"
     if r.get("pe_mc") is not None:
         s += f"，市值÷年收入 {r['pe_mc']} 倍"
     if a:
@@ -222,7 +235,7 @@ def ai_guide(R, hit):
         return None, "冇 GEMINI_API_KEY"
     import ai as A
     parts = []
-    for k, t in (("growth", "收入增長最快"), ("big", "收入最大"), ("notoken", "未發幣"), ("new", "新上榜")):
+    for k, t in (("growth", "收入增長最快"), ("big", "收入最大"), ("notoken", "未發幣"), ("new", "新上榜"), ("hot", "CoinGecko 搜尋熱門")):
         parts.append(f"[{t}] " + "；".join(brief(r, R["ai"].get(r["key"])) for r in R[k][:8]))
     parts.append("[解鎖] " + "；".join(f"{u['name']} {u['date']} {u['pct'] * 100:.1f}%" for u in R["unlocks"]))
     xt = "\n".join(f"@{t['user']}：{t['text'][:250]}" for t in hit[:15]) or "冇"
@@ -249,7 +262,8 @@ def main(out):
     cut = (now - timedelta(days=NEW_DAYS)).timestamp()
     new = sorted([g for g in G if g["listed"] and g["listed"] >= cut and g["rev30"] >= MIN_NEW], key=lambda g: -g["rev30"])
     notok = sorted([g for g in G if not g["gecko"] and not g["sym"] and g["rev30"] >= MIN_NOTOKEN], key=lambda g: -g["rev30"])
-    mk = markets([g["gecko"] for g in big[:60] + [g for g in grow[:N] + new[:N * 2] if g["gecko"]]])
+    hot = trending()
+    mk = markets([g["gecko"] for g in big[:60] + [g for g in grow[:N] + new[:N * 2] if g["gecko"]]] + [h[0] for h in hot])
     # 舊項目改名或者 DefiLlama 新加統計（例如 Sky）都會有新收錄日：代幣市值 ≥ 10 億美元嘅唔當新
     new = [g for g in new if not (g["gecko"] and (mk.get(g["gecko"]) or {}).get("mcap") and mk[g["gecko"]]["mcap"] >= 1e9)]
     seen = dict(prev.get("seen") or {})          # 第一次出現喺雷達嘅日子（「新」標籤）
@@ -267,14 +281,28 @@ def main(out):
 
     R = dict(at=now.isoformat(timespec="seconds"), growth=[row(g) for g in grow[:N]], big=[row(g) for g in big[:N]],
              notoken=[row(g) for g in notok[:N + 4]], new=[row(g) for g in new[:N]], n=len(G))
-    for k in ("growth", "big", "notoken", "new"):
+    bygk = {g["gecko"]: g for g in G if g["gecko"]}
+    R["hot"] = []
+    for gid, nm, sym, rank in hot:                 # 熱門：對到 DefiLlama 就用收入數據，對唔到標明冇鏈上收入
+        if gid in bygk:
+            r = row(bygk[gid])
+        else:
+            m = mk.get(gid, {})
+            seen.setdefault("cg:" + gid, now.strftime("%Y-%m-%d"))
+            r = dict(key="cg:" + gid, name=nm, cat=None, sym=sym, gecko=gid, slug=None, rev30=None, growth=None, buyback=False, hold30=0,
+                     mcap=m.get("mcap"), fdv=m.get("fdv"), chg30=None if not m else round(m["chg30"], 3), pe_mc=None, pe_fdv=None, listed=None)
+        m = mk.get(gid, {})
+        r.update(rank=rank, chg7=None if not m else round(m["chg7"], 3), norev=gid not in bygk)
+        R["hot"].append(r)
+    for k in ("growth", "big", "notoken", "new", "hot"):
         for r in R[k]:
             r["first"] = seen[r["key"]]
     R["since"] = prev.get("since") or now.strftime("%Y-%m-%d")     # 雷達開始日：嗰日已經喺榜嘅唔標「新」
     R["seen"] = seen                                                 # 唔刪：刪咗會令舊項目再出現時誤標「新」（每個只係幾十 byte）
     R["unlocks"] = unlocks([row(g) for g in big[:40]], mk, now)[:8]
 
-    allrows = list({r["key"]: r for k in ("notoken", "growth", "new", "big") for r in R[k]}.values())
+    allrows = list({r["key"]: r for k in ("notoken", "hot", "growth", "new", "big") for r in R[k]
+                    if not (k == "hot" and r["sym"] in ("BTC", "ETH", "USDT", "USDC"))}.values())
     XM, hit, errs = x_mentions(now, allrows)
     R["x"], R["x_n"] = XM, len(hit)
     # AI 逐個分析：舊分析未過 3 日就沿用；優先次序 = 未發幣、增長、新上榜、最大
@@ -299,7 +327,7 @@ def main(out):
         errs.append(f"導讀：{gm}")
     R["errs"] = errs
     f.write_text(json.dumps(R, ensure_ascii=False), encoding="utf-8")
-    print(f"[radar] 增長 {len(R['growth'])}、最大 {len(R['big'])}、未發幣 {len(R['notoken'])}、新上榜 {len(R['new'])}、解鎖 {len(R['unlocks'])}；"
+    print(f"[radar] 增長 {len(R['growth'])}、最大 {len(R['big'])}、未發幣 {len(R['notoken'])}、新上榜 {len(R['new'])}、熱門 {len(R['hot'])}、解鎖 {len(R['unlocks'])}；"
           f"X 提到 {len(hit)} 帖；AI {len(R['ai'])} 個（待做 {R['ai_pending']}）；錯誤 {errs or '冇'}")
 
 
