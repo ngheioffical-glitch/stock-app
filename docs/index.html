@@ -454,35 +454,74 @@ function whaleCard(){
     ${ev || `<p class="small muted">暫時冇（每 5 分鐘比較一次持倉，有開倉／加倉／減倉／平倉就會出）</p>`}
     <p class="small muted">更新 ${esc(String(HYP.generated).replace("T", " ").slice(0, 16))} UTC · 公開鏈上數據（Hyperliquid API），撳名打開 hypurrscan 睇全部倉位。巨鯨都會蝕錢，只作參考。${HYP.err && Object.keys(HYP.err).length ? ` · <span class="dn">部分讀取失敗</span>` : ""}</p></div>`;
 }
-// 新項目雷達（2026-10-03 用戶：出咗類似 HYPE 嘅項目會高度關注）：scanner/radar.py → feeds/radar.json，每 6 個鐘。
+// 新項目雷達（2026-10-03 用戶：出咗類似 HYPE 嘅項目會高度關注）：scanner/radar.py → radar 分支 radar.json（radar.yml 每 6 個鐘）。
 // 純資訊：冇偷睇測試用收入揀幣輸 BTC 100 日線（stock-strategy/LAB_RADAR.md），所以唔叫買。
 let RADAR = null, RTAB = "growth";
 async function fetchRadar(){
-  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "radar.json?t=" + Math.floor(Date.now() / 600e3), {cache:"no-store"});
+  try { const b = (S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/").replace(/\/feeds\/$/, "/radar/"); const r = await fetch(b + "radar.json?t=" + Math.floor(Date.now() / 600e3), {cache:"no-store"});
     if (r.ok){ RADAR = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
 }
 function radarCard(){
   const R = RADAR;
   if (!R || !R.growth) return "";
-  const pe = x => x.pe_mc == null ? `<span class="muted">—</span>` : `${x.pe_mc.toFixed(x.pe_mc < 10 ? 1 : 0)}x${x.pe_fdv != null && x.pe_fdv > x.pe_mc * 1.3 ? `<span class="small muted">／${x.pe_fdv.toFixed(0)}x</span>` : ""}`;
-  const row = x => `<tr><td><b>${esc(x.name)}</b><span class="ind">${x.sym ? esc(x.sym) : `<span class="up">未發幣</span>`} · ${esc(x.cat || "")}${x.buyback ? " · 有回購" : ""}</span></td>
-      <td class="r mono">${usdM(x.rev30)}<span class="ind">${x.growth == null ? "—" : chg(x.growth, 0)}</span></td>
-      <td class="r mono">${pe(x)}<span class="ind">${x.chg30 == null ? "" : "幣 " + chg(x.chg30, 0)}</span></td></tr>`;
-  const L = {growth: R.growth, big: R.big, notoken: R.notoken}[RTAB] || [];
-  const tabs = [["growth", "收入增長最快"], ["big", "收入最大"], ["notoken", "未發幣"], ["unlock", "就嚟解鎖"]];
-  const note = {growth: "近 30 日收入 ≥ 100 萬美元，同前 30 日比較。增長好快通常係有新產品或者炒作，可以好快冷卻。",
-    big: "有代幣、近 30 日收入最大。「市值 ÷ 年收入」似股票市盈率（用流通市值；斜線後面係全流通市值）：越低越平，但幣唔一定分到收入（睇有冇回購）。",
-    notoken: "近 30 日收入 ≥ 50 萬美元但未有代幣：可能將來發幣、派空投（好似當年 Hyperliquid），亦可能永遠唔發（例如公司產品）。想等空投要自己用佢嘅產品；小心假「領空投」網站，任何要助記詞嘅都係騙局。",
-    unlock: "之後 30 日解鎖（團隊、投資者等代幣可以開始賣），按佔流通市值排；解鎖大過 2% 通常有賣壓。只計 DefiLlama 有排程嘅幣（例如 HYPE 冇未來排程，唔喺度）。"}[RTAB];
-  const body = RTAB === "unlock"
-    ? ((R.unlocks || []).length ? `<div class="tablewrap"><table><tr><th>幣</th><th class="r">解鎖值</th><th class="r">佔流通市值</th><th class="r">由</th></tr>${R.unlocks.map(u => `<tr><td><b>${esc(u.name)}</b><span class="ind">${esc(u.sym || "")}${(u.who || []).length ? " · " + esc(u.who.join("、")) : ""}</span></td>
-        <td class="r mono">${usdM(u.usd)}</td><td class="r mono ${u.pct >= 0.02 ? "dn" : ""}">${(u.pct * 100).toFixed(1)}%</td><td class="r mono small">${esc((u.date || "").slice(5))}</td></tr>`).join("")}</table></div>` : `<p class="small muted">之後 30 日冇大解鎖</p>`)
-    : `<div class="tablewrap"><table><tr><th>項目</th><th class="r">30 日收入<span class="ind">對上 30 日</span></th><th class="r">市值 ÷ 年收入<span class="ind">幣價 30 日</span></th></tr>${L.map(row).join("")}</table></div>`;
+  const AI = R.ai || {}, XM = R.x || {}, today = new Date().toISOString().slice(0, 10);
+  const daysAgo = d => d ? (Date.parse(today) - Date.parse(d)) / 864e5 : 999;
+  const vtag = v => !v ? "" : `<span class="tag ${/值得/.test(v) ? "t-buy" : /小心/.test(v) ? "t-stop" : "t-dim"}">${esc(v)}</span>`;
+  const noToken = a => a && /表明唔發幣/.test(a.token || "");
+  const pe = x => x.pe_mc == null ? "" : ` · 市值÷年收入 ${x.pe_mc.toFixed(x.pe_mc < 10 ? 1 : 0)}x${x.pe_fdv != null && x.pe_fdv > x.pe_mc * 1.3 ? `（全流通 ${x.pe_fdv.toFixed(0)}x）` : ""}`;
+  const li = a => (a || []).filter(Boolean).map(t => `<li>${esc(t)}</li>`).join("");
+  const item = x => {
+    const a = AI[x.key], xs = XM[x.key] || [], isNew = (x.first > (R.since || "") && daysAgo(x.first) <= 14) || daysAgo(x.listed) <= 60;
+    const head = `<summary><b>${esc(x.name)}</b> ${isNew ? `<span class="tag t-cyan">新</span>` : ""}${a ? vtag(a.verdict) : ""}${xs.length ? ` <span class="tag t-dim">X ${xs.length}</span>` : ""}
+        <span class="ind">${x.sym ? esc(x.sym) : `<span class="up">未發幣</span>`} · ${esc(x.cat || "")} · 30 日收入 ${usdM(x.rev30)}${x.growth == null ? "" : " " + chg(x.growth, 0)}${pe(x)}${x.chg30 == null ? "" : " · 幣價 " + chg(x.chg30, 0)}${x.buyback ? " · 有回購" : ""}</span></summary>`;
+    const body = a ? `<div class="small" style="margin:4px 0 8px">
+        <p><b>做緊乜：</b>${esc(a.what || "")}</p>${a.why ? `<p><b>收入點解咁：</b>${esc(a.why)}</p>` : ""}
+        <p><b>代幣：</b>${esc(a.token || "")}${a.airdrop ? `｜${esc(a.airdrop)}` : ""}</p>${a.value ? `<p><b>價值有冇流去代幣：</b>${esc(a.value)}</p>` : ""}
+        ${a.unlock ? `<p><b>解鎖：</b>${esc(a.unlock)}</p>` : ""}${a.outlook ? `<p><b>前景：</b>${esc(a.outlook)}</p>` : ""}
+        ${(a.strengths || []).length ? `<p><b>優勢</b></p><ul style="margin:2px 0;padding-left:18px">${li(a.strengths)}</ul>` : ""}
+        ${(a.risks || []).length ? `<p><b>風險</b></p><ul style="margin:2px 0;padding-left:18px">${li(a.risks)}</ul>` : ""}
+        <p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>
+        <p class="muted">${esc(String(a.src || "").slice(0, 120))} · ${esc(String(a.at || "").slice(5, 16).replace("T", " "))} UTC</p></div>`
+      : `<p class="small muted">AI 分析排緊隊（每 6 個鐘做 4 個）。</p>`;
+    const xh = xs.length ? `<div class="small"><b>X 研究人士提到：</b>${xs.map(t => `<p style="margin:3px 0"><a href="${esc(t.url)}" target="_blank" rel="noopener">@${esc(t.user)}</a>（${esc(t.name)}）：${esc(t.text.slice(0, 220))}</p>`).join("")}</div>` : "";
+    return `<details class="exp" style="padding:6px 0;border-bottom:1px solid var(--line)">${head}${body}${xh}</details>`;
+  };
+  const tabs = [["growth", "收入增長"], ["big", "收入最大"], ["notoken", "未發幣"], ["new", "新上榜"], ["unlock", "解鎖"]];
+  const note = {growth: "近 30 日收入 ≥ 100 萬美元，同對上 30 日比較。升得快通常係有新產品或者炒作，可以好快冷卻。",
+    big: "有代幣、近 30 日收入最大。「市值 ÷ 年收入」似股票市盈率（用流通市值）：越低越平，但幣唔一定分到收入，要睇「價值有冇流去代幣」。",
+    notoken: "近 30 日收入 ≥ 50 萬美元但未有代幣：可能將來發幣、派空投（好似當年 Hyperliquid）。AI 用 Google 查咗邊個有積分計劃、邊個係公司產品表明唔發幣（收埋喺最底）。小心假「領空投」網站，任何要助記詞嘅都係騙局。",
+    new: "DefiLlama 半年內新收錄、近 30 日收入 ≥ 20 萬美元（市值 ≥ 10 億美元嘅舊幣唔計）。新出嘅項目會自動出現喺度，每 6 個鐘更新。",
+    unlock: "之後 30 日解鎖（團隊、投資者等代幣可以開始賣），按佔流通市值排，大過 2% 通常有賣壓。DefiLlama 有排程嘅用數據計；冇排程嘅（例如 HYPE）用 AI 上網搵到嘅資料補充。"}[RTAB];
+  let body;
+  if (RTAB === "unlock"){
+    const U = R.unlocks || [], have = new Set(U.map(u => u.name));
+    const extra = Object.entries(AI).filter(([k, a]) => a.unlock && !have.has(((R.big || []).concat(R.growth || [], R.new || []).find(x => x.key === k) || {}).name))
+      .map(([k, a]) => [((R.big || []).concat(R.growth || [], R.new || []).find(x => x.key === k) || {}).name, a.unlock]).filter(([n]) => n);
+    body = (U.length ? `<div class="tablewrap"><table><tr><th>幣</th><th class="r">解鎖值</th><th class="r">佔流通</th><th class="r">由</th></tr>${U.map(u => `<tr><td><b>${esc(u.name)}</b><span class="ind">${esc(u.sym || "")}${(u.who || []).length ? " · " + esc(u.who.join("、")) : ""}</span></td>
+        <td class="r mono">${usdM(u.usd)}</td><td class="r mono ${u.pct >= 0.02 ? "dn" : ""}">${(u.pct * 100).toFixed(1)}%</td><td class="r mono small">${esc((u.date || "").slice(5))}</td></tr>`).join("")}</table></div>` : `<p class="small muted">DefiLlama 排程：之後 30 日冇大解鎖</p>`)
+      + (extra.length ? `<p class="small" style="margin-top:6px"><b>AI 上網搵到（DefiLlama 冇排程）</b></p>${extra.map(([n, u]) => `<p class="small" style="margin:3px 0"><b>${esc(n)}</b>：${esc(u)}</p>`).join("")}` : "");
+  } else {
+    const L = R[RTAB] || [];
+    const main = RTAB === "notoken" ? L.filter(x => !noToken(AI[x.key])) : L, hid = RTAB === "notoken" ? L.filter(x => noToken(AI[x.key])) : [];
+    body = (main.length ? main.map(item).join("") : `<p class="small muted">暫時冇</p>`)
+      + (hid.length ? `<details class="exp small" style="margin-top:6px"><summary>公司產品、表明唔發幣（${hid.length} 個）</summary>${hid.map(item).join("")}</details>` : "");
+  }
+  const G = R.guide;
+  const guide = G ? `<div class="info small" style="margin:6px 0">
+      <b>AI 導讀</b>${(G.watch || []).length ? `<p style="margin:4px 0 2px"><b>值得花時間研究</b></p><ul style="margin:0;padding-left:18px">${li(G.watch)}</ul>` : ""}
+      ${(G.caution || []).length ? `<p style="margin:4px 0 2px"><b>要小心</b></p><ul style="margin:0;padding-left:18px">${li(G.caution)}</ul>` : ""}
+      <details class="exp"><summary>趨勢、空投候選、點樣判斷</summary>
+        ${(G.themes || []).length ? `<p style="margin:4px 0 2px"><b>而家資金流去邊</b></p><ul style="margin:0;padding-left:18px">${li(G.themes)}</ul>` : ""}
+        ${(G.airdrop || []).length ? `<p style="margin:4px 0 2px"><b>空投候選</b></p><ul style="margin:0;padding-left:18px">${li(G.airdrop)}</ul>` : ""}
+        ${(G.how || []).length ? `<p style="margin:4px 0 2px"><b>點用呢張卡判斷</b></p><ul style="margin:0;padding-left:18px">${li(G.how)}</ul>` : ""}
+        <p class="muted">${esc(G.model || "")} · ${esc(String(G.at || "").slice(5, 16).replace("T", " "))} UTC</p></details></div>` : "";
   return `<div class="card"><div class="lbl">新項目雷達 <span class="tag t-dim">資訊，唔係買入信號</span></div>
+    ${guide}
     <div class="chips">${tabs.map(([k, l]) => `<button data-rtab="${k}" aria-pressed="${RTAB === k}">${l}</button>`).join("")}</div>
-    ${body}
+    <div>${body}</div>
     <p class="small muted">${note}</p>
-    <p class="small muted">DefiLlama 收入（協議收入，唔包括畀用戶／流動性提供者嗰份）、CoinGecko 市值，每 6 個鐘更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以呢度只供觀察，唔係買入建議。</p></div>`;
+    <p class="small muted">撳項目睇 AI 分析（Google 搜尋：做緊乜、代幣、前景、優勢、風險、判斷）同 X 研究人士（Ignas、Miles Deutscher、Route 2 FI、0xngmi、Haseeb、Ansem、Mert、Messari、Token Terminal、DefiLlama）近 7 日點講。
+    數據：DefiLlama 協議收入、CoinGecko 市值，每 6 個鐘更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）${R.ai_pending ? `；仲有 ${R.ai_pending} 個未分析` : ""}。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以只供觀察同學習，唔係買入建議；AI 都會錯，重要嘢自己核實。</p></div>`;
 }
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];

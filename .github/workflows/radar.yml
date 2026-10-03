@@ -1,0 +1,40 @@
+name: 新項目雷達
+# 2026-10-03：每 6 個鐘（DefiLlama 收入、X 研究人士、Gemini 分析同導讀），推去 radar 分支（同 feeds 分開，唔會拖慢新聞）；app 由 raw.githubusercontent.com 讀
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+  models: read
+concurrency:
+  group: radar
+  cancel-in-progress: false
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 新項目雷達（純資訊；失敗就唔推，沿用上一份）
+        run: |
+          mkdir -p out
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/radar.json" -o out/radar.json || true
+          python scanner/radar.py out --force
+        timeout-minutes: 15
+        env:
+          PYTHONIOENCODING: utf-8
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 推去 radar 分支
+        working-directory: out
+        run: |
+          git init -q -b radar
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radar.json
+          git commit -q -m "radar $(date -u +%FT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" radar
