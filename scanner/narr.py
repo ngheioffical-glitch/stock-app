@@ -19,7 +19,7 @@ from radar import OV, ai_json, get  # noqa: E402
 
 TTL_H = 24
 PROMPT = ("你係加密行業研究員，用香港廣東話口語幫一個想「趁市靜增加認知、早期佈局」嘅新手睇前瞻敘事。今日 {date}。\n"
-          "數據（DefiLlama）：\n{data}\nX 加密研究人士近 7 日帖：\n{x}\n"
+          "數據（DefiLlama）：\n{data}\nX 加密研究人士近 7 日帖：\n{x}\nTrump（美國總統）Truth Social 近 7 日提到加密嘅帖：\n{trump}\n"
           "用 Google 搜尋查證最新發展（例如 RWA、美股代幣化、穩定幣、AI 代理支付（agentic payment）、Robinhood Chain、幣安鏈、Solana、預測市場等，"
           "但唔好只跟呢個清單，要根據數據同新聞揀真係升溫緊嘅）。揀 4–6 個敘事，回覆 JSON："
           "{{\"summary\": \"而家加密世界最大嘅趨勢（2–3 句）\", "
@@ -27,7 +27,7 @@ PROMPT = ("你係加密行業研究員，用香港廣東話口語幫一個想「
           "\"evidence\": [\"數據證據 1–3 點（引用上面數字或者搜尋到嘅數字）\"], \"stage\": \"揀一個：早期／升溫／主流／過熱\", "
           "\"early\": [\"普通人點早期參與（用產品、儲積分等空投、學習）1–3 點，唔好叫人買幣\"], \"projects\": [\"相關項目或者鏈 2–5 個\"], "
           "\"risks\": [\"風險 1–2 點\"], \"horizon\": \"大概要幾耐先見效\"}}], "
-          "\"learn\": [\"趁市靜最值得學嘅 2–3 樣嘢（具體）\"], \"contrarian\": \"反方睇法：呢啲敘事可能點樣落空（一句）\"}}。唔好估數字，搵唔到就唔好寫。")
+          "\"learn\": [\"趁市靜最值得學嘅 2–3 樣嘢（具體）\"], \"policy\": \"政策面：Trump／美國政府最近對加密嘅取態同對上面敘事嘅影響（冇就空字串）\", \"contrarian\": \"反方睇法：呢啲敘事可能點樣落空（一句）\"}}。唔好估數字，搵唔到就唔好寫。")
 
 
 def chain_growth(names):
@@ -101,16 +101,27 @@ def main(out):
         print(f"[narr] 數據攞唔到：{e}")
         return
     ai = prev.get("ai")
-    fresh = ai and now - datetime.fromisoformat(ai["at"]) < timedelta(hours=TTL_H if ai.get("grounded", True) else 6)
+    try:                                              # Trump 近 7 日講加密（feeds 嘅 trump_recent.json）；有新帖就即刻重寫
+        from ai import TRUMP_CRYPTO
+        T = json.loads((out / "trump_recent.json").read_text(encoding="utf-8")).get("posts") or []
+        TC = [p for p in sorted(T, key=lambda p: -p.get("ts", 0))
+              if p.get("ts", 0) >= (now - timedelta(days=7)).timestamp() and TRUMP_CRYPTO.search(p.get("text") or "")]
+    except Exception:  # noqa: BLE001
+        TC = []
+    tids = [str(p.get("id")) for p in TC]
+    fresh = (ai and now - datetime.fromisoformat(ai["at"]) < timedelta(hours=TTL_H if ai.get("grounded", True) else 6)
+             and not set(tids) - set(ai.get("trump_ids") or []))
     if not fresh:
         try:
             posts = json.loads((out / "radar.json").read_text(encoding="utf-8")).get("x_posts") or []
         except Exception:  # noqa: BLE001
             posts = []
         xt = "\n".join(f"@{t['user']}（{t['name']}）：{t['text'][:260]}" for t in posts[:30]) or "冇"
-        res, src, gr = ai_json(PROMPT.format(date=now.strftime("%Y-%m-%d"), data=text, x=xt))
+        tt = "\n".join(f"{datetime.fromtimestamp(p['ts'], timezone.utc).strftime('%m-%d')}：{(p.get('text') or '')[:400]}" for p in TC[:6]) or "冇"
+        res, src, gr = ai_json(PROMPT.format(date=now.strftime("%Y-%m-%d"), data=text, x=xt, trump=tt))
         if res:
-            ai = dict(res, src=src, grounded=gr, at=now.isoformat(timespec="seconds"))
+            ai = dict(res, src=src, grounded=gr, at=now.isoformat(timespec="seconds"), trump_ids=tids,
+                      trump=[dict(ts=p["ts"], text=(p.get("text") or "")[:300]) for p in TC[:3]])
             print("[narr] AI 寫咗前瞻敘事")
         else:
             errs.append(f"AI：{src[:100]}")

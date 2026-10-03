@@ -440,6 +440,7 @@ function cryptoAiCard(){
   return `<div class="card"><div class="row spread"><div class="lbl">AI 加密重點</div>${mdl(A.model)}</div>
     <ul class="small" style="margin:6px 0 0;padding-left:18px">${A.points.map(p => `<li style="margin:4px 0">${esc(p)}</li>`).join("")}</ul>
     ${A.whales ? `<p class="small"><b>巨鯨：</b>${esc(A.whales)}</p>` : ""}
+    ${(A.trump || []).length ? `<p class="small"><b>Trump 最近講加密</b>（Truth Social）：${esc(A.trump[0].text.slice(0, 240))}${A.trump[0].text.length > 240 ? "…" : ""}</p>` : ""}
     <p class="small muted">${esc(A.generated)} · 根據加密快訊同 Hyperliquid 巨鯨倉位變動，AI 寫，唔係投資建議；每 28 分鐘先重寫，有 ≥ $5M 新巨鯨動作或者撳「重新整理」（設定咗 GitHub token）就即刻重寫。</p></div>`;
 }
 function whaleCard(){
@@ -579,6 +580,8 @@ function narrCard(){
     ${A.summary ? `<p class="small" style="margin:6px 0">${esc(A.summary)}</p>` : ""}
     <div>${items}</div>
     ${(A.learn || []).length ? `<div class="info small" style="margin-top:8px"><b>趁市靜最值得學</b>${ul(A.learn)}</div>` : ""}
+    ${A.policy ? `<p class="small"><b>政策面：</b>${esc(A.policy)}</p>` : ""}
+    ${(A.trump || []).length ? `<details class="exp small"><summary>Trump 近 7 日講加密（${A.trump.length} 條）</summary>${A.trump.map(t => `<p style="margin:3px 0">${esc(new Date(t.ts * 1000).toISOString().slice(5, 10))}：${esc(t.text)}</p>`).join("")}</details>` : ""}
     ${A.contrarian ? `<p class="small"><b>反方睇法：</b>${esc(A.contrarian)}</p>` : ""}
     ${dataHtml}
     ${A.grounded === false ? `<p class="small dn">今次冇上網查證（Google 搜尋額度用晒），數字可能過時，6 個鐘內會再試。</p>` : ""}
@@ -1473,6 +1476,7 @@ function thinkCard(K0, title){
     ${(K.voices || []).length ? `<p class="small" style="margin-top:6px"><b>知名人士（X）點睇</b></p>${ul(K.voices)}` : ""}
     ${(K.odds || []).length ? `<p class="small"><b>預測市場（Polymarket）點押注</b></p>${ul(K.odds)}` : ""}
     ${(K.src_pm || []).length ? `<details class="exp small"><summary>Polymarket 原始概率（${K.src_pm.length} 個）</summary><ul style="margin:4px 0;padding-left:18px">${K.src_pm.map(m => `<li><a href="https://polymarket.com/market/${esc(m.slug || "")}" target="_blank" rel="noopener">${esc(m.q)}</a>：<b>${(m.yes * 100).toFixed(1)}%</b></li>`).join("")}</ul></details>` : ""}
+    ${K.trump ? `<p class="small"><b>Trump 因素：</b>${esc(K.trump)}</p>` : ""}
     ${(K.history || []).length ? `<p class="small"><b>歷史參考</b></p>${ul(K.history)}` : ""}
     ${(K.season || []).length ? `<details class="exp small"><summary>歷史季節性數字</summary>${ul(K.season)}<p class="muted">Yahoo 月線，只計已完咗嘅月；中期選舉年 = 年份 ÷ 4 餘 2。歷史唔代表將來。</p></details>` : ""}
     ${(K.watch || []).length ? `<p class="small"><b>之後要留意</b></p>${ul(K.watch)}` : ""}

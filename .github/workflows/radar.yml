@@ -35,6 +35,7 @@ jobs:
       - name: 前瞻敘事（穩定幣、各鏈、各類項目數據 + X + AI；AI 每日寫一次；失敗唔影響其他）
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/narr.json" -o out/narr.json || true
+          curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/trump_recent.json" -o out/trump_recent.json || true
           python scanner/narr.py out
         continue-on-error: true
         timeout-minutes: 8

@@ -791,6 +791,18 @@ def btc_history(now):
     return out
 
 
+TRUMP_CRYPTO = re.compile(r"crypto|bitcoin|\bBTC\b|ethereum|stablecoin|digital asset|blockchain|\$TRUMP|World Liberty|WLFI|CBDC|"
+                          r"strategic reserve|bitcoin reserve|\bmining\b|\bminers?\b|GENIUS Act|CLARITY Act", re.I)
+
+
+def trump_crypto(now, hours):
+    """Trump Truth Social 近 N 個鐘提到加密嘅帖（2026-10-04 用戶：Trump 講加密，加密同雷達 AI 要 detect 到）。返 [{id, ts, text}]，新到舊。"""
+    T = (load(OUTDIR / "trump_recent.json") if OUTDIR else None) or {}
+    cut = (now - timedelta(hours=hours)).timestamp()
+    return [dict(id=str(p.get("id")), ts=p["ts"], text=(p.get("text") or "")[:600]) for p in sorted(T.get("posts") or [], key=lambda p: -p.get("ts", 0))
+            if p.get("ts", 0) >= cut and TRUMP_CRYPTO.search(p.get("text") or "")]
+
+
 def think_crypto(key, N, H, PH, now, force=False):
     """加密宏觀思考（2026-10-02 用戶）：同 think() 一樣嘅格式，寫入 hyper.json 嘅 think。"""
     old = PH.get("think") or {}
@@ -798,7 +810,8 @@ def think_crypto(key, N, H, PH, now, force=False):
     F = (load(OUTDIR / "fng.json") if OUTDIR else None) or {}
     M = B.get("ma100") or {}
     cf = (F.get("crypto") or {}).get("score")
-    trig = json.dumps([M.get("hold"), None if cf is None else (cf <= 20, cf >= 80)])
+    TC = trump_crypto(now, 48)
+    trig = json.dumps([M.get("hold"), None if cf is None else (cf <= 20, cf >= 80), TC[0]["id"] if TC else None])   # Trump 新講加密 → 即刻重寫
     last = datetime.fromisoformat(old["at"]) if old.get("at") else None
     if not force and last and now - last < timedelta(minutes=THINK_GAP) and old.get("trig") == trig:
         return None, f"加密宏觀思考：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
@@ -829,6 +842,7 @@ def think_crypto(key, N, H, PH, now, force=False):
               + "最近 36 小時加密新聞：" + NL + NL.join(news) + NL
               + "加密知名人士喺 X 最近 36 小時嘅帖（原文）：" + xs + NL
               + "Polymarket 加密預測市場：" + pm + NL
+              + "Trump（美國總統）喺 Truth Social 近 48 小時提到加密嘅帖（原文）：" + ("".join(NL + f"- {hk(t['ts'])}：{t['text'][:400]}" for t in TC[:5]) or "（冇）") + NL
               + "歷史參考：" + NL + NL.join(hist) + NL
               + "寫一份「加密宏觀思考」，好似專欄咁有觀點，但要講清楚冇客觀答案：" + NL
               + "1. phenomena：3–5 點而家最值得留意嘅現象（例如 ETF 資金、巨鯨同資金費率、BTC 市佔、同美股／美元／債息嘅關係、情緒），每點要有上面嘅數字；" + NL
@@ -836,13 +850,15 @@ def think_crypto(key, N, H, PH, now, force=False):
               + "3. scenarios：2–3 個情景，每個有 name、what、signals（2–3 個具體訊號，例如 BTC 去到幾多、跌穿 100 日線、資金費率、ETF 流向）、lean（較大／一半半／較細 + 點解）、impact（對佢 BTC 100 日線規則同 2 倍 ETF 嘅影響；規則照做，唔好叫人買賣）；" + NL
               + "4. contrarian：反方睇法；5. watch：之後 1–2 星期要留意（有日期就寫）；" + NL
               + "6. voices：3–5 個 X 加密人士重要觀點（人名：講咩 → 同主流一致定相反）；7. odds：3–5 個 Polymarket 概率（事件：概率 → 代表咩）；" + NL
-              + "8. history：2–4 點歷史參考（季節性、減半週期同一位置以前點樣、類似時期），每點講埋今次有咩唔同，提醒歷史唔代表將來。" + NL
+              + "8. history：2–4 點歷史參考（季節性、減半週期同一位置以前點樣、類似時期），每點講埋今次有咩唔同，提醒歷史唔代表將來；" + NL
+              + "9. trump：如果上面 Trump 有講加密，1–2 句講佢講咗咩、對加密政策同市場可能有咩影響（以前類似發言之後市場點反應）；冇就空字串。" + NL
               + "數字只可以用上面提供嘅或者搜尋到嘅，唔好作。回覆 JSON：{\"phenomena\": [..], \"question\": \"..\", \"scenarios\": [{\"name\": \"..\", \"what\": \"..\", "
-              + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..], \"voices\": [..], \"odds\": [..], \"history\": [..]}")
+              + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..], \"voices\": [..], \"odds\": [..], \"history\": [..], \"trump\": \"..\"}")
     res, model = gemini_search(key, prompt)
     if not res.get("scenarios"):
         raise RuntimeError(f"加密宏觀思考冇 scenarios：{json.dumps(res, ensure_ascii=False)[:200]}")
     d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig, src_x=len(MS.get("x_c") or []), src_pm=(MS.get("pm_c") or [])[:8], season=hist,
+             trump_posts=TC[:3],
              generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
     return d, f"加密宏觀思考：用 {model} 寫好"
 
@@ -855,11 +871,13 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
     news.sort(key=lambda x: x["t"], reverse=True)
     ev = [e for e in H.get("events", []) if datetime.fromisoformat(e["t"].replace("Z", "+00:00")) > now - timedelta(hours=12)][:25]
     big = [e for e in ev if e["usd"] >= 5e6 and e["t"] == H.get("generated")]
+    TC = trump_crypto(now, 18)
+    tnew = [t for t in TC if t["id"] not in (old.get("trump_ids") or [])]          # Trump 新講加密 → 即刻重寫
     try:
         last = datetime.fromisoformat(old["at"])
     except Exception:  # noqa: BLE001
         last = None
-    if last and now - last < timedelta(minutes=GAP) and not force and not big:
+    if last and now - last < timedelta(minutes=GAP) and not force and not big and not tnew:
         return old, f"加密重點：上次係 {int((now - last).total_seconds() // 60)} 分鐘前，今次沿用"
     heads = [f"[{x['src']}] {x['title']}" for x in news[:30]]
     whales = [f"{e['who']} {e['act']} {e['coin']} 約 ${e['usd'] / 1e6:.1f}M（而家倉位 ${e['pos_usd'] / 1e6:.1f}M，{e.get('lev') or '?'} 倍）" for e in ev]
@@ -869,26 +887,29 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
     mk = [f"{c} {fmt(C[c]['px'])}（24 小時 {C[c]['chg'] * 100:+.1f}%，資金費率年化 {C[c]['fund_ann'] * 100:+.1f}%）" for c in ("BTC", "ETH", "SOL", "HYPE") if c in C and C[c].get("chg") is not None]
     F = load(out / "fng.json") or {}
     fg = (F.get("crypto") or {}).get("score")
-    sig = hashlib.sha1(json.dumps([heads, whales], ensure_ascii=False).encode()).hexdigest()
+    trump_l = [f"Trump（Truth Social）：{t['text'][:400]}" for t in TC[:4]]
+    sig = hashlib.sha1(json.dumps([heads, whales, trump_l], ensure_ascii=False).encode()).hexdigest()
     if old.get("sig") == sig and not force:
         return old, "加密新聞同巨鯨冇變，沿用"
-    if not heads and not whales:
+    if not heads and not whales and not trump_l:
         return old, "冇加密新聞同巨鯨事件"
     prompt = (f"你係加密貨幣市場助手，幫一個香港散戶睇加密市場。{STYLE}佢用 BTC 做市場情緒（BTC > 365 日線 = 綠燈），只買賣 ETH，亦會留意 MSTR、COIN 呢類加密股。\n"
               f"市場實際數字（Hyperliquid 永續合約）：{'；'.join(mk) or '（冇）'}。加密恐慌貪婪指數：{fg if fg is not None else '—'}。\n"
               "根據下面最近 18 小時嘅加密新聞同 12 小時內 Hyperliquid 歷史盈利最高嘅巨鯨嘅倉位變動，寫：\n"
-              "1. points：3–6 點最重要嘅事，每點一句「發生咩 → 對 BTC／ETH／加密股可能有咩影響」；\n"
+              "1. points：3–6 點最重要嘅事，每點一句「發生咩 → 對 BTC／ETH／加密股可能有咩影響」；如果 Trump 有講加密，一定要有一點講佢講咗咩同可能影響；\n"
               "2. whales：一至兩句總結巨鯨整體偏多定偏空、主要喺邊隻幣加減倉（冇資料就寫空字串）。\n"
               "事實規則：價錢升跌只可以用上面嘅實際數字；只根據提供嘅資料，唔好估未發生嘅事，唔好叫人買賣；巨鯨倉位只係參考，唔代表一定啱。\n"
               "回覆 JSON：{\"points\": [..], \"whales\": \"..\"}。\n"
               "新聞：\n" + ("\n".join(heads) or "（冇）") + "\n巨鯨倉位變動：\n" + ("\n".join(whales) or "（冇）")
-              + "\n巨鯨而家總倉位：\n" + ("\n".join(agg) or "（冇）"))
+              + "\n巨鯨而家總倉位：\n" + ("\n".join(agg) or "（冇）")
+              + "\nTrump 近 18 小時提到加密嘅帖：\n" + ("\n".join(trump_l) or "（冇）"))
     res, model = gemini(key, prompt, MODELS_D)
     pts = [x for x in res.get("points", []) if isinstance(x, str) and x.strip()][:6]
     if not pts:
         raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
     return ({"at": now.isoformat(timespec="seconds"), "generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
-             "model": model, "points": pts, "whales": str(res.get("whales") or "").strip(), "sig": sig},
+             "model": model, "points": pts, "whales": str(res.get("whales") or "").strip(), "sig": sig,
+             "trump_ids": [t["id"] for t in TC], "trump": TC[:3]},
             f"加密重點 {len(pts)} 點（{model}）")
 
 
