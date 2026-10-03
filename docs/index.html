@@ -126,7 +126,7 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(7,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(8,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 nav button{border:0;background:none;padding:9px 2px 8px;font-size:11px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
@@ -218,7 +218,7 @@ details.card>summary::-webkit-details-marker{display:none}
 @keyframes fadein{from{opacity:.35}to{opacity:1}}
 button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
 button:active{transform:scale(.95)}
-nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 7);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 8);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
 nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
   box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
 nav button{position:relative;z-index:1}
@@ -266,6 +266,7 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
   <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
   <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
   <button data-tab="crypto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5m0-8v8M11 6v1.5M11 16.5V18"/></svg>加密</button>
+  <button data-tab="radar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg>雷達</button>
   <button data-tab="ser"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Serenity</button>
   <button data-tab="trump"><svg viewBox="0 0 24 24"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>Trump</button>
 </nav>
@@ -459,7 +460,7 @@ function whaleCard(){
 let RADAR = null, RTAB = "growth";
 async function fetchRadar(){
   try { const b = (S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/").replace(/\/feeds\/$/, "/radar/"); const r = await fetch(b + "radar.json?t=" + Math.floor(Date.now() / 600e3), {cache:"no-store"});
-    if (r.ok){ RADAR = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
+    if (r.ok){ RADAR = await r.json(); if (TAB === "radar") render(); } } catch(e){}
 }
 let RADAR_MSG = "";
 async function radarRun(){             // 用 app 設定嘅 GitHub token 觸發 radar.yml（同新聞「重新整理」一樣）
@@ -528,7 +529,7 @@ function radarCard(){
         ${(G.airdrop || []).length ? `<p style="margin:4px 0 2px"><b>空投候選</b></p><ul style="margin:0;padding-left:18px">${li(G.airdrop)}</ul>` : ""}
         ${(G.how || []).length ? `<p style="margin:4px 0 2px"><b>點用呢張卡判斷</b></p><ul style="margin:0;padding-left:18px">${li(G.how)}</ul>` : ""}
         <p class="muted">${esc(G.model || "")} · ${esc(String(G.at || "").slice(5, 16).replace("T", " "))} UTC</p></details></div>` : "";
-  return `<div class="card"><div class="lbl">新項目雷達 <span class="tag t-dim">資訊，唔係買入信號</span></div>
+  return `<div class="card"><div class="lbl"><span class="tag t-dim">資訊，唔係買入信號</span></div>
     ${guide}
     <div class="chips">${tabs.map(([k, l]) => `<button data-rtab="${k}" aria-pressed="${RTAB === k}">${l}</button>`).join("")}</div>
     <div>${body}</div>
@@ -536,6 +537,11 @@ function radarCard(){
     ${runBtn || RADAR_MSG ? `<div class="row">${runBtn}${RADAR_MSG ? `<span class="small">${esc(RADAR_MSG)}</span>` : ""}</div>` : ""}
     <p class="small muted">撳項目睇 AI 分析（Google 搜尋：做緊乜、代幣、前景、優勢、風險、判斷）同 X 研究人士（Ignas、Miles Deutscher、Route 2 FI、0xngmi、Haseeb、Ansem、Mert、Messari、Token Terminal、DefiLlama）近 7 日點講。
     數據：DefiLlama 協議收入、CoinGecko 市值，每 6 個鐘更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）${R.ai_pending ? `；仲有 ${R.ai_pending} 個未分析` : ""}。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以只供觀察同學習，唔係買入建議；AI 都會錯，重要嘢自己核實。</p></div>`;
+}
+// 2026-10-03 用戶：加密頁太亂 → 新項目雷達自己一頁（加密隔離）
+function viewRadar(){
+  if (!RADAR) fetchRadar();
+  return topbar() + `<div class="row spread"><h2>新項目雷達</h2><button id="radarReload" class="small">重新整理</button></div>` + radarCard();
 }
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
@@ -548,10 +554,9 @@ function viewCrypto(){
   if (!BTC) fetchBtc();
   if (!FNG) fetchFng();
   if (!HYP) fetchHyper();
-  if (!RADAR) fetchRadar();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + radarCard() + whaleCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + cryptoNewsCard();
 }
 
 // BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
@@ -1607,11 +1612,11 @@ function viewNews(){
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
-const ORDER = ["today", "model", "rank", "news", "crypto", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
+const ORDER = ["today", "model", "rank", "news", "crypto", "radar", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
-  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
+  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(TAB); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
@@ -1639,6 +1644,7 @@ function bind(){
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
   on("#radarRun", () => radarRun());
+  on("#radarReload", () => { RADAR_MSG = ""; fetchRadar(); });
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
@@ -1648,7 +1654,7 @@ function bind(){
     if (!d || d < "2017-01-05"){ alert("開始日期要喺 2017-01-05 之後"); return; }
     S.cm = {capital: cap, start: d, wb: isFinite(wb) ? wb : 50, lev: lev === 2 ? 2 : 1}; save(); render("f"); });
   on("#cmClear", () => { if (confirm("清除加密模型倉設定？")){ S.cm = null; save(); render("f"); } });
-  on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchRadar(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
+  on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
