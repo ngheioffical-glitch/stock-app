@@ -454,6 +454,36 @@ function whaleCard(){
     ${ev || `<p class="small muted">暫時冇（每 5 分鐘比較一次持倉，有開倉／加倉／減倉／平倉就會出）</p>`}
     <p class="small muted">更新 ${esc(String(HYP.generated).replace("T", " ").slice(0, 16))} UTC · 公開鏈上數據（Hyperliquid API），撳名打開 hypurrscan 睇全部倉位。巨鯨都會蝕錢，只作參考。${HYP.err && Object.keys(HYP.err).length ? ` · <span class="dn">部分讀取失敗</span>` : ""}</p></div>`;
 }
+// 新項目雷達（2026-10-03 用戶：出咗類似 HYPE 嘅項目會高度關注）：scanner/radar.py → feeds/radar.json，每 6 個鐘。
+// 純資訊：冇偷睇測試用收入揀幣輸 BTC 100 日線（stock-strategy/LAB_RADAR.md），所以唔叫買。
+let RADAR = null, RTAB = "growth";
+async function fetchRadar(){
+  try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "radar.json?t=" + Math.floor(Date.now() / 600e3), {cache:"no-store"});
+    if (r.ok){ RADAR = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
+}
+function radarCard(){
+  const R = RADAR;
+  if (!R || !R.growth) return "";
+  const pe = x => x.pe_mc == null ? `<span class="muted">—</span>` : `${x.pe_mc.toFixed(x.pe_mc < 10 ? 1 : 0)}x${x.pe_fdv != null && x.pe_fdv > x.pe_mc * 1.3 ? `<span class="small muted">／${x.pe_fdv.toFixed(0)}x</span>` : ""}`;
+  const row = x => `<tr><td><b>${esc(x.name)}</b><span class="ind">${x.sym ? esc(x.sym) : `<span class="up">未發幣</span>`} · ${esc(x.cat || "")}${x.buyback ? " · 有回購" : ""}</span></td>
+      <td class="r mono">${usdM(x.rev30)}<span class="ind">${x.growth == null ? "—" : chg(x.growth, 0)}</span></td>
+      <td class="r mono">${pe(x)}<span class="ind">${x.chg30 == null ? "" : "幣 " + chg(x.chg30, 0)}</span></td></tr>`;
+  const L = {growth: R.growth, big: R.big, notoken: R.notoken}[RTAB] || [];
+  const tabs = [["growth", "收入增長最快"], ["big", "收入最大"], ["notoken", "未發幣"], ["unlock", "就嚟解鎖"]];
+  const note = {growth: "近 30 日收入 ≥ 100 萬美元，同前 30 日比較。增長好快通常係有新產品或者炒作，可以好快冷卻。",
+    big: "有代幣、近 30 日收入最大。「市值 ÷ 年收入」似股票市盈率（用流通市值；斜線後面係全流通市值）：越低越平，但幣唔一定分到收入（睇有冇回購）。",
+    notoken: "近 30 日收入 ≥ 50 萬美元但未有代幣：可能將來發幣、派空投（好似當年 Hyperliquid），亦可能永遠唔發（例如公司產品）。想等空投要自己用佢嘅產品；小心假「領空投」網站，任何要助記詞嘅都係騙局。",
+    unlock: "之後 30 日解鎖（團隊、投資者等代幣可以開始賣），按佔流通市值排；解鎖大過 2% 通常有賣壓。只計 DefiLlama 有排程嘅幣（例如 HYPE 冇未來排程，唔喺度）。"}[RTAB];
+  const body = RTAB === "unlock"
+    ? ((R.unlocks || []).length ? `<div class="tablewrap"><table><tr><th>幣</th><th class="r">解鎖值</th><th class="r">佔流通市值</th><th class="r">由</th></tr>${R.unlocks.map(u => `<tr><td><b>${esc(u.name)}</b><span class="ind">${esc(u.sym || "")}${(u.who || []).length ? " · " + esc(u.who.join("、")) : ""}</span></td>
+        <td class="r mono">${usdM(u.usd)}</td><td class="r mono ${u.pct >= 0.02 ? "dn" : ""}">${(u.pct * 100).toFixed(1)}%</td><td class="r mono small">${esc((u.date || "").slice(5))}</td></tr>`).join("")}</table></div>` : `<p class="small muted">之後 30 日冇大解鎖</p>`)
+    : `<div class="tablewrap"><table><tr><th>項目</th><th class="r">30 日收入<span class="ind">對上 30 日</span></th><th class="r">市值 ÷ 年收入<span class="ind">幣價 30 日</span></th></tr>${L.map(row).join("")}</table></div>`;
+  return `<div class="card"><div class="lbl">新項目雷達 <span class="tag t-dim">資訊，唔係買入信號</span></div>
+    <div class="chips">${tabs.map(([k, l]) => `<button data-rtab="${k}" aria-pressed="${RTAB === k}">${l}</button>`).join("")}</div>
+    ${body}
+    <p class="small muted">${note}</p>
+    <p class="small muted">DefiLlama 收入（協議收入，唔包括畀用戶／流動性提供者嗰份）、CoinGecko 市值，每 6 個鐘更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以呢度只供觀察，唔係買入建議。</p></div>`;
+}
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
   if (!L.length) return "";
@@ -465,9 +495,10 @@ function viewCrypto(){
   if (!BTC) fetchBtc();
   if (!FNG) fetchFng();
   if (!HYP) fetchHyper();
+  if (!RADAR) fetchRadar();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + radarCard() + whaleCard() + cryptoNewsCard();
 }
 
 // BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
@@ -1553,6 +1584,7 @@ function bind(){
     S.follow = {capital: c, start: d}; save(); pickModel(); HCACHE = {}; render("f"); });
   document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
+  document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
@@ -1562,7 +1594,7 @@ function bind(){
     if (!d || d < "2017-01-05"){ alert("開始日期要喺 2017-01-05 之後"); return; }
     S.cm = {capital: cap, start: d, wb: isFinite(wb) ? wb : 50, lev: lev === 2 ? 2 : 1}; save(); render("f"); });
   on("#cmClear", () => { if (confirm("清除加密模型倉設定？")){ S.cm = null; save(); render("f"); } });
-  on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
+  on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchRadar(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });
