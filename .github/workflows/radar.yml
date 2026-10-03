@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
+  push:                    # 改雷達程式 push 上嚟就即刻行一次（用戶登入唔到 GitHub 撳 Run workflow）
+    branches: [main]
+    paths: [scanner/radar.py, .github/workflows/radar.yml]
 permissions:
   contents: write
   models: read

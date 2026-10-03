@@ -461,9 +461,22 @@ async function fetchRadar(){
   try { const b = (S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/").replace(/\/feeds\/$/, "/radar/"); const r = await fetch(b + "radar.json?t=" + Math.floor(Date.now() / 600e3), {cache:"no-store"});
     if (r.ok){ RADAR = await r.json(); if (TAB === "crypto") render(); } } catch(e){}
 }
+let RADAR_MSG = "";
+async function radarRun(){             // 用 app 設定嘅 GitHub token 觸發 radar.yml（同新聞「重新整理」一樣）
+  RADAR_MSG = "觸發緊雲端…"; render();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/radar.yml/dispatches`, {method: "POST",
+      headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
+      body: JSON.stringify({ref: "main"})});
+    if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : ""));
+    RADAR_MSG = "已觸發：雲端大約 5–10 分鐘做完（AI 分析要時間），之後撳「重新整理」。";
+  } catch(e){ RADAR_MSG = "觸發唔到：" + e.message; }
+  render();
+}
 function radarCard(){
   const R = RADAR;
-  if (!R || !R.growth) return "";
+  const runBtn = S.ghToken ? `<button id="radarRun" class="small">立即更新雷達</button>` : "";
+  if (!R || !R.growth) return `<div class="card"><div class="lbl">新項目雷達</div><p class="small muted">雲端仲未有第一份數據（每 6 個鐘跑一次）。</p>${runBtn}${RADAR_MSG ? `<p class="small">${esc(RADAR_MSG)}</p>` : ""}</div>`;
   const AI = R.ai || {}, XM = R.x || {}, today = new Date().toISOString().slice(0, 10);
   const daysAgo = d => d ? (Date.parse(today) - Date.parse(d)) / 864e5 : 999;
   const vtag = v => !v ? "" : `<span class="tag ${/值得/.test(v) ? "t-buy" : /小心/.test(v) ? "t-stop" : "t-dim"}">${esc(v)}</span>`;
@@ -520,6 +533,7 @@ function radarCard(){
     <div class="chips">${tabs.map(([k, l]) => `<button data-rtab="${k}" aria-pressed="${RTAB === k}">${l}</button>`).join("")}</div>
     <div>${body}</div>
     <p class="small muted">${note}</p>
+    ${runBtn || RADAR_MSG ? `<div class="row">${runBtn}${RADAR_MSG ? `<span class="small">${esc(RADAR_MSG)}</span>` : ""}</div>` : ""}
     <p class="small muted">撳項目睇 AI 分析（Google 搜尋：做緊乜、代幣、前景、優勢、風險、判斷）同 X 研究人士（Ignas、Miles Deutscher、Route 2 FI、0xngmi、Haseeb、Ansem、Mert、Messari、Token Terminal、DefiLlama）近 7 日點講。
     數據：DefiLlama 協議收入、CoinGecko 市值，每 6 個鐘更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）${R.ai_pending ? `；仲有 ${R.ai_pending} 個未分析` : ""}。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以只供觀察同學習，唔係買入建議；AI 都會錯，重要嘢自己核實。</p></div>`;
 }
@@ -1624,6 +1638,7 @@ function bind(){
   document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
+  on("#radarRun", () => radarRun());
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); });
