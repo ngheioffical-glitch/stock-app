@@ -190,8 +190,20 @@ def ai_one(r, xs):
            if r.get("mcap") and r.get("pe_mc") is not None and r.get("chg30") is not None else "冇市值數據")
     g = "冇比較" if r.get("growth") is None else f"{r['growth'] * 100:+.0f}%"
     xt = "；".join(f"@{t['user']}：{t['text'][:200]}" for t in xs[:3]) or "冇"
-    return Mo.ai_search(AI_PROMPT.format(name=r["name"], sym=r["sym"] or "冇代幣", cat=r["cat"], rev=f"{r['rev30'] / 1e6:.1f} 百萬美元",
-                                         growth=g, tok=tok, val=val, x=xt))
+    prompt = AI_PROMPT.format(name=r["name"], sym=r["sym"] or "冇代幣", cat=r["cat"], rev=f"{r['rev30'] / 1e6:.1f} 百萬美元",
+                              growth=g, tok=tok, val=val, x=xt)
+    res, src = Mo.ai_search(prompt)
+    if res:
+        return res, src, True
+    # 2026-10-03：Google 搜尋額度（同業績、宏觀思考共用）用晒會 429 → 改用冇搜尋嘅 Gemini／GitHub Models，標明冇上網查證，24 小時後再試搜尋版
+    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    try:
+        import ai as A
+        res2, m = A.gemini(key, A.STYLE + prompt.replace("用 Google 搜尋查證（官網、文件、新聞、X），", "（今次冇得上網，只用你已知嘅資料；唔肯定嘅寫「唔清楚」，唔好估）")
+                           + " 只回覆 JSON。", A.MODELS_D)
+        return res2, f"{m}（冇上網查證；搜尋版失敗：{str(src)[:60]}）", False
+    except Exception as e:  # noqa: BLE001
+        return None, f"{src}｜後備：{str(e)[:80]}", False
 
 
 def brief(r, a):
@@ -267,15 +279,16 @@ def main(out):
     R["x"], R["x_n"] = XM, len(hit)
     # AI 逐個分析：舊分析未過 3 日就沿用；優先次序 = 未發幣、增長、新上榜、最大
     old = prev.get("ai") or {}
-    R["ai"] = {k: v for k, v in old.items() if now - datetime.fromisoformat(v["at"]) < timedelta(hours=AI_TTL_H)}
+    R["ai"] = {k: v for k, v in old.items()
+               if now - datetime.fromisoformat(v["at"]) < timedelta(hours=AI_TTL_H if v.get("grounded", True) else 24)}
     todo = [r for r in allrows if r["key"] not in R["ai"]]
     for r in todo[:AI_MAX]:
-        res, src = ai_one(r, XM.get(r["key"], []))
+        res, src, grounded = ai_one(r, XM.get(r["key"], []))
         if not res:
             errs.append(f"{r['name']} AI：{src}")
             continue
         R["ai"][r["key"]] = dict({k: res.get(k) for k in ("what", "why", "token", "airdrop", "value", "unlock", "outlook", "strengths", "risks", "verdict", "reason")},
-                                 src=src, at=now.isoformat(timespec="seconds"))
+                                 src=src, grounded=grounded, at=now.isoformat(timespec="seconds"))
         print(f"[radar] AI 分析 {r['name']}")
     R["ai_pending"] = max(0, len(todo) - AI_MAX)
     keep = {r["key"] for r in allrows}

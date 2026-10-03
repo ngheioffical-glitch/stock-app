@@ -493,7 +493,7 @@ function radarCard(){
         ${a.unlock ? `<p><b>解鎖：</b>${esc(a.unlock)}</p>` : ""}${a.outlook ? `<p><b>前景：</b>${esc(a.outlook)}</p>` : ""}
         ${(a.strengths || []).length ? `<p><b>優勢</b></p><ul style="margin:2px 0;padding-left:18px">${li(a.strengths)}</ul>` : ""}
         ${(a.risks || []).length ? `<p><b>風險</b></p><ul style="margin:2px 0;padding-left:18px">${li(a.risks)}</ul>` : ""}
-        <p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>
+        <p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>${a.grounded === false ? `<p class="dn">今次冇上網查證（Google 搜尋額度用晒），可能過時，24 小時內會再試。</p>` : ""}
         <p class="muted">${esc(String(a.src || "").slice(0, 120))} · ${esc(String(a.at || "").slice(5, 16).replace("T", " "))} UTC</p></div>`
       : `<p class="small muted">AI 分析排緊隊（每 6 個鐘做 4 個）。</p>`;
     const xh = xs.length ? `<div class="small"><b>X 研究人士提到：</b>${xs.map(t => `<p style="margin:3px 0"><a href="${esc(t.url)}" target="_blank" rel="noopener">@${esc(t.user)}</a>（${esc(t.name)}）：${esc(t.text.slice(0, 220))}</p>`).join("")}</div>` : "";

@@ -4,8 +4,12 @@ on:
   schedule:
     - cron: "*/5 * * * *"      # 2026-09-30：新聞改每 5 分鐘（GitHub 實際會遲幾分鐘）；翻譯即時；今日重點喺 ai.py 限制每 28 分鐘先寫一次
   workflow_dispatch:
+  push:                    # 2026-10-03：改呢個檔 push 上嚟就即刻跑一次
+    branches: [main]
+    paths: [.github/workflows/feeds.yml]
 permissions:
   contents: write
+  actions: write          # 接力：跑完觸發下一次（GitHub 排程會遲甚至停 2 個鐘）
   models: read            # GitHub Models：Gemini 失敗時嘅 AI 後備（用內置 GITHUB_TOKEN）
 concurrency:
   group: feeds
@@ -15,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - run: echo "T0=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
@@ -106,3 +111,10 @@ jobs:
           git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json earnings.json macro_src.json 2>/dev/null)
           git commit -q -m "feeds $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" feeds
+      - name: 接力：開始後約 5 分鐘再觸發自己（2026-10-03：GitHub 排程試過停 2 個鐘；排程保留做後備；新一次會取消舊一次，唔會疊）
+        if: always()
+        continue-on-error: true
+        run: |
+          el=$(( $(date +%s) - T0 ))
+          if [ "$el" -lt 270 ]; then sleep $(( 270 - el )); fi
+          curl -sf -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/feeds.yml/dispatches" -d '{"ref":"main"}' && echo "已觸發下一次"
