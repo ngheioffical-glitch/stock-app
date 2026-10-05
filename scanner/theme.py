@@ -159,8 +159,8 @@ def main(out):
                                              mem="、".join(f"{m['sym']} {pc(m['r5'])}／{pc(m['r21'])}" for m in r["mem"][:6]),
                                              news="；".join(h["title"][:120] for h in r["news"][:3]) or "冇"))
         if not res:
-            errs.append(f"{r['name']} AI：{src[:80]}")
-            continue
+            errs.append(f"{r['name']} AI：{src[:400]}")
+            break                                  # 額度用晒就停，下次再補
         AI[r["key"]] = dict({k: res.get(k) for k in ("why", "driver", "stage", "leaders", "next", "how", "risks", "verdict", "reason")},
                             src=src, grounded=gr, at=now.isoformat(timespec="seconds"))
         print(f"[theme] AI 分析 {r['name']}")

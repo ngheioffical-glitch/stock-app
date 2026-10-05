@@ -34,6 +34,7 @@ MODELS_T = [m for m in (os.environ.get("GEMINI_MODEL_T"), "gemini-flash-lite-lat
 _AVAIL = None
 API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
 CATS = ("快訊", "市場", "經濟", "加密")
+TR_GAP = int(os.environ.get("TRANSLATE_GAP_MIN", "15"))   # 翻譯最少隔幾耐（2026-10-05：接力每 5 分鐘跑，額度唔夠）
 GAP = int(os.environ.get("GEMINI_GAP_MIN", "28"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
@@ -169,8 +170,8 @@ def load(p):
         return None
 
 
-def translate(key, N, S, P, PS, T=None, PT=None):
-    """新聞標題、Serenity 推文、Trump 貼文：沿用舊翻譯，新嘅一次過譯。"""
+def translate(key, N, S, P, PS, T=None, PT=None, allow=True):
+    """新聞標題、Serenity 推文、Trump 貼文：沿用舊翻譯，新嘅一次過譯。allow=False：只沿用舊翻譯，唔叫 AI（慳額度）。"""
     cache = {x["title"]: (x["zh"], x.get("zm")) for x in P.get("items", []) if x.get("zh")}
     for x in N["items"]:
         if x["title"] in cache:
@@ -190,6 +191,8 @@ def translate(key, N, S, P, PS, T=None, PT=None):
     todo_t = [t for t in tp if not t.get("zh") and t.get("text")][:25]
     if not todo_n and not todo_s and not todo_t:
         return "冇新嘢要譯"
+    if not allow:
+        return f"未夠 {TR_GAP} 分鐘，新嘢遲啲先譯（新聞 {len(todo_n)}、Serenity {len(todo_s)}、Trump {len(todo_t)}）"
     prompt = (f"將以下英文翻譯成中文。{STYLE}唔好加內容、唔好評論、唔好刪走 $股票代號同網址。\n"
               "news = 財經新聞標題（譯做簡潔標題）；tweets = 美股分析師 Serenity 嘅推文（照意思譯晒，保持原本語氣）；"
               "trump = 美國總統 Trump 喺 Truth Social 嘅貼文（照意思譯晒，保留佢誇張、大楷嘅語氣）。\n"
@@ -877,6 +880,7 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
         last = datetime.fromisoformat(old["at"])
     except Exception:  # noqa: BLE001
         last = None
+    big = big if not last or now - last >= timedelta(minutes=15) else []      # 2026-10-05：巨鯨觸發最少隔 15 分鐘（接力後每 5 分鐘跑，慳額度）
     if last and now - last < timedelta(minutes=GAP) and not force and not big and not tnew:
         return old, f"加密重點：上次係 {int((now - last).total_seconds() // 60)} 分鐘前，今次沿用"
     heads = [f"[{x['src']}] {x['title']}" for x in news[:30]]
@@ -928,10 +932,17 @@ def main():
     P, PS, PT = prev("news.json"), prev("serenity_recent.json"), prev("trump_recent.json")
     now = datetime.now(timezone.utc)
     errs = []
-    # 1. 翻譯：每次都做（有新嘢先會用 Gemini）
+    # 1. 翻譯：2026-10-05 起最少隔 TR_GAP 分鐘先叫 AI（feeds 接力後每 5 分鐘跑，額度用晒）；有新高影響快訊或者 Trump 新帖就即刻譯
     try:
-        print("[ai] 翻譯：" + translate(key, N, S, P, PS, T, PT))
+        tr_last = datetime.fromisoformat(P["tr_at"]) if P.get("tr_at") else None
+        urgent = [t for t in hi_titles(N, now) if t not in set((P.get("digest") or {}).get("hi", []))] or             any(not t.get("zh") and t.get("text") and t.get("id") not in {x.get("id") for x in (PT or {}).get("posts", []) if x.get("zh")}
+                for t in (T or {}).get("posts", []))
+        allow = urgent or not tr_last or now - tr_last >= timedelta(minutes=TR_GAP)
+        msg = translate(key, N, S, P, PS, T, PT, allow=allow)
+        N["tr_at"] = now.isoformat(timespec="seconds") if allow and "（" in msg and "條" in msg else P.get("tr_at")
+        print("[ai] 翻譯：" + msg)
     except Exception as e:  # noqa: BLE001
+        N["tr_at"] = now.isoformat(timespec="seconds")      # 失敗（例如額度用晒）都等 TR_GAP 先再試
         print(f"[ai] 翻譯失敗：{e}")
         errs.append(f"翻譯：{str(e)[:300]}")
     # 2. 經濟數據 AI 解讀：一公佈就做（45 分鐘後再做一次）

@@ -532,7 +532,7 @@ function radarCard(){
         ${(G.how || []).length ? `<p style="margin:4px 0 2px"><b>點用呢張卡判斷</b></p><ul style="margin:0;padding-left:18px">${li(G.how)}</ul>` : ""}
         <p class="muted">${esc(G.model || "")} · ${esc(String(G.at || "").slice(5, 16).replace("T", " "))} UTC</p></details></div>` : "";
   return `<div class="card"><div class="lbl"><span class="tag t-dim">資訊，唔係買入信號</span></div>
-    ${guide}
+    ${aiNote(R.errs)}${guide}
     <div class="chips">${tabs.map(([k, l]) => `<button data-rtab="${k}" aria-pressed="${RTAB === k}">${l}</button>`).join("")}</div>
     <div>${body}</div>
     <p class="small muted">${note}</p>
@@ -542,6 +542,8 @@ function radarCard(){
 }
 // 2026-10-04 用戶：雷達頁分三部分：前瞻敘事（RWA、代幣化、穩定幣、AI 代理支付…）｜項目雷達｜Meme（熱度 × 安全）
 let NARR = null, MEME = null;
+// 2026-10-05：AI 額度用晒（429）時講清楚，唔好淨係空白
+const aiNote = errs => (errs || []).some(e => /429|Too Many/.test(e)) ? `<div class="alert small"><b>AI 分析暫停</b>：今日免費 AI 額度用晒（Google 每日香港時間大約下午 3–4 點重設），之後嘅更新（每 6 個鐘）會自動補返。數據同排名照常更新。</div>` : "";
 let RSEC = (() => { try { const v = localStorage.getItem("rsec"); return ["narr", "theme", "proj", "meme"].includes(v) ? v : "narr"; } catch(e){ return "narr"; } })();
 async function fetchRadarAll(){
   const b = (S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/").replace(/\/feeds\/$/, "/radar/"), t = "?t=" + Math.floor(Date.now() / 600e3);
@@ -577,7 +579,7 @@ function narrCard(){
         ${n.horizon ? `<p><b>幾耐見效：</b>${esc(n.horizon)}</p>` : ""}
       </div></details>`).join("");
   return `<div class="card">
-    <div class="lbl"><span class="tag t-dim">前瞻，唔係買入信號</span></div>
+    <div class="lbl"><span class="tag t-dim">前瞻，唔係買入信號</span></div>${aiNote(N.errs)}
     ${A.summary ? `<p class="small" style="margin:6px 0">${esc(A.summary)}</p>` : ""}
     <div>${items}</div>
     ${(A.learn || []).length ? `<div class="info small" style="margin-top:8px"><b>趁市靜最值得學</b>${ul(A.learn)}</div>` : ""}
@@ -618,7 +620,7 @@ function memeCard(){
       </div></details>`;
   };
   return light + `<div class="card"><div class="lbl"><span class="tag t-dim">研究排名，唔係買入排名</span></div>
-    ${guide}
+    ${aiNote(Mm.errs)}${guide}
     <p class="small" style="margin:8px 0 2px"><b>新 meme（鏈上熱門，熱度 × 安全排名）</b></p>
     <div>${Mm.top.map(item).join("")}</div>
     ${(Mm.big || []).length ? `<p class="small" style="margin:10px 0 2px"><b>大型 meme（成交最大）</b></p><div>${Mm.big.map(item).join("")}</div>` : ""}
@@ -652,7 +654,7 @@ function themeCard(){
     return `<details class="exp" style="padding:6px 0;border-bottom:1px solid var(--line)">${head}<div class="small" style="margin:4px 0 8px">${ai}${mem}${nw}</div></details>`;
   };
   return `<div class="card"><div class="lbl"><span class="tag t-dim">資訊，唔係買入信號</span></div>
-    ${guide}
+    ${aiNote(T.errs)}${guide}
     <div>${T.themes.map(item).join("")}</div>
     <p class="small muted">排序：先「爆發」（ETF 5 日 ≥ +8%、≥ 3 隻股 5 日 ≥ +15%，或者 ETF 創新高而成交 ≥ 1.5 倍），再按熱度（5 日、21 日升幅同成交急增）。新聞 = 近 48 小時新聞同 Trump 帖提到嘅關鍵字（例如稀土、核能、出口管制），可以早過價錢郁。
     Yahoo 日線，每 6 個鐘更新（${esc(String(T.at || "").slice(5, 16).replace("T", " "))} UTC）。冇偷睇測試（LAB_THEME.md）：每星期追最熱題材 ETF，撥 10–30% 會令組合年化少 3–10 個百分點（不過仍然贏 QQQ）。所以用嚟早啲知道、理解點解、控制注碼，唔好見升就追。</p></div>`;

@@ -318,8 +318,8 @@ def main(out):
     for r in todo[:AI_MAX]:
         res, src, grounded = ai_one(r, XM.get(r["key"], []))
         if not res:
-            errs.append(f"{r['name']} AI：{src}")
-            continue
+            errs.append(f"{r['name']} AI：{src[:400]}")
+            break                                  # 2026-10-05：額度用晒就唔好再逐個試（慳時間同後備額度），下次再補
         R["ai"][r["key"]] = dict({k: res.get(k) for k in ("what", "why", "token", "airdrop", "value", "unlock", "outlook", "strengths", "risks", "verdict", "reason")},
                                  src=src, grounded=grounded, at=now.isoformat(timespec="seconds"))
         print(f"[radar] AI 分析 {r['name']}")

@@ -186,8 +186,8 @@ def main(out):
                                              chg=f"{r['chg'] * 100:+.0f}%", liq=liq, age=age, safety=f"{r['safe']} 分；" + "；".join(r["flags"]) or "冇明顯問題",
                                              x="；".join(f"@{t['user']}：{t['text'][:160]}" for t in r["x"]) or "冇"))
         if not res:
-            errs.append(f"{r['sym']} AI：{src[:80]}")
-            continue
+            errs.append(f"{r['sym']} AI：{src[:400]}")
+            break                                  # 額度用晒就停，下次再補
         AI[r["key"]] = dict({k: res.get(k) for k in ("kind", "story", "community", "outlook", "rug", "risks", "verdict", "reason")},
                             src=src, grounded=gr, at=now.isoformat(timespec="seconds"))
         print(f"[meme] AI 分析 {r['sym']}")
