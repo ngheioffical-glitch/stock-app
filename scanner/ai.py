@@ -440,8 +440,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     lc = light_change()
     ta = tq_alert()
     ra = rates_alert()
+    ca = commod_alert()
     sn = snapshot()
-    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra], ensure_ascii=False).encode()).hexdigest()
+    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra, ca], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
@@ -463,6 +464,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     if ra:
         lc_txt += (f"重要：美債息有大變動：{'；'.join(ra['alert'])}（{ra['detail']}；10 年減 2 年息差 {(ra.get('curve') or {}).get('10y_2y', '—')} 基點）。"
                    "points 要有一點講：根據下面新聞同數據，點解債息會咁郁（例如通脹、聯儲局、財政赤字、發債、經濟數據），同埋對科技股估值有咩影響。" + NL)
+    if ca:
+        lc_txt += (f"重要：商品有大變動：{'；'.join(ca['alert'])}（{ca['detail']}）。"
+                   "points 要有一點講：根據下面新聞，點解會咁郁（例如中東局勢、OPEC、美元、央行買金、經濟預期），同埋對通脹、減息預期同股市（科技股、能源股）有咩影響。" + NL)
     base = (f"你係美股市場助手，幫一個做美股大型科技龍頭動能策略嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
@@ -490,7 +494,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
              "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
-             "light_change": lc, "tq_alert": ta, "rates_alert": ra},
+             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca},
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
@@ -547,6 +551,27 @@ def rates_alert():
         return dict(alert=R["alert"], detail=txt, curve=R.get("curve"))
     except Exception:  # noqa: BLE001
         return None
+
+
+def commod_alert():
+    """商品異動（2026-10-05 用戶：油價、貴金屬都影響股市）：油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創新高、銅單日 ±4%。scanner/commod.py 寫嘅 commod.json。"""
+    try:
+        C = load(OUTDIR / "commod.json") if OUTDIR else None
+        if not C or not C.get("alert"):
+            return None
+        return dict(alert=C["alert"], detail=commod_text(C))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def commod_text(C=None):
+    C = C if C is not None else ((load(OUTDIR / "commod.json") if OUTDIR else None) or {})
+    t = "；".join(f"{r['name']} {r['px']:,.2f}（今日 {(r['d'] or 0) * 100:+.1f}%、1 個月 {(r['m'] or 0) * 100:+.1f}%、一年 {(r['yr'] or 0) * 100:+.0f}%）"
+                 for r in C.get("rows", []))
+    cg = C.get("cg") or {}
+    if cg.get("m3") is not None:
+        t += f"；銅金比率 3 個月 {cg['m3'] * 100:+.1f}%"
+    return t or "（冇）"
 
 
 def tq_alert():
@@ -704,7 +729,7 @@ def think(key, N, P, now, force=False):
     prompt = (f"你係一個有獨立思考嘅美股宏觀評論人，幫一個香港散戶從多個角度諗而家個市。{STYLE}{NL}"
               f"佢嘅策略（規則唔會因為你嘅分析改變）：60% 美股大型科技龍頭動能（突破買、大市紅燈清倉）+ 40% TQQQ（綠燈而且 QQQ 波幅 < 35% 先揸）；加密睇 BTC 100 日線。"
               f"大市燈號而家係{light}；{tq}。{NL}"
-              f"市場數據：{'；'.join(mkt_perf())}；{breadth()}；美債息：{rates}；{fng}。{NL}"
+              f"市場數據：{'；'.join(mkt_perf())}；{breadth()}；美債息：{rates}；商品：{commod_text()}；{fng}。{NL}"
               f"今日實際數字：{snap_text(snapshot())}。{NL}"
               + (f"債息異動：{'；'.join(ra['alert'])}。{NL}" if ra else "") + (f"大市啱啱轉{lc['to']}。{NL}" if lc else "")
               + "最近 36 小時新聞標題：" + NL + NL.join(heads[:45]) + NL
@@ -841,7 +866,7 @@ def think_crypto(key, N, H, PH, now, force=False):
               f"而家燈號：{'綠燈' if M.get('hold') else '紅燈'}（{M.get('since') or ''} 起，BTC 距 100 日線 {(M.get('dist') or 0) * 100:+.1f}%）。{NL}"
               f"數據：BTC {b.get('px', 0):,.0f}（{pos(b)}）；ETH {e.get('px', 0):,.0f}（{pos(e)}）；{dom}；"
               f"加密恐慌貪婪 {cf}；MVRV {B.get('mvrv')}；BitMEX 資金費率 14 日年化 {((B.get('funding14') or {}).get('ann') or 0) * 100:+.1f}%；"
-              f"Hyperliquid 大戶淨倉：{whales}；美債息：{rates}；今日實際：{snap_text(snapshot())}。{NL}"
+              f"Hyperliquid 大戶淨倉：{whales}；美債息：{rates}；商品：{commod_text()}；今日實際：{snap_text(snapshot())}。{NL}"
               + "最近 36 小時加密新聞：" + NL + NL.join(news) + NL
               + "加密知名人士喺 X 最近 36 小時嘅帖（原文）：" + xs + NL
               + "Polymarket 加密預測市場：" + pm + NL
@@ -983,6 +1008,10 @@ def main():
     lc = light_change()                                                  # 大市啱啱轉燈而上一份重點未講：即刻重寫
     if lc and (P.get("digest") or {}).get("light_change") != lc and last_ai:
         print(f"[ai] 大市 {lc['date']} 轉{lc['to']}，即刻重寫今日重點")
+        last_ai = None
+    ca = commod_alert()                                                  # 商品異動而上一份重點未講：即刻重寫（2026-10-05）
+    if ca and (P.get("digest") or {}).get("commod_alert") != ca and last_ai:
+        print(f"[ai] 商品 {ca['alert']}，即刻重寫今日重點")
         last_ai = None
     ra = rates_alert()                                                   # 債息急升／新高而上一份重點未講：即刻重寫
     if ra and (P.get("digest") or {}).get("rates_alert") != ra and last_ai:
