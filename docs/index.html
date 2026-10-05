@@ -667,6 +667,24 @@ function viewRadar(){
     <div class="chips mtabs">${secs.map(([k, l]) => `<button data-rsec="${k}" aria-pressed="${RSEC === k}">${l}</button>`).join("")}</div>`
     + (RSEC === "narr" ? narrCard() : RSEC === "theme" ? themeCard() : RSEC === "meme" ? memeCard() : radarCard());
 }
+// 大額轉帳（2026-10-05 用戶：追大戶工具清單 Whale Alert）：scanner/walert.py → feeds/walert.json；AI 分析 ai.py walert_ai
+function walertCard(){
+  const W = FEED.walert; if (!W || !(W.items || []).length) return "";
+  const A = W.ai, li = a => (a || []).filter(Boolean).map(t => `<li>${esc(t)}</li>`).join("");
+  const kc = k => k === "入交易所" ? "t-stop" : k === "出交易所" ? "t-buy" : k === "印發" ? "t-cyan" : "t-dim";
+  const net = Object.entries(W.net24 || {});
+  const m = v => `${v >= 0 ? "+" : "−"}$${(Math.abs(v) / 1e6).toFixed(0)}M`;
+  return `<div class="card"><div class="row spread"><div class="lbl">大額轉帳（Whale Alert）</div><span class="small muted">${esc(W.generated || "")}</span></div>
+    ${A ? `<div class="info small" style="margin:6px 0"><b>AI 分析</b> ${mdl(A.model)}<span class="muted"> · ${esc(A.generated || "")}</span>
+      ${A.summary ? `<p style="margin:4px 0">${esc(A.summary)}</p>` : ""}${(A.notable || []).length ? `<ul style="margin:2px 0;padding-left:18px">${li(A.notable)}</ul>` : ""}
+      ${A.stable ? `<p style="margin:4px 0"><b>穩定幣：</b>${esc(A.stable)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}
+      ${A.caution ? `<p class="muted" style="margin:4px 0">${esc(A.caution)}</p>` : ""}</div>` : ""}
+    ${net.length ? `<div class="tablewrap"><table><tr><th>24 小時</th><th class="r">入交易所</th><th class="r">出交易所</th><th class="r">淨流入</th></tr>${net.map(([k, v]) => `<tr><td><b>${esc(k)}</b><span class="ind">${v.n} 筆${v.mint ? ` · 印發淨 ${m(v.mint)}` : ""}</span></td>
+      <td class="r mono">$${(v.in / 1e6).toFixed(0)}M</td><td class="r mono">$${(v.out / 1e6).toFixed(0)}M</td><td class="r mono ${v.net > 0 ? "dn" : v.net < 0 ? "up" : ""}">${m(v.net)}</td></tr>`).join("")}</table></div>` : ""}
+    ${W.items.slice(0, 12).map(x => `<div class="news"><div><span class="tag ${kc(x.kind)}">${esc(x.kind)}</span> <b class="mono">${esc(x.amt)} ${esc(x.sym)}</b> <span class="small muted">（$${(x.usd / 1e6).toFixed(0)}M）</span></div>
+      <div class="meta"><span>${esc(x.frm || "")}${x.frm || x.to ? " → " : ""}${esc(x.to || "")}</span><span>${ago(new Date(x.ts * 1000).toISOString())}</span>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">詳情</a>` : ""}</div></div>`).join("")}
+    <p class="small muted">Whale Alert 官方 X（大約 1,000 萬美元以上），每 5–15 分鐘更新。紅「入交易所」= 可能準備賣；綠「出交易所」= 可能長揸；穩定幣淨流入交易所 = 有新錢準備買。<b>只係線索，唔係買賣訊號</b>：轉入交易所可能只係內部調動或者託管，錢包身份多數唔知；你嘅 BTC 100 日線規則唔會因此改變。想知錢包係邊個，可以自己用 Arkham 查（要註冊）。</p></div>`;
+}
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
   if (!L.length) return "";
@@ -680,7 +698,7 @@ function viewCrypto(){
   if (!HYP) fetchHyper();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + walertCard() + cryptoNewsCard();
 }
 
 // BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
@@ -1450,6 +1468,7 @@ function healthCard(){
     fresh("美債息", FEED.rates && FEED.rates.generated, 120, "每 5–15 分鐘", FEED.rates && FEED.rates.errs);
     fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, 120, "每 5–15 分鐘", FEED.commod && FEED.commod.errs);
     fresh("業績", FEED.earn && FEED.earn.generated, 180, "每個鐘", FEED.earn && FEED.earn.errs);
+    fresh("大額轉帳（Whale Alert）", FEED.walert && FEED.walert.generated, 120, "每 5–15 分鐘", FEED.walert && FEED.walert.errs);
   }
   if (!BTC) fetchBtc();
   if (!HYP) fetchHyper();
@@ -1523,7 +1542,7 @@ async function fetchFeeds(force){
     const base = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/";
     const get = async f => { const r = await fetch(base + f + "?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
     const opt = async f => { try { return await get(f); } catch(e){ return null; } };
-    [FEED.news, FEED.econ, FEED.rates, FEED.earn, FEED.commod] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json"), opt("commod.json")]);
+    [FEED.news, FEED.econ, FEED.rates, FEED.earn, FEED.commod, FEED.walert] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json"), opt("commod.json"), opt("walert.json")]);
     FEED.err = null; FEED.at = Date.now();
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;

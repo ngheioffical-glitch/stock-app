@@ -868,6 +868,53 @@ def trump_crypto(now, hours):
             if p.get("ts", 0) >= cut and TRUMP_CRYPTO.search(p.get("text") or "")]
 
 
+def walert_text():
+    """Whale Alert 大額轉帳（2026-10-05）：24 小時每隻幣入／出交易所同淨額 + 最新幾筆。scanner/walert.py 寫嘅 walert.json。"""
+    W = (load(OUTDIR / "walert.json") if OUTDIR else None) or {}
+    if not W.get("items"):
+        return "（冇）"
+    net = "；".join(f"{k} 入交易所 ${v['in'] / 1e6:.0f}M、出交易所 ${v['out'] / 1e6:.0f}M、淨 {v['net'] / 1e6:+.0f}M"
+                   + (f"、印發淨 ${v['mint'] / 1e6:+.0f}M" if v.get("mint") else "") for k, v in (W.get("net24") or {}).items())
+    last = "；".join(f"{x['amt']} {x['sym']}（${x['usd'] / 1e6:.0f}M）{x['kind']}：{x['frm']}→{x['to']}" for x in W["items"][:10])
+    return f"24 小時：{net or '冇'}。最新：{last}"
+
+
+WALERT_GAP_H = 6
+
+
+def walert_ai(key, now, force=False):
+    """大額轉帳 AI 分析（2026-10-05 用戶：都要加 AI）：每 6 個鐘；24 小時 BTC／ETH 淨流 ≥ 3 億美元，或者單筆 ≥ 5 億美元有新嘅就即刻寫。寫入 walert.json 嘅 ai。"""
+    f = OUTDIR / "walert.json"
+    W = load(f) or {}
+    if not W.get("items"):
+        return "冇大額轉帳數據"
+    old = W.get("ai") or {}
+    big = [x for x in W["items"] if x["usd"] >= 5e8]
+    flows = {k: v["net"] for k, v in (W.get("net24") or {}).items() if abs(v["net"]) >= 3e8}
+    trig = json.dumps([big[0]["link"] if big else None, sorted(k + ("+" if v > 0 else "-") for k, v in flows.items())], ensure_ascii=False)
+    last = datetime.fromisoformat(old["at"]) if old.get("at") else None
+    if not force and last and now - last < timedelta(hours=WALERT_GAP_H) and old.get("trig") == trig:
+        return f"大額轉帳分析：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
+    B = load(OUTDIR / "btc.json") or {}
+    M = B.get("ma100") or {}
+    prompt = (f"你係鏈上數據分析員，用香港廣東話口語幫一個新手睇 Whale Alert 大額轉帳。{STYLE}{NL}"
+              f"佢嘅加密規則（唔會因為你改變）：BTC 收市高過 100 日線揸 BTC／ETH（用 ETF），跌穿轉現金；而家{'綠燈' if M.get('hold') else '紅燈'}。{NL}"
+              f"數據：{walert_text()}{NL}"
+              "用 Google 搜尋查證有冇相關新聞（例如邊個機構、ETF、交易所、政府、Mt.Gox、鯨魚身份）。重要：轉入交易所唔一定係賣，可能係內部調動或者託管；"
+              "錢包身份多數唔知，唔好估。回覆 JSON：{\"summary\": \"過去 24 小時大戶整體喺做乜（2–3 句，有數字）\", "
+              "\"notable\": [\"最值得留意嘅 2–4 筆，每點「幾多幣、由邊到邊 → 可能代表乜（有新聞就講）」\"], "
+              "\"stable\": \"穩定幣流向代表乜（有冇新錢入場）；冇就空字串\", "
+              "\"for_you\": \"對佢嘅 BTC 100 日線規則有冇參考價值（一句，唔好叫人買賣）\", "
+              "\"caution\": \"呢次數據要小心解讀嘅地方（一句）\"}。只用提供或者搜尋到嘅數字。")
+    res, model = gemini_search(key, prompt)
+    if not res.get("summary"):
+        raise RuntimeError(f"大額轉帳分析冇 summary：{json.dumps(res, ensure_ascii=False)[:160]}")
+    W["ai"] = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
+                   generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
+    f.write_text(json.dumps(W, ensure_ascii=False), encoding="utf-8")
+    return f"大額轉帳分析：用 {model} 寫好"
+
+
 def think_crypto(key, N, H, PH, now, force=False):
     """加密宏觀思考（2026-10-02 用戶）：同 think() 一樣嘅格式，寫入 hyper.json 嘅 think。"""
     old = PH.get("think") or {}
@@ -907,6 +954,7 @@ def think_crypto(key, N, H, PH, now, force=False):
               + "最近 36 小時加密新聞：" + NL + NL.join(news) + NL
               + "加密知名人士喺 X 最近 36 小時嘅帖（原文）：" + xs + NL
               + "Polymarket 加密預測市場：" + pm + NL
+              + "Whale Alert 鏈上大額轉帳（入交易所可能係準備賣、出交易所可能長揸、穩定幣印發係新資金；只係線索）：" + walert_text() + NL
               + "Trump（美國總統）喺 Truth Social 近 48 小時提到加密嘅帖（原文）：" + ("".join(NL + f"- {hk(t['ts'])}：{t['text'][:400]}" for t in TC[:5]) or "（冇）") + NL
               + "歷史參考：" + NL + NL.join(hist) + NL
               + "寫一份「加密宏觀思考」，好似專欄咁有觀點，但要講清楚冇客觀答案：" + NL
@@ -968,7 +1016,8 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
               "回覆 JSON：{\"points\": [..], \"whales\": \"..\"}。\n"
               "新聞：\n" + ("\n".join(heads) or "（冇）") + "\n巨鯨倉位變動：\n" + ("\n".join(whales) or "（冇）")
               + "\n巨鯨而家總倉位：\n" + ("\n".join(agg) or "（冇）")
-              + "\nTrump 近 18 小時提到加密嘅帖：\n" + ("\n".join(trump_l) or "（冇）"))
+              + "\nTrump 近 18 小時提到加密嘅帖：\n" + ("\n".join(trump_l) or "（冇）")
+              + "\nWhale Alert 鏈上大額轉帳（入交易所可能準備賣、出交易所可能長揸；只係線索，可以喺 points 提）：\n" + walert_text())
     res, model = gemini(key, prompt, MODELS_D)
     pts = [x for x in res.get("points", []) if isinstance(x, str) and x.strip()][:6]
     if not pts:
@@ -1113,6 +1162,11 @@ def main():
             if PH.get("think"):
                 H["think"] = PH["think"]
         (out / "hyper.json").write_text(json.dumps(H, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    try:                                                          # 大額轉帳分析：每 6 個鐘，大流向／大筆即刻寫（2026-10-05）
+        print("[ai] " + walert_ai(key, now, force=manual))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 大額轉帳分析失敗：{e}")
+        errs.append(f"大額轉帳分析：{str(e)[:300]}")
     try:                                                          # 商品點影響股市：每 6 個鐘，有異動即刻寫（2026-10-05）
         print("[ai] " + commod_ai(key, N, now, force=manual))
     except Exception as e:  # noqa: BLE001
