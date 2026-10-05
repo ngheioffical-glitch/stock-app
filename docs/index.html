@@ -881,9 +881,19 @@ function liveStatus(){
   return `<p class="small muted">盤中 5 分鐘掃描（測試）：${LIVE.in_session ? "開市中" : "已收市"} · 最後更新 ${esc(last.run_hk)}（${ago} 分鐘前）${last.delay_min != null ? ` · 數據延遲 ${last.delay_min} 分鐘` : ""}</p>`;
 }
 
+// 2026-10-05 用戶：每年 1 月提醒重新驗證（冇偷睇規矩：每年 1 月只用之前數據重揀）
+function janCard(){
+  const d = new Date(), y = d.getFullYear();
+  if (d.getMonth() !== 0) return "";
+  try { if (localStorage.getItem("jan-done") === String(y)) return ""; } catch(e){}
+  return `<div class="alert small"><b>每年 1 月：重新驗證策略（${y}）</b>
+    <p style="margin:4px 0">冇偷睇嘅規矩係每年 1 月用到上年尾嘅新數據重新揀一次，睇吓揀法使唔使變。喺電腦用 Claude Code 開研究資料夾，同 AI 講：「跟 RESTORE.md 嘅每年 1 月驗證步驟做」。</p>
+    <p style="margin:4px 0">會重跑：美股 V2.x 冇偷睇揀法（LAB_STRICT）、TQQQ 比例、BTC／ETH 均線（LAB_CRYPTOMA、LAB_ETHBYBTC）。結果有變先考慮改 app，冇變就照舊。</p>
+    <button id="janDone" class="small">今年做咗，收埋</button></div>`;
+}
 function viewToday(){
   const o = signals();
-  let h = topbar() + header();
+  let h = topbar() + janCard() + header();
   h += `<div class="row spread"><h2>買入訊號 · ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
@@ -1242,6 +1252,7 @@ function viewHist(){
         <div><span>賣出 · 勝率 · 交易日</span><b>${st.n ? `${st.n} · ${Math.round(st.w / st.n * 100)}%` : "—"} · ${st.days}</b></div></div></div>`;
   }
   const years = YR.map(r => r.y);
+  if (HMODE !== "model") h += HONEST;
   h += `<div id="histChart">${histChart(D, i)}</div>
     <input type="range" id="histR" min="0" max="${D.length - 1}" value="${i}" aria-label="揀日子">
     <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="揀年份"><option value="">全部年份</option>${years.map(y => `<option${y === Y ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
@@ -1302,6 +1313,7 @@ function followCard(M){
       <span class="tag ${fs.ret >= 0 ? "t-buy" : "t-stop"}">${chg(fs.ret)}</span></div>
     <div class="kv"><div><span>本金</span><b>${f0(fs.capital)}</b></div><div><span>賺蝕</span><b class="${fs.val >= fs.capital ? "up" : "dn"}">${(fs.val >= fs.capital ? "+" : "") + f0(fs.val - fs.capital)}</b></div>
       <div><span>期間最大回撤</span><b class="dn">${pct(fs.dd)}</b></div><div><span>現金（${Math.round(v.cash_frac * 100)}%）</span><b>${f0(fs.val * v.cash_frac)}</b></div></div>
+    ${fs.start < fs.btEnd ? HONEST : ""}
     ${fs.q ? `<div class="qcmp"><div class="lbl">同一日、同一筆錢比較</div><div class="tablewrap"><table>
       <tr><th></th><th class="r">而家</th><th class="r">回報</th><th class="r">最大回撤</th></tr>
       <tr><td><b>策略（跟模型）</b></td><td class="r mono">${f0(fs.val)}</td><td class="r mono">${chg(fs.ret)}</td><td class="r mono dn">${pct(fs.dd)}</td></tr>
@@ -1407,6 +1419,7 @@ function viewRank(){
 
 // 系統健康（2026-10-01 用戶：唔想有後顧之憂）：每個自動更新嘅部分最後幾時更新、有冇出錯
 const hkt = t => t ? Date.parse(String(t).replace(" HKT", "+08:00").replace(" ", "T")) : NaN;
+const HONEST = `<div class="info small"><b>點睇回測數字</b>：V2.3 有部分參數（例如 TQQQ 佔 40%、排名跌出頭 15 先賣）係睇住成段歷史揀出嚟，2000 年起回測年化約 24.5%、最大回撤 −36% 係<b>事後</b>數字。冇偷睇（每年只用之前數據揀）估計<b>年化約 20%、最大回撤約 −41%</b>；將來實際可能再低啲（滑價、稅、執行）。用 20% 做期望比較實際。</div>`;   // 2026-10-05 用戶要求：回報期望講誠實
 function healthCard(){
   if (!FEED.news && !FEED.err) fetchFeeds();
   const now = Date.now(), H = [];
@@ -1425,6 +1438,27 @@ function healthCard(){
     add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
   } else add("新聞", false, "讀唔到", FEED.err || "");
   if (TR) add("Trump 來源", !(TR.errs || []).length, `${TR.recent.length} 條近 3 日`, (TR.errs || []).join("；"));
+  // 2026-10-05 用戶：新功能都要檢查（債息、商品、業績、加密、雷達、AI 額度）
+  const ageMin = t => (now - (typeof t === "number" ? t : (/HKT/.test(String(t)) ? hkt(t) : Date.parse(t)))) / 60e3;
+  const fresh = (name, t, maxMin, normal, errs) => {
+    if (!t){ add(name, false, "讀唔到", "雲端未有呢份數據"); return; }
+    const a = ageMin(t), e = (errs || []).filter(x => !/429|Too Many/.test(x));
+    const shown = /HKT/.test(String(t)) ? String(t).slice(0, 16) : new Date(now - a * 60e3 + 8 * 3600e3).toISOString().slice(0, 16).replace("T", " ");   // 一律顯示香港時間
+    add(name, a < maxMin && !e.length, shown, a >= maxMin ? `已經 ${a >= 120 ? Math.round(a / 60) + " 個鐘" : Math.round(a) + " 分鐘"}冇更新（正常${normal}）` : e.join("；").slice(0, 160));
+  };
+  if (FEED.news){
+    fresh("美債息", FEED.rates && FEED.rates.generated, 120, "每 5–15 分鐘", FEED.rates && FEED.rates.errs);
+    fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, 120, "每 5–15 分鐘", FEED.commod && FEED.commod.errs);
+    fresh("業績", FEED.earn && FEED.earn.generated, 180, "每個鐘", FEED.earn && FEED.earn.errs);
+  }
+  if (!BTC) fetchBtc();
+  if (!HYP) fetchHyper();
+  if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), 180, "每 5–15 分鐘");
+  if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", 180, "每 5–15 分鐘", Object.values(HYP.err || {}));
+  if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
+  [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 8 * 60, "每 6 個鐘", X.errs); });
+  const q429 = /429|Too Many/.test((FEED.news && FEED.news.ai_err) || "");     // 只睇新聞（每 5–15 分鐘更新，最新）；雷達嘅錯誤可能係 6 個鐘前
+  add("AI 額度（Gemini 免費）", !q429, q429 ? "用晒" : "正常", q429 ? "今日免費 AI 額度用晒：數據照常更新，AI 分析暫停，大約香港時間下午 3–4 點重設後自動補返" : "");
   const bad = H.filter(x => !x.ok).length;
   return `<div class="card"><div class="row spread"><b>系統健康</b><span class="tag ${bad ? "t-stop" : "t-buy"}">${bad ? bad + " 項要留意" : "全部正常"}</span></div>
     ${H.map(x => `<div class="small" style="display:flex;gap:8px;align-items:flex-start"><span class="${x.ok ? "up" : "dn"}">${x.ok ? "✓" : "⚠"}</span>
@@ -1793,6 +1827,7 @@ function bind(){
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
   on("#radarRun", () => radarRun());
+  on("#janDone", () => { try { localStorage.setItem("jan-done", String(new Date().getFullYear())); } catch(e){} render(); });
   on("#radarReload", () => { RADAR_MSG = ""; fetchRadarAll(); });
   document.querySelectorAll("[data-rsec]").forEach(b => b.onclick = () => { RSEC = b.dataset.rsec; try { localStorage.setItem("rsec", RSEC); } catch(e){} render(); window.scrollTo(0, 0); });
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
