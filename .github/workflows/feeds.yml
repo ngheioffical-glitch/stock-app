@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "*/5 * * * *"      # 2026-09-30：新聞改每 5 分鐘（GitHub 實際會遲幾分鐘）；翻譯即時；今日重點喺 ai.py 限制每 28 分鐘先寫一次
   workflow_dispatch:
+    inputs:
+      relay:               # 2026-10-05：接力觸發會傳 "1"；app「重新整理」唔傳 → 只有 app 先當手動（強制重寫 AI）
+        required: false
+        default: ""
   push:                    # 2026-10-03：改呢個檔 push 上嚟就即刻跑一次
     branches: [main]
     paths: [.github/workflows/feeds.yml]
@@ -93,6 +97,7 @@ jobs:
         timeout-minutes: 6
         env:
           PYTHONIOENCODING: utf-8
+          RELAY: ${{ github.event.inputs.relay }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: 宏觀來源（X 知名人士每 30 分鐘、Polymarket 每次；失敗就沿用上一份）
         run: |
@@ -108,6 +113,7 @@ jobs:
         timeout-minutes: 5
         env:
           PYTHONIOENCODING: utf-8
+          RELAY: ${{ github.event.inputs.relay }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: 推去 feeds 分支
@@ -125,4 +131,4 @@ jobs:
         run: |
           el=$(( $(date +%s) - T0 ))
           if [ "$el" -lt 270 ]; then sleep $(( 270 - el )); fi
-          curl -sf -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/feeds.yml/dispatches" -d '{"ref":"main"}' && echo "已觸發下一次"
+          curl -sf -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/feeds.yml/dispatches" -d '{"ref":"main","inputs":{"relay":"1"}}' && echo "已觸發下一次"

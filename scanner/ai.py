@@ -574,6 +574,43 @@ def commod_text(C=None):
     return t or "（冇）"
 
 
+COMMOD_GAP_H = 6
+
+
+def commod_ai(key, N, now, force=False):
+    """商品點影響股市（2026-10-05 用戶：唔想係寫死嘅解釋，要定時 AI 分析）：每 6 個鐘，有商品異動即刻寫；寫入 commod.json 嘅 ai。"""
+    f = OUTDIR / "commod.json"
+    C = load(f) or {}
+    if not C.get("rows"):
+        return "冇商品數據"
+    old = C.get("ai") or {}
+    trig = json.dumps(C.get("alert") or [], ensure_ascii=False)
+    last = datetime.fromisoformat(old["at"]) if old.get("at") else None
+    if not force and last and now - last < timedelta(hours=COMMOD_GAP_H) and old.get("trig") == trig:
+        return f"商品分析：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
+    R = load(OUTDIR / "rates.json") or {}
+    rates = "；".join(f"{r['name']} {r['y']:.2f}%（1 個月 {r['m']:+.0f} 基點）" for r in R.get("rows", []) if r["name"] in ("2 年", "10 年", "30 年")) or "（冇）"
+    kw = re.compile(r"oil|crude|OPEC|gold|silver|copper|commodit|油|金|銀|銅|商品", re.I)
+    heads = [x.get("zh") or x["title"] for x in N["items"] if kw.search((x.get("title") or "") + (x.get("zh") or ""))
+             and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=48)][:25]
+    light, watch = context()
+    prompt = (f"你係宏觀市場分析員，幫一個做美股大型科技龍頭動能策略嘅香港散戶，分析而家商品點樣影響股市。{STYLE}{NL}"
+              f"佢嘅規則（唔會因為你改變）：大市綠燈揸美股龍頭 + TQQQ，紅燈轉現金／債券；而家{light}。{NL}"
+              f"商品數據：{commod_text(C)}。{('異動：' + '；'.join(C['alert']) + '。') if C.get('alert') else ''}{NL}"
+              f"美債息：{rates}；今日市場：{snap_text(snapshot())}。{NL}"
+              "最近 48 小時相關新聞：" + NL + (NL.join(heads) or "（冇）") + NL
+              + "用 Google 搜尋查證最新原因。回覆 JSON：{\"summary\": \"而家商品同股市嘅關係（2–3 句，有數字）\", "
+              + "\"items\": [{\"name\": \"原油／黃金／白銀／銅\", \"why\": \"最近點解咁郁（具體原因）\", \"impact\": \"對股市、邊啲板塊有咩影響\", \"watch\": \"之後要留意乜（有日期就寫）\"}], "
+              + "\"cg\": \"銅金比率而家代表市場點睇經濟（一句）\", \"for_you\": \"對佢嘅規則同科技股持倉有咩意思（一句，唔好叫人買賣）\"}。只用提供或者搜尋到嘅數字，唔好作。")
+    res, model = gemini_search(key, prompt)
+    if not res.get("items"):
+        raise RuntimeError(f"商品分析冇 items：{json.dumps(res, ensure_ascii=False)[:160]}")
+    C["ai"] = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
+                   generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
+    f.write_text(json.dumps(C, ensure_ascii=False), encoding="utf-8")
+    return f"商品分析：用 {model} 寫好"
+
+
 def tq_alert():
     """V2.3 TQQQ 腳（2026-10-02 用戶：黃燈要話我知發生咩事）：有轉換要做 → kind=switch；黃燈 → kind=sell／buy；否則 None。
     條件同 app 嘅 tqYellow() 一樣（只係提示，唔改規則）。"""
@@ -1021,7 +1058,7 @@ def main():
     if ta and (P.get("digest") or {}).get("tq_alert") != ta and last_ai:
         print(f"[ai] TQQQ {ta['kind']}（{ta['date']}），即刻重寫今日重點")
         last_ai = None
-    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"   # app 撳「重新整理」叫嘅：即刻重寫
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and not os.environ.get("RELAY")   # app 撳「重新整理」先當手動（接力觸發唔算，2026-10-05 修正：之前每 5 分鐘強制重寫，額度用晒）
     if manual:
         print("[ai] 手動更新：即刻重寫今日重點")
         last_ai = None
@@ -1076,6 +1113,11 @@ def main():
             if PH.get("think"):
                 H["think"] = PH["think"]
         (out / "hyper.json").write_text(json.dumps(H, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    try:                                                          # 商品點影響股市：每 6 個鐘，有異動即刻寫（2026-10-05）
+        print("[ai] " + commod_ai(key, N, now, force=manual))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 商品分析失敗：{e}")
+        errs.append(f"商品分析：{str(e)[:300]}")
     if errs:
         N["ai_err"] = "；".join(errs)
     (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")

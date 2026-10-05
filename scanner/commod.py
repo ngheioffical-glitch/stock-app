@@ -33,6 +33,10 @@ def chart(sym):
 
 
 def main(out):
+    try:                                       # ai.py 定時寫嘅 AI 分析：沿用（commod.py 每次重寫數據）
+        old_ai = json.loads((Path(out) / "commod.json").read_text(encoding="utf-8")).get("ai")
+    except Exception:  # noqa: BLE001
+        old_ai = None
     rows, errs, S = [], [], {}
     for sym, nm, unit in ITEMS:
         try:
@@ -69,7 +73,7 @@ def main(out):
         alert.append(f"銅價單日{'急升' if r['d'] > 0 else '急跌'} {abs(r['d']) * 100:.1f}%（經濟預期變化）")
     if not rows:
         raise SystemExit(f"[commod] 全部攞唔到：{errs}")
-    res = dict(generated=datetime.now(HK).strftime("%Y-%m-%d %H:%M HKT"), rows=rows, cg=cg, alert=alert or None, errs=errs)
+    res = dict(generated=datetime.now(HK).strftime("%Y-%m-%d %H:%M HKT"), rows=rows, cg=cg, alert=alert or None, errs=errs, ai=old_ai)
     Path(out).mkdir(parents=True, exist_ok=True)
     (Path(out) / "commod.json").write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
     print(f"[commod] {len(rows)} 樣；alert：{alert or '冇'}；錯誤：{errs or '冇'}")

@@ -1538,16 +1538,20 @@ const CMEAN = {"CL=F": "油價升 → 通脹同債息壓力大、減息機會細
   "HG=F": "「銅博士」：銅價升 = 環球經濟需求好，跌 = 經濟轉差；AI 數據中心、電網都要用大量銅。"};
 function commodCard(){
   const C = FEED.commod; if (!C || !(C.rows || []).length) return "";
-  const cg = C.cg || {};
+  const cg = C.cg || {}, A = C.ai;
   return `<div class="card"><div class="row spread"><b>商品</b><span class="small muted">${esc(C.generated)}</span></div>
     ${(C.alert || []).length ? `<div class="info small"><span class="tag t-warn">商品異動</span> ${C.alert.map(esc).join("；")}。點解會咁：睇上面 AI 今日重點。</div>` : ""}
     <div class="tablewrap"><table><tr><th>商品</th><th class="r">價</th><th class="r">今日</th><th class="r">1 週</th><th class="r">1 個月</th><th class="r">1 年</th><th class="r hide-sm">52 週高／低</th></tr>
     ${C.rows.map(r => `<tr><td>${esc(r.name)}<span class="ind">${esc(r.unit)}</span></td><td class="r mono"><b>${r.px >= 100 ? f0(r.px) : f2(r.px)}</b></td><td class="r mono">${chg(r.d, 1)}</td><td class="r mono">${chg(r.w, 1)}</td>
       <td class="r mono">${chg(r.m, 1)}</td><td class="r mono">${chg(r.yr, 0)}</td><td class="r mono hide-sm">${r.px >= 100 ? f0(r.hi52) : f2(r.hi52)}／${r.px >= 100 ? f0(r.lo52) : f2(r.lo52)}</td></tr>`).join("")}</table></div>
     ${cg.now != null ? `<p class="small"><b>銅金比率</b>（銅 ÷ 金，經濟溫度計）：3 個月 ${chg(cg.m3, 1)}、1 年 ${chg(cg.yr, 0)}。升 = 市場睇好經濟（通常債息都升）；跌 = 擔心經濟、資金避險。</p>` : ""}
-    <details class="exp small"><summary>每樣商品點影響股市</summary>${C.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(CMEAN[r.sym] || "")}</p>`).join("")}
-      <p class="muted">歷史：1973、1990、2008、2022 年油價暴升之後股市都大跌，因為通脹同加息。不過關係唔係每次都成立，只係宏觀背景，唔改 V2.3 規則。</p></details>
-    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），跟新聞每 5–15 分鐘更新。異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會令 AI 今日重點即刻重寫，解釋點解同對股市嘅影響。</p></div>`;
+    ${A ? `<div class="small" style="margin-top:6px"><b>AI：商品點影響股市</b> ${mdl(A.model)}<span class="muted"> · ${esc(A.generated || "")}</span>
+        ${A.summary ? `<p style="margin:4px 0">${esc(A.summary)}</p>` : ""}
+        ${(A.items || []).map(x => `<details class="exp"><summary><b>${esc(x.name || "")}</b>${x.why ? `<span class="ind">${esc(x.why)}</span>` : ""}</summary>
+          ${x.impact ? `<p style="margin:3px 0"><b>對股市：</b>${esc(x.impact)}</p>` : ""}${x.watch ? `<p style="margin:3px 0"><b>之後留意：</b>${esc(x.watch)}</p>` : ""}</details>`).join("")}
+        ${A.cg ? `<p style="margin:4px 0"><b>銅金比率：</b>${esc(A.cg)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}</div>`
+      : `<details class="exp small"><summary>每樣商品點影響股市（AI 分析未有，暫時顯示基本解釋）</summary>${C.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(CMEAN[r.sym] || "")}</p>`).join("")}</details>`}
+    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），跟新聞每 5–15 分鐘更新。AI 分析每 6 個鐘用 Google 搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。只係宏觀背景，唔改 V2.3 規則。</p></div>`;
 }
 
 // 業績（2026-10-02 用戶）：持倉 + 排名頭 15 嘅下次業績日期同 AI 業績重點（scanner/earnings.py）。只係資訊。

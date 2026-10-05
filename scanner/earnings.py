@@ -43,7 +43,7 @@ def main(out):
     f = out / "earnings.json"
     prev = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
     now = datetime.now(timezone.utc)
-    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and not os.environ.get("RELAY")   # 接力觸發唔算手動（2026-10-05）
     if prev.get("checked") and not manual and now - datetime.fromisoformat(prev["checked"]) < timedelta(minutes=EVERY_MIN):
         print("[earn] 未夠 55 分鐘，沿用上一份")
         return
