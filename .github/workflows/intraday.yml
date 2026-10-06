@@ -3,7 +3,7 @@ name: 盤中 5 分鐘掃描（測試）
 # 13:00–21:59 UTC 包晒夏令（13:30–20:00）同冬令（14:30–21:00）；唔喺開市時間程式會自己跳過
 on:
   schedule:
-    - cron: "*/5 13-21 * * 1-5"
+    - cron: "*/15 13-21 * * 1-5"   # 2026-10-06 慳運算：開市時間每 15 分鐘
   workflow_dispatch:
 permissions:
   contents: write

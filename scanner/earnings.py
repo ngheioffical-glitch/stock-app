@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 HK = ZoneInfo("Asia/Hong_Kong")
-MAX_AI, KEEP_DAYS, EVERY_MIN, RECENT_DAYS = 3, 60, 55, 10   # 2026-10-02：Gemini 搜尋額度 429 會失敗，留 10 日畀之後每個鐘再試
+MAX_AI, KEEP_DAYS, EVERY_MIN, RECENT_DAYS = 3, 60, 120, 10   # 2026-10-02：Gemini 搜尋額度 429 會失敗，留 10 日畀之後每個鐘再試
 
 PROMPT = ("美股 {sym} 喺 {date}（美國時間）公佈咗最新一季業績（EPS 預測 {est}，實際 {act}）。用 Google 搜尋呢份業績嘅新聞、新聞稿同業績電話會（earnings call）內容，"
           "用香港廣東話口語總結，數字要具體（例如收入幾多億美元、按年 +x%）。重點睇管理層：之前做得好嘅地方今季保持到嗎？之前做得差嘅地方今季有冇改善？"

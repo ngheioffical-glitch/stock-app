@@ -34,8 +34,8 @@ MODELS_T = [m for m in (os.environ.get("GEMINI_MODEL_T"), "gemini-flash-lite-lat
 _AVAIL = None
 API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
 CATS = ("快訊", "市場", "經濟", "加密")
-TR_GAP = int(os.environ.get("TRANSLATE_GAP_MIN", "15"))   # 翻譯最少隔幾耐（2026-10-05：接力每 5 分鐘跑，額度唔夠）
-GAP = int(os.environ.get("GEMINI_GAP_MIN", "28"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
+TR_GAP = int(os.environ.get("TRANSLATE_GAP_MIN", "30"))   # 翻譯最少隔幾耐（2026-10-05：接力每 5 分鐘跑，額度唔夠）
+GAP = int(os.environ.get("GEMINI_GAP_MIN", "45"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
 
@@ -574,7 +574,7 @@ def commod_text(C=None):
     return t or "（冇）"
 
 
-COMMOD_GAP_H = 6
+COMMOD_GAP_H = 12
 
 
 def commod_ai(key, N, now, force=False):
@@ -648,7 +648,7 @@ def tq_alert():
 
 # ---------------------------------------------------------------- AI 宏觀思考（2026-10-02 用戶：想 AI 好似評論文章咁，畀多啲角度思考；冇客觀答案）
 NL = chr(10)
-THINK_GAP = int(os.environ.get("THINK_GAP_MIN", "360"))   # 分鐘：最少隔 6 個鐘先再寫；債息異動、轉燈就即刻寫
+THINK_GAP = int(os.environ.get("THINK_GAP_MIN", "720"))   # 分鐘：最少隔 6 個鐘先再寫；債息異動、轉燈就即刻寫
 THINK_SYMS = [("SPY", "S&P 500"), ("RSP", "S&P 500 等權"), ("QQQ", "納指 100"), ("SMH", "半導體"), ("IWM", "羅素 2000 細價股"), ("^VIX", "VIX")]
 
 
@@ -879,7 +879,7 @@ def walert_text():
     return f"24 小時：{net or '冇'}。最新：{last}"
 
 
-WALERT_GAP_H = 6
+WALERT_GAP_H = 12
 
 
 def walert_ai(key, now, force=False):
