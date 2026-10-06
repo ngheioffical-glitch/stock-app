@@ -7,9 +7,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
-concurrency:
-  group: intraday
-  cancel-in-progress: false
+# 2026-10-06：唔用 concurrency（GitHub 遲／故障時排隊嘅會被取消，用戶收到好多「cancelled」電郵）；每次只跑 1 分鐘，唔會疊
 jobs:
   scan:
     runs-on: ubuntu-latest

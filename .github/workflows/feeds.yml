@@ -15,11 +15,25 @@ permissions:
   contents: write
   actions: write          # 接力：跑完觸發下一次（GitHub 排程會遲甚至停 2 個鐘）
   models: read            # GitHub Models：Gemini 失敗時嘅 AI 後備（用內置 GITHUB_TOKEN）
-concurrency:
-  group: feeds
-  cancel-in-progress: true
+# 2026-10-06：唔再用 concurrency 互相取消（每 5 分鐘一個「cancelled」，用戶收到好多 GitHub 電郵）。
+# 改為 guard：排程觸發時，如果 feeds 分支 8 分鐘內有更新（接力鏈仲行緊）就跳過（skipped 唔會寄電郵）；接力鏈斷咗先由排程重新接上。
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      run: ${{ steps.g.outputs.run }}
+    steps:
+      - id: g
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "run=1" >> "$GITHUB_OUTPUT"; exit 0; fi
+          last=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/commits/feeds" | python3 -c "import json,sys,datetime;d=json.load(sys.stdin);print(int(datetime.datetime.fromisoformat(d['commit']['committer']['date'].replace('Z','+00:00')).timestamp()))" || echo 0)
+          age=$(( $(date +%s) - last ))
+          echo "feeds 分支 $age 秒前更新"
+          if [ "$age" -lt 480 ]; then echo "run=0" >> "$GITHUB_OUTPUT"; else echo "run=1" >> "$GITHUB_OUTPUT"; fi
   feeds:
+    needs: guard
+    if: needs.guard.outputs.run == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -133,10 +147,12 @@ jobs:
           git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json 2>/dev/null)
           git commit -q -m "feeds $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" feeds
-      - name: 接力：開始後約 5 分鐘再觸發自己（2026-10-03：GitHub 排程試過停 2 個鐘；排程保留做後備；新一次會取消舊一次，唔會疊）
+      - name: 接力：開始後約 5 分鐘再觸發自己（2026-10-03 起；2026-10-06：已經有另一個接力／手動排緊隊或者行緊就唔觸發，保持得一條鏈；排程嘅唔計，因為接力鏈仲行緊佢會自己跳過）
         if: always()
         continue-on-error: true
         run: |
           el=$(( $(date +%s) - T0 ))
           if [ "$el" -lt 270 ]; then sleep $(( 270 - el )); fi
-          curl -sf -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/feeds.yml/dispatches" -d '{"ref":"main","inputs":{"relay":"1"}}' && echo "已觸發下一次"
+          other=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/workflows/feeds.yml/runs?per_page=20" | python3 -c "import json,sys;d=json.load(sys.stdin);print(sum(1 for r in d.get('workflow_runs',[]) if r['status'] in ('queued','in_progress','waiting','pending') and r['event'] != 'schedule' and r['id'] != ${{ github.run_id }}))" || echo 0)
+          if [ "$other" -gt 0 ]; then echo "已經有 $other 個 feeds 排緊隊／行緊，唔再觸發"; exit 0; fi
+          curl -sf -X POST -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/actions/workflows/feeds.yml/dispatches" -d '{"ref":"main","inputs":{"relay":"1"}}' && echo "已觸發下一次"
