@@ -1,24 +1,27 @@
-"""V2.5 模型（2026-10-09：stock-strategy/LAB_BEST.md 冇偷睇揀法 RA 喺 2025、2026 年都揀中；用戶：「你整個最優秀版本比我」）。[quant-risk]
+"""V2.6 模型（2026-10-09 用戶：「繼續研究 v2.5，做到全方位為止」；stock-strategy/LAB_ROBUST25.md 第 2 輪冇偷睇揀法 RA 2026 年揀中，
+11 個壓力情境 8 個全方位）。之前 V2.5（40／40／10／10，LAB_BEST）。[quant-risk]
 研究（stock-strategy/src/v25_hist.py：2000 年起歷史）同雲端（scanner/model.py：每日接落去行）共用呢份；三隻 ETF 腳嘅買賣規則喺 v24.py（照用）。
 
 資金分 4 部分：
-  40% 領導股：V2.2 規則（成交額頭 50、RS 排名、前高 buy-stop、swing low 止蝕、2R 保本後跟 swing low 上移、
+  30% 領導股：V2.2 規則（成交額頭 50、RS 排名、前高 buy-stop、swing low 止蝕、2R 保本後跟 swing low 上移、
        跌穿 200 日線／星期五排名跌出頭 15／大市紅燈賣、呢部分由高位跌 25% 剎車只揸 2 隻；現金綠燈收國債息、紅燈揸 IEF）。
        雲端：scanner/lead.py；研究：stock-strategy 引擎（src/model_bt.py run_days）。
-  40% 趨勢腳、10% 低吸腳、10% 輪動腳：規則同 V2.4 一樣（v24.py）。
-每月最後一個交易日收市決定、下一個交易日收市調返 40／40／10／10：領導股部分只用現金調（唔會為咗比例賣股），
-  三隻 ETF 腳按 40：10：10 分餘下嘅錢；每個移動嘅美元每邊 0.1%。
+  50% 趨勢腳、10% 低吸腳、10% 輪動腳：規則同 V2.4 一樣（v24.py），但趨勢腳加「再買門檻」：
+       揸緊 TQQQ 時照舊（紅燈或 QQQ 20 日波幅 ≥ 35% 就賣）；冇揸時要綠燈而且波幅 < 25% 先再買（避開上落市來回洗；2011、2015–16、2024 呢類）。
+每月最後一個交易日收市決定、下一個交易日收市調返 30／50／10／10：領導股部分只用現金調（唔會為咗比例賣股），
+  三隻 ETF 腳按 50：10：10 分餘下嘅錢；每個移動嘅美元每邊 0.1%。
 """
 from __future__ import annotations
 
 import v24
 
-W = dict(lead=0.40, trend=0.40, dip=0.10, xr=0.10)
+v24.RULE["vol_in"] = 0.25                 # V2.6：趨勢腳冇揸 TQQQ 時，QQQ 20 日波幅要 < 25% 先再買
+W = dict(lead=0.30, trend=0.50, dip=0.10, xr=0.10)
 LEGS = ("trend", "dip", "xr")
 LEG = {"lead": "領導股", **v24.LEG}
 COST = v24.RULE["cost"]
-VER = "V2.5"
-TXT = "40％ 領導股、40％ 趨勢、10％ 低吸、10％ 輪動"
+VER = "V2.6"
+TXT = "30％ 領導股、50％ 趨勢、10％ 低吸、10％ 輪動"
 
 
 def new_legs(capital, prev, note=""):
@@ -103,15 +106,16 @@ def leg_todo(st, r, tot):
 
 def leg_view(st, r, tot):
     T, D, X = st["trend"], st["dip"], st["xr"]
-    rule = {"trend": "大市轉紅燈或 QQQ 波幅 ≥ 35% → 收市前轉 IEF" if T["held"] else "綠燈 + 波幅 < 35% → 收市前轉返 TQQQ",
+    vin = v24.RULE["vol_in"]
+    rule = {"trend": "大市轉紅燈或 QQQ 波幅 ≥ 35% → 收市前轉 IEF" if T["held"] else f"綠燈 + 波幅 < {vin:.0%} → 收市前轉返 TQQQ",
             "dip": f"RSI > 70 或揸滿 10 日（而家第 {D['days']} 日）→ 開市賣", "xr": "月尾重新揀（1、3、6 個月回報最高嗰樣）"}
     hold = [dict(sym=s, leg=LEG[k], legk=k, weight=round(w, 4), entry=round(e, 2) if e else None, close=round(c, 2) if c else None,
                  ret=round(ret, 4), date=dt, rule=rule[k]) for k, s, w, e, c, ret, dt in leg_positions(st, r, tot)]
     margin = max(r["ndx"] / r["s200"] - 1, min(r["ndx"] / r["e21"] - 1, r["e21"] / r["s50"] - 1))
-    legs = dict(trend=dict(w=W["trend"], frac=round(T["val"] / tot, 4), held=T["held"], green=r["green"], vol=r["vol"], vol_max=v24.RULE["vol"]),
+    legs = dict(trend=dict(w=W["trend"], frac=round(T["val"] / tot, 4), held=T["held"], green=r["green"], vol=r["vol"], vol_max=v24.RULE["vol"], vol_in=vin),
                 dip=dict(w=W["dip"], frac=round(D["val"] / tot, 4), pos=D["pos"], days=D["days"], rsi2=r["rsi2"], rsi_in=v24.RULE["rsi_in"],
                          rsi_out=v24.RULE["rsi_out"], hold=v24.RULE["hold"]),
                 xr=dict(w=W["xr"], frac=round(X["val"] / tot, 4), hold=X["hold"], why=r["why_pick"], me=r["me"]))
-    tq = dict(held=bool(T["held"]), pend=T["pend"], frac=round(T["val"] / tot, 4), target=W["trend"], vol=r["vol"], vol_max=v24.RULE["vol"],
+    tq = dict(held=bool(T["held"]), pend=T["pend"], frac=round(T["val"] / tot, 4), target=W["trend"], vol=r["vol"], vol_max=v24.RULE["vol"], vol_in=vin,
               green=r["green"], why_off=T["why"], margin=round(margin, 4), gap21=round(r["ndx"] / r["e21"] - 1, 4), gap50=round(r["ndx"] / r["s50"] - 1, 4))
     return hold, legs, tq

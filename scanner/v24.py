@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 
 W = dict(trend=0.80, dip=0.10, xr=0.10)
-RULE = dict(vol=0.35, rsi_in=25.0, rsi_out=70.0, hold=10, cost=0.001)
+RULE = dict(vol=0.35, vol_in=0.35, rsi_in=25.0, rsi_out=70.0, hold=10, cost=0.001)   # vol_in：冇揸 TQQQ 時要波幅低過幾多先買（V2.4 = 35%；V2.6 由 v25.py 改 25%）
 LEV = {"QQQ": "TQQQ", "TLT": "TMF", "GLD": "UGL"}
 LEG = {"trend": "趨勢腳", "dip": "低吸腳", "xr": "輪動腳"}
 UNDER = {"QQQ": "QQQ", "TLT": "TLT（長債）", "GLD": "黃金"}
@@ -166,11 +166,12 @@ def step(st, r, p, fills):
 def decide(st, r, first=False):
     """收市決定下一個交易日要做咩（存喺 pend + why）。"""
     T, D, X = st["trend"], st["dip"], st["xr"]
-    on = bool(r["green"] and r["vol"] < RULE["vol"])
+    thr = RULE["vol"] if T["held"] else RULE["vol_in"]           # 揸緊：波幅 ≥ 35% 先賣；冇揸：波幅 < vol_in 先買
+    on = bool(r["green"] and r["vol"] < thr)
     T["pend"] = None
     if on != T["held"]:
         T["pend"] = on
-        T["why"] = (f"大市綠燈 + QQQ 20 日波幅 {r['vol']:.1%} < 35% → 揸 TQQQ" if on else
+        T["why"] = (f"大市綠燈 + QQQ 20 日波幅 {r['vol']:.1%} < {thr:.0%} → 揸 TQQQ" if on else
                     ("大市轉紅燈（NDX 跌穿 200 日線，又唔係企喺 21 日 EMA > 50 日線上面）→ 轉 IEF" if not r["green"] else
                      f"QQQ 20 日波幅 {r['vol']:.1%} ≥ 35%（大上大落，3 倍 ETF 耗損大）→ 轉 IEF"))
     D["pend"] = None
