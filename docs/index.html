@@ -354,7 +354,7 @@ function header(){
       <div class="gauge"><span>NDX vs 21 日 EMA</span><b class="${d21 >= 0 ? "up" : "dn"}">${pct(d21)}</b><div class="bar"><i style="width:${w(d21)}%"></i></div></div>
       <div class="gauge"><span>21 EMA vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
     </div>
-    <p class="small"><b>V2.8：</b>${g ? "綠燈：領導股照 buy-stop 買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、低吸腳唔買；轉返綠燈之後按波幅分 4 份買返"}。今日要做乜睇下面「V2.8 要做」。</p>
+    <p class="small"><b>V2.7：</b>${g ? "綠燈：領導股照 buy-stop 買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、輪動腳唔揸 TQQQ；轉返綠燈之後按波幅分 4 份買返"}。今日要做乜睇下面「V2.7 要做」。</p>
     <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
   </div>` + fearCard() + bounceCard() + fngCard("stock");
 }
@@ -907,18 +907,18 @@ function janCard(){
   try { if (localStorage.getItem("jan-done") === String(y)) return ""; } catch(e){}
   return `<div class="alert small"><b>每年 1 月：重新驗證策略（${y}）</b>
     <p style="margin:4px 0">冇偷睇嘅規矩係每年 1 月用到上年尾嘅新數據重新揀一次，睇吓揀法使唔使變。喺電腦用 Claude Code 開研究資料夾，同 AI 講：「跟 RESTORE.md 嘅每年 1 月驗證步驟做」。</p>
-    <p style="margin:4px 0">會重跑：V2.8 每年揀比重（LAB_THREE 第 2 輪揀法 LM2，揀中有變就要改三部分比例）、BTC／ETH 均線（LAB_CRYPTOMA、LAB_ETHBYBTC）。結果有變先考慮改 app，冇變就照舊。</p>
+    <p style="margin:4px 0">會重跑：V2.7 每年揀組合（LAB_LOSSMIN 第 2 輪揀法 LM2，揀中有變就要改四部分比例）、BTC／ETH 均線（LAB_CRYPTOMA、LAB_ETHBYBTC）。結果有變先考慮改 app，冇變就照舊。</p>
     <button id="janDone" class="small">今年做咗，收埋</button></div>`;
 }
 function viewToday(){
   const o = signals();
   let h = topbar() + janCard() + header() + v24Today();
   h += `<div class="row spread"><h2>揀股參考（V2.2）· ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
-  if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.8 領導股部分（45%）用呢啲訊號；模型實際要掛嘅 buy-stop 喺上面「V2.8 要做」。</p>`;
+  if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅 buy-stop 喺上面「V2.7 要做」。</p>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
     ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
       <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
-    <p class="small muted"><b>V2.8 領導股部分（佔帳戶 45%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺上面「V2.8 要做」；下面「注碼」係佔領導股部分（即係帳戶嘅 45% × 注碼）。買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
+    <p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺上面「V2.7 要做」；下面「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
     + liveStatus();
   h += o.list.map(r => {
     const gap = r.pivot / r.close - 1, fill = Math.max(3, Math.min(100, (1 - gap / 0.15) * 100));
@@ -1276,7 +1276,7 @@ function viewHist(){
     <input type="range" id="histR" min="0" max="${D.length - 1}" value="${i}" aria-label="揀日子">
     <div class="hbtn">${years.length > 1 ? `<select id="histY" aria-label="揀年份"><option value="">全部年份</option>${years.map(y => `<option${y === Y ? " selected" : ""}>${y}</option>`).join("")}</select>` : ""}<button data-hmv="pf" aria-label="上一次成交">⏮</button><button data-hmv="-1" aria-label="前一日">◀</button><button data-hmv="1" aria-label="後一日">▶</button><button data-hmv="nf" aria-label="下一次成交">⏭</button></div>
     <div id="histDay" style="display:flex;flex-direction:column;gap:6px">${histDay(D, i)}</div>
-    <p class="small muted">${HMODE !== "model" ? `V2.8（45% 領導股 + 40% 趨勢腳 TQQQ／IEF + 15% 低吸 TQQQ）由 ${esc(B.start)}、10 萬起步嘅回測（領導股用全美股連退市數據；TQQQ 2010 年上市前用指數模擬；數據至 ${esc(B.end)}，之後接雲端每日行嘅帳戶）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
+    <p class="small muted">${HMODE !== "model" ? `V2.7（35% 領導股 + 45% 趨勢腳 TQQQ／IEF + 5% 低吸 TQQQ + 15% 輪動 TQQQ／TMF／UGL）由 ${esc(B.start)}、10 萬起步嘅回測（領導股用全美股連退市數據；TQQQ 2010、TMF 2009、UGL 2008 上市前用指數模擬；數據至 ${esc(B.end)}，之後接雲端每日行嘅帳戶）。青線 = 帳戶，虛線 = 同期買 QQQ，底部紅 = 大市紅燈，對數刻度。價錢係調整價（拆股同派息），越早年同當年報價差越遠。回測唔代表將來。` : "模型帳戶每日收市後嘅快照。青線 = 帳戶。"}撳逐年表、揀年份或者自訂時段放大睇；拉條 bar 或者撳掣揀日子；⏮⏭ 跳去上／下一次有成交嘅日子。</p></div>`;
   return h;
 }
 
@@ -1321,7 +1321,7 @@ function followCard(M){
   const form = `<div class="grid2 fform"><label>本金（美元）<input id="fCap" type="number" inputmode="decimal" step="any" placeholder="例如 20000" value="${fs ? fs.capital : ""}"></label>
       <label>由邊日收市開始跟（2000 年起任何一日）<input id="fStart" type="date" min="2000-01-03" max="${esc(last)}" value="${esc(fs ? fs.start : last)}"></label></div>
     <div class="row"><button class="primary" id="fGo">${fs ? "重設" : "開始跟"}</button>${fs ? `<button id="fClear">停止跟</button>` : ""}</div>`;
-  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.8 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
+  if (!fs) return `<div class="card"><b>我嘅跟單帳戶</b><p class="small muted">填本金，揀由邊日開始：揀今日 = 由而家開始跟；揀以前嘅日子 = 睇下如果嗰日開始跟，而家會變成幾多（2026-09-22 之前用 V2.7 回測，之後接雲端每日行嘅延續帳戶，冇斷層）。app 會用你嘅帳戶值計每隻要買幾多股，隨時可以重設。</p>${form}</div>`;
   if (fs.loading) return `<div class="card"><b>我嘅跟單帳戶</b><p class="muted">${fs.err ? "讀唔到回測數據：" + esc(fs.err) : "載入緊 2000 年起嘅回測數據（約 1 MB）…"}</p>${fs.err ? form : ""}</div>`;
   if (!FEED.news && !FEED.err) fetchFeeds();
   // 2026-10-03 用戶：冇寫幾時幾錢買入、「佔 13% · 729」唔知咩嚟 → 寫明模型買入日同價，金額標明係市值
@@ -1347,7 +1347,7 @@ function followCard(M){
       <p class="small muted">「買入 @」= 模型嘅買入日同價（回報由呢個價計）；「市值」= 按你帳戶值計，嗰隻而家值幾多美元；股數 = 市值 ÷ 最新收市價。${v.holdings.some(late) ? `寫「照抄」嘅係你開始跟之前模型已經揸住嘅：假設你 ${esc(fs.start)} 收市用當日價照抄，你自己嘅成本會同模型唔同。` : ""}</p>` : ""}
     <p class="small muted">每日美股收市、雲端掃描完會自動計到最新一日，唔使重新設定；想由第二日開始或者改本金就撳下面。</p>
     <details class="exp"><summary>改金額／重設開始日</summary>${form}</details>
-    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.8 回測（2000 年起連續行；TQQQ 上市前用指數模擬），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。呢度假設你開始嗰日照抄模型當時嘅持倉（包括嗰陣揸緊嘅股票，止蝕照模型）；全現金開始嘅話 ETF 部分即刻照抄，領導股部分等下一張 buy-stop（例如 2026 年 1 月 2 日全現金開始到 9 月 22 日 +11.8%，QQQ +22.1%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
+    <p class="small muted">假設你喺 ${esc(fs.start)} 收市照模型比例買入，之後照模型買賣；未計你實際成交價、碎股同佣金。${fs.acct === "cont" ? `你跟嘅係「延續帳戶」：${esc(fs.btEnd)} 之前用 V2.7 回測（2000 年起連續行；TQQQ、TMF、UGL 上市前用指數模擬），之後同一個帳戶用 Yahoo 數據喺雲端每日照規則繼續行（到 ${esc(fs.last)}），冇斷層。呢度假設你開始嗰日照抄模型當時嘅持倉（包括嗰陣揸緊嘅股票，止蝕照模型）；全現金開始嘅話 ETF 部分即刻照抄，領導股部分等下一張 buy-stop（例如 2026 年 1 月 2 日全現金開始到 9 月 22 日 +22.0%，QQQ +22.1%；「歷史」可以揀「每年 1 月 1 日全現金」睇）。回測結果唔代表將來。` : ""}下面「要做」嘅股數已經用你嘅帳戶值 ${f0(fs.val)} 計。</p></div>`;
 }
 
 let MTAB = (() => { try { const m = localStorage.getItem("mtab"); return m === "hist" ? "hist" : "follow"; } catch(e){ return "follow"; } })();
@@ -1371,9 +1371,9 @@ function tqYellow(TQ){
   }
   return null;     // 已經有轉換要做：睇「要做」
 }
-// V2.4–V2.8（2026-10-12）：要做（有原因）同各部分狀態；資料嚟自雲端模型 model_cont.json 嘅 view
+// V2.4–V2.7（2026-10-12）：要做（有原因）同各部分狀態；資料嚟自雲端模型 model_cont.json 嘅 view
 const LEGN = {lead: "領導股", trend: "趨勢腳", dip: "低吸腳", xr: "輪動腳", all: "全部"};
-const MODELV = v => v && /^V2\.[4-8]$/.test(v.ver || "");
+const MODELV = v => v && /^V2\.[4-7]$/.test(v.ver || "");
 function v24Todo(base){
   const v = MCONT && MCONT.view; if (!MODELV(v)) return "";
   const amt = f => f != null && base > 0 ? ` · 約 ${f0(base * f)} 美元` : "";
@@ -1408,11 +1408,11 @@ function trendCond(T, ok){
 function legsCard(v){
   const L = v && v.legs; if (!L) return "";
   const ok = b => b ? `<span class="up">✓</span>` : `<span class="dn">✗</span>`, T = L.trend, D = L.dip, X = L.xr, LD = L.lead;
-  return `<div class="card small"><b>${LD ? (X ? "四部分" : "三部分") : "三隻腳"}而家</b>
+  return `<div class="card small"><b>${LD ? "四部分" : "三隻腳"}而家</b>
     ${LD ? `<p style="margin:4px 0"><b>領導股（目標 ${Math.round(LD.w * 100)}%，而家 ${Math.round(LD.frac * 100)}%）：揸 ${LD.n} 隻，最多 ${LD.cap} 隻${LD.braking ? "（剎車中：呢部分由高位跌咗 25% 以上，返到高位 −12.5% 以內先恢復 5 隻）" : ""}</b>。呢部分現金佔帳戶 ${Math.round(LD.cash * 100)}%，${LD.green ? "綠燈：買短期國債（SGOV／BIL）" : "紅燈：買 IEF"}；${LD.slots ? `有 ${LD.slots} 個空位，掛 buy-stop 等突破` : LD.green ? "冇空位，唔使掛單" : "紅燈唔買"}。</p>` : ""}
     <p style="margin:4px 0"><b>趨勢腳（目標 ${Math.round(T.w * 100)}%，而家 ${Math.round(T.frac * 100)}%）：揸 ${trendHold(T)}</b>。${trendCond(T, ok)}</p>
     <p style="margin:4px 0"><b>低吸腳（${Math.round(D.w * 100)}%，而家 ${Math.round(D.frac * 100)}%）：${D.pos ? `揸 TQQQ（第 ${D.days} 日）` : "現金（收國債息）"}</b>。${D.pos ? `NDX 2 日 RSI ${D.rsi2}：升過 ${D.rsi_out} 或者揸滿 ${D.hold} 日就下一日開市賣` : `NDX 2 日 RSI ${D.rsi2}：綠燈而跌穿 ${D.rsi_in} 就下一日開市買`}。</p>
-    ${X ? `<p style="margin:4px 0"><b>輪動腳（${Math.round(X.w * 100)}%，而家 ${Math.round(X.frac * 100)}%）：揸 ${X.hold === "CASH" ? "現金" : esc(X.hold)}</b>。${esc((X.why || "").replace(/月尾輪動(（安全版）)?：/, "而家計："))}。每月最後一個交易日先會重新揀。${X.safe ? (X.ok_tq ? "安全版：揸 TQQQ 時如果大市轉紅燈或者 QQQ 波幅 &gt; 35%，下一個交易日收市前轉現金，等月尾再揀。" : "<b>安全版：而家大市紅燈或者 QQQ 波幅 &gt; 35%，唔揸 TQQQ。</b>") : ""}</p>` : ""}</div>`;
+    <p style="margin:4px 0"><b>輪動腳（${Math.round(X.w * 100)}%，而家 ${Math.round(X.frac * 100)}%）：揸 ${X.hold === "CASH" ? "現金" : esc(X.hold)}</b>。${esc((X.why || "").replace(/月尾輪動(（安全版）)?：/, "而家計："))}。每月最後一個交易日先會重新揀。${X.safe ? (X.ok_tq ? "安全版：揸 TQQQ 時如果大市轉紅燈或者 QQQ 波幅 &gt; 35%，下一個交易日收市前轉現金，等月尾再揀。" : "<b>安全版：而家大市紅燈或者 QQQ 波幅 &gt; 35%，唔揸 TQQQ。</b>") : ""}</p></div>`;
 }
 function v24Today(){
   const v = MCONT && MCONT.view; if (!MODELV(v)) return "";
@@ -1441,7 +1441,7 @@ function viewModel(){
     h += legsCard(v);
     if ((A.fills || []).length) h += `<h2>最近成交（10 個交易日）</h2><div class="card" style="gap:4px">${A.fills.slice().reverse().map(x =>
       `<p class="small"><span class="tag ${x.side === "買入" ? "t-cyan" : "t-dim"}">${esc(x.side)}</span> <b class="mono">${esc(x.sym)}</b> ${esc(x.date)}${x.px != null ? ` @ <span class="num">${f2(x.px)}</span>` : ""}${x.ret != null ? ` ${chg(x.ret)}` : ""} · ${esc(x.reason || "")}</p>`).join("")}</div>`;
-    h += `<p class="small muted">模型 = V2.8（45% 領導股 + 40% 趨勢腳 + 15% 低吸腳，冇孖展）由 2000-01-03 用 10 萬開始嘅帳戶（領導股用全美股連退市數據；上市前 TQQQ 用指數模擬），之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣；每次買賣嘅原因都寫喺「要做」同「最近成交」。</p>`;
+    h += `<p class="small muted">模型 = V2.7（35% 領導股 + 45% 趨勢腳 + 5% 低吸腳 + 15% 輪動腳，冇孖展）由 2000-01-03 用 10 萬開始嘅帳戶（領導股用全美股連退市數據；上市前 TQQQ、TMF、UGL 用指數模擬），之後雲端每日收市照規則繼續行（數據 ${esc(v.data_date)}）。照抄：模型買你就買、賣你就賣；每次買賣嘅原因都寫喺「要做」同「最近成交」。</p>`;
   } else {
     h += viewHist();
     const T = (M.trades || []).slice().reverse().slice(0, 20);
@@ -1471,7 +1471,7 @@ function viewRank(){
 
 // 系統健康（2026-10-01 用戶：唔想有後顧之憂）：每個自動更新嘅部分最後幾時更新、有冇出錯
 const hkt = t => t ? Date.parse(String(t).replace(" HKT", "+08:00").replace(" ", "T")) : NaN;
-const HONEST = `<div class="info small"><b>點睇回測數字</b>：V2.8 係三部分結構（領導股、TQQQ 趨勢、低吸；冇輪動腳），結構係用戶決定；比重 45／40／15 係 2026 年 1 月用之前數據揀（LAB_THREE 第 2 輪揀法 LM2）。套返去以前嘅回測（2000 年起年化 24.1%、2006 年起 29.6%、最大回撤 −34%）係<b>事後</b>數字。冇偷睇（2006 年起每年 1 月只用當時數據揀比重，逐年換）2000 年起<b>年化約 24%、最大回撤約 −38%</b>（QQQ 8.7%、−83%），而且冇偷睇版本輸一段 QQQ 熊市、「開始年份回撤細過 QQQ」只得 20/25。弱點：呢個結構對 QQQ「全方位」只係啱啱好：主要情況過，但 11 個壓力情況（成本加倍、開市落單、遲一日、借貸息貴、領導股參數改動）只有 2 個仍然全方位（之前四部分 V2.7 係 6 個）；領導股同趨勢比重改 5 點都唔過。2025 年熊市同 QQQ 幾乎打和（−23% 對 −23%）；2008–18 長牛只贏少少（+736% 對 +706%）；2026 年 1 月全現金開始到 9 月 22 日 +11.8%，輸 QQQ（+22.1%）。回撤：全期細過 S&P 500（−34% vs −55%），S&P 500 四次熊市都蝕少過佢；但 2021 之後幾次調整仍然跌 22–27%，大過 S&P 500（跌 4–23%）；27 年入面 8 年年內跌過 25% 以上，試過一日跌 10.8%。27 年輸 QQQ 9 年。將來實際可能再低啲（滑價、稅、執行）。用 20–25% 做期望，而且要預咗會跌 35–40%、可以連續幾年輸 QQQ。</div>`;   // 2026-10-05 用戶要求：回報期望講誠實
+const HONEST = `<div class="info small"><b>點睇回測數字</b>：V2.7 組合係 2026 年 1 月用之前數據揀出嚟（LAB_LOSSMIN 第 2 輪揀法 LM2：喺成本加倍、開市落單、遲一日、借貸息貴、領導股參數改動等 11 個壓力情境之下，揀「對 QQQ 全方位」比例最高、回撤最細嗰個），套返去以前嘅回測（2000 年起年化 24.2%、2006 年起 29.8%、最大回撤 −33%）係<b>事後</b>數字。冇偷睇（2006 年起每年 1 月只用當時數據揀，逐年換）2000 年起<b>年化約 23%、最大回撤約 −41%</b>（QQQ 8.7%、−83%），而且冇偷睇版本「開始年份回撤細過 QQQ」只得 16/25。仲有弱點：揀中嗰個喺 11 個壓力情境只有 6 個仍然全方位（預先定落要 8 個，未達標）：開市落單、遲一日、借貸息一直 4%、領導股揸 4 隻或 6 隻都唔過（趨勢腳要收市前落單）；領導股同趨勢比重改 5 點（30／50）都唔過。回撤：全期細過 S&P 500（−33% vs −55%），但 2021 之後幾次調整仍然跌 25–32%，大過 S&P 500（S&P 500 只跌 4–23%）；27 年入面 13 年年內跌過 25% 以上，試過一日跌 12.5%。27 年輸 QQQ 9 年。將來實際可能再低啲（滑價、稅、執行）。用 20–25% 做期望，而且要預咗會跌 35–40% 以上、可以連續幾年輸 QQQ。</div>`;   // 2026-10-05 用戶要求：回報期望講誠實
 function healthCard(){
   if (!FEED.news && !FEED.err) fetchFeeds();
   const now = Date.now(), H = [];
@@ -1529,13 +1529,13 @@ function viewSet(){
     <label>GitHub token（可選：撳新聞「重新整理」即刻叫雲端更新 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
     <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
-  <div class="card small muted"><p><b>V2.8（2026-10-12 起，模型用緊）：45% 揀領導股 + 55% TQQQ 策略，唔用孖展。</b>資金分 3 部分（用戶決定：領導股、TQQQ 趨勢、低吸；冇輪動腳，唔再買 TMF／UGL），每月最後一個交易日之後調返 45／40／15（領導股部分只用現金調，唔會為咗比例賣股；stock-strategy/RULES_V2.md、LAB_THREE.md；每年 1 月重新驗證）：</p>
-    <p>① <b>領導股 45%</b>（V2.2 規則）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高（buy-stop）就買。每隻用呢部分 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈 → 下一日開市賣。呢部分由高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到高位 −12.5% 以內恢復。呢部分嘅現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
-    <p>② <b>趨勢腳 40%</b>：揸緊 TQQQ 時，收市大市轉紅燈或者 QQQ 20 日波幅 ≥ 35% → 下一個交易日收市前<b>一次過賣晒</b>轉 IEF。買返<b>分 4 份</b>：收市綠燈而且波幅低過 30%、27.5%、25%、22.5%，每過一個門檻買返一份（即係市況越靜買得越多；未買返嗰部分揸 IEF）。</p>
-    <p>③ <b>低吸腳 15%</b>：綠燈而且 NDX 2 日 RSI &lt; 25（短線超賣）→ 下一日開市買 TQQQ；RSI &gt; 70（反彈完成）或者揸滿 10 個交易日（時間止蝕）→ 下一日開市賣。冇價錢止蝕，最多蝕呢 15%。冇倉時現金收國債息。</p>
-    <p>回測（2000–2026-09，app 用嘅同一套規則；上市前用指數模擬）：年化 24.1%、最大回撤 −34%（2006 年起 29.6%、2016 年起 40.2%；QQQ 8.7%、−83%）；任何月份開始揸到今日都贏 QQQ、6 段熊市同 6 段牛市全贏（但 2025 年熊市 −23% 對 −23% 幾乎打和，2008–18 長牛 +736% vs +706% 只贏少少）、2000–2024 開始年份 23/25 回撤細過 QQQ；每年 1 月全現金開始 27 年贏 16 年。冇偷睇（逐年揀比重）2000 年起約 24%、−38%。2026 年 1 月 2 日全現金開始到 9 月 22 日 +11.8%（QQQ +22.1%）。同 S&P 500 比：全期回撤細過（−34% vs −55%）、四次熊市全部蝕少過；2021–2024 開始計回撤 −27%，仍然大過 S&P 500（−19% 至 −24%）。11 個壓力情況只有 2 個仍然全方位（四部分 V2.7 係 6 個）。</p>
+  <div class="card small muted"><p><b>V2.7（2026-10-12 起，模型用緊）：35% 揀領導股 + 65% ETF，唔用孖展。</b>資金分 4 部分，每月最後一個交易日之後調返 35／45／5／15（領導股部分只用現金調，唔會為咗比例賣股；stock-strategy/RULES_V2.md、LAB_LOSSMIN.md；每年 1 月重新驗證）：</p>
+    <p>① <b>領導股 35%</b>（V2.2 規則）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高（buy-stop）就買。每隻用呢部分 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈 → 下一日開市賣。呢部分由高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到高位 −12.5% 以內恢復。呢部分嘅現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
+    <p>② <b>趨勢腳 45%</b>：揸緊 TQQQ 時，收市大市轉紅燈或者 QQQ 20 日波幅 ≥ 35% → 下一個交易日收市前<b>一次過賣晒</b>轉 IEF。買返<b>分 4 份</b>：收市綠燈而且波幅低過 30%、27.5%、25%、22.5%，每過一個門檻買返一份（即係市況越靜買得越多；未買返嗰部分揸 IEF）。之前 V2.6 用單一 25% 門檻，測過改少少（22.5% 或 27.5%）結果就差好遠，即係撞啱；分 4 份平均就冇呢個問題。</p>
+    <p>③ <b>低吸腳 5%</b>：綠燈而且 NDX 2 日 RSI &lt; 25（短線超賣）→ 下一日開市買 TQQQ；RSI &gt; 70（反彈完成）或者揸滿 10 個交易日（時間止蝕）→ 下一日開市賣。冇價錢止蝕，最多蝕呢 5%。</p>
+    <p>④ <b>輪動腳 15%（安全版）</b>：每月最後一個交易日，QQQ、TLT（長債）、黃金邊樣 1、3、6 個月平均回報最高（又高過國債息）就揸佢嘅槓桿版（TQQQ、TMF、UGL），否則現金；下一日收市前換。安全版：大市紅燈或者 QQQ 20 日波幅 &gt; 35% 就唔揸 TQQQ（月尾唔揀佢；月中揸緊就下一個交易日收市前轉現金，等月尾再揀）。</p>
+    <p>回測（2000–2026-09，app 用嘅同一套規則；上市前用指數模擬）：年化 24.2%、最大回撤 −33%（2006 年起 29.8%、2016 年起 41.7%；QQQ 8.7%、−83%）；任何月份開始揸到今日都贏 QQQ、6 段熊市同 6 段牛市全贏（2008–18 長牛 +850% vs +706%）、2000–2024 開始年份 23/25 回撤細過 QQQ；每年 1 月全現金開始 27 年贏 18 年。冇偷睇（逐年揀）2000 年起約 23%、−41%。2026 年 1 月 2 日全現金開始到 9 月 22 日 +22.0%（QQQ +22.1%）。同 S&P 500 比：全期回撤細過（−33% vs −55%），但 2021–2024 開始計回撤 −30% 至 −32%，大過 S&P 500（−19% 至 −24%）。</p>
     <p class="muted">以下係之前嘅規則：</p>
-    <p><b>V2.7（2026-10-12）</b>：35% 領導股 + 45% 趨勢腳（分 4 份買返）+ 5% 低吸 + 15% 輪動安全版（TQQQ／TMF／UGL；LAB_LOSSMIN 揀法 LM2）。2000– 24.2%、−33%，長牛 +850%，11 個壓力情境 6 個全方位。改嘅原因：用戶想簡化做三部分、唔要輪動腳；測過冇一個三部分版本達到預先定落嘅準則（LAB_THREE），用戶知道之後照揀。</p>
     <p><b>V2.6（2026-10-10 至 10-11）</b>：30% 領導股 + 50% 趨勢腳（賣咗之後波幅 &lt; 25% 先一次過買返）+ 10% 低吸 + 10% 輪動（冇安全版；LAB_ROBUST25 揀法 RA）。2000– 24.2%、−45%。改嘅原因：25% 呢個門檻係撞啱（LAB_V26_CHECK），輪動腳喺跌市揸住 TQQQ 令回撤大；用戶揀「贏 QQQ 優先、回撤盡量細」（LAB_LOSSMIN）。</p>
     <p><b>V2.5（2026-10-09）</b>：40% 領導股 + 40% 趨勢腳（冇揸時波幅 &lt; 35% 就買）+ 10% 低吸 + 10% 輪動（LAB_BEST 揀法 RA）。2000– 23.8%、−43%；11 個壓力情境只有 2 個全方位。</p>
     
@@ -1611,7 +1611,7 @@ function thinkCard(K0, title){
     ${(K.history || []).length ? `<p class="small"><b>歷史參考</b></p>${ul(K.history)}` : ""}
     ${(K.season || []).length ? `<details class="exp small"><summary>歷史季節性數字</summary>${ul(K.season)}<p class="muted">Yahoo 月線，只計已完咗嘅月；中期選舉年 = 年份 ÷ 4 餘 2。歷史唔代表將來。</p></details>` : ""}
     ${(K.watch || []).length ? `<p class="small"><b>之後要留意</b></p>${ul(K.watch)}` : ""}
-    <p class="small muted">AI（${esc(K.model || "")}）根據市場數字、債息、恐慌指數、市寬、最近新聞、${K.src_x ? K.src_x + " 條 X 知名宏觀人士帖（Timiraos、El-Erian、Sonders、Bianco、Lyn Alden 等）、" : ""}Polymarket 預測市場概率、歷史季節性自動寫，用嚟幫你多角度諗；冇客觀答案，情景機會係 AI 主觀判斷，可能錯。V2.8 規則唔會因為呢度改變，照燈號同「要做」執行。</p></details>`;
+    <p class="small muted">AI（${esc(K.model || "")}）根據市場數字、債息、恐慌指數、市寬、最近新聞、${K.src_x ? K.src_x + " 條 X 知名宏觀人士帖（Timiraos、El-Erian、Sonders、Bianco、Lyn Alden 等）、" : ""}Polymarket 預測市場概率、歷史季節性自動寫，用嚟幫你多角度諗；冇客觀答案，情景機會係 AI 主觀判斷，可能錯。V2.7 規則唔會因為呢度改變，照燈號同「要做」執行。</p></details>`;
 }
 
 // 美債息（2026-10-02 用戶）：財政部官方收市 + Yahoo 盤中（scanner/rates.py）。只係資訊。
@@ -1624,10 +1624,10 @@ function ratesCard(){
     <div class="tablewrap"><table><tr><th>年期</th><th class="r">孳息</th><th class="r">今日</th><th class="r">1 週</th><th class="r">1 個月</th><th class="r">1 年</th><th class="r hide-sm">52 週高／低</th></tr>
     ${R.rows.map(r => `<tr><td>${esc(r.name)}<span class="ind">${esc(r.src)}</span></td><td class="r mono"><b>${r.y.toFixed(2)}%</b></td><td class="r mono">${bp(r.d)}</td><td class="r mono">${bp(r.w)}</td>
       <td class="r mono">${bp(r.m)}</td><td class="r mono">${bp(r.yr)}</td><td class="r mono hide-sm">${r.hi52.toFixed(2)}／${r.lo52.toFixed(2)}</td></tr>`).join("")}</table></div>
-    <p class="small muted">變動單位係基點（0.01%）；紅 = 債息升（通常壓科技股估值、債價跌），綠 = 債息跌。息差：10 年 − 2 年 ${c["10y_2y"] != null ? (c["10y_2y"] > 0 ? "+" : "") + c["10y_2y"] + " 基點" : "—"}、10 年 − 3 個月 ${c["10y_3m"] != null ? (c["10y_3m"] > 0 ? "+" : "") + c["10y_3m"] + " 基點" : "—"}（負數 = 倒掛，歷史上常見於衰退之前）。長債息升唔一定因為聯儲局：減息都可以因為通脹、赤字、發債多而令長債息升。只係資訊，唔改 V2.8 規則。</p></div>`;
+    <p class="small muted">變動單位係基點（0.01%）；紅 = 債息升（通常壓科技股估值、債價跌），綠 = 債息跌。息差：10 年 − 2 年 ${c["10y_2y"] != null ? (c["10y_2y"] > 0 ? "+" : "") + c["10y_2y"] + " 基點" : "—"}、10 年 − 3 個月 ${c["10y_3m"] != null ? (c["10y_3m"] > 0 ? "+" : "") + c["10y_3m"] + " 基點" : "—"}（負數 = 倒掛，歷史上常見於衰退之前）。長債息升唔一定因為聯儲局：減息都可以因為通脹、赤字、發債多而令長債息升。只係資訊，唔改 V2.7 規則。</p></div>`;
 }
 
-// 商品（2026-10-05 用戶：油價、貴金屬都影響股市）：scanner/commod.py → feeds/commod.json。只係資訊，唔改 V2.8 規則。
+// 商品（2026-10-05 用戶：油價、貴金屬都影響股市）：scanner/commod.py → feeds/commod.json。只係資訊，唔改 V2.7 規則。
 const CMEAN = {"CL=F": "油價升 → 通脹同債息壓力大、減息機會細 → 一般壓股市（能源股例外）；急跌通常係經濟轉差或者供應增加。",
   "BZ=F": "國際油價基準，中東局勢、OPEC 減產最直接反映喺度。",
   "GC=F": "金價升 = 避險、擔心通脹或者美元轉弱、央行買金；同股市一齊升代表市場擔心貨幣貶值多過經濟。",
@@ -1648,7 +1648,7 @@ function commodCard(){
           ${x.impact ? `<p style="margin:3px 0"><b>對股市：</b>${esc(x.impact)}</p>` : ""}${x.watch ? `<p style="margin:3px 0"><b>之後留意：</b>${esc(x.watch)}</p>` : ""}</details>`).join("")}
         ${A.cg ? `<p style="margin:4px 0"><b>銅金比率：</b>${esc(A.cg)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}</div>`
       : `<details class="exp small"><summary>每樣商品點影響股市（AI 分析未有，暫時顯示基本解釋）</summary>${C.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(CMEAN[r.sym] || "")}</p>`).join("")}</details>`}
-    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），跟新聞每 15–30 分鐘更新。AI 分析每日 2 次用 Google 搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。只係宏觀背景，唔改 V2.8 規則。</p></div>`;
+    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），跟新聞每 15–30 分鐘更新。AI 分析每日 2 次用 Google 搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。只係宏觀背景，唔改 V2.7 規則。</p></div>`;
 }
 
 // 業績（2026-10-02 用戶）：持倉 + 排名頭 15 嘅下次業績日期同 AI 業績重點（scanner/earnings.py）。只係資訊。
@@ -1677,7 +1677,7 @@ function viewEarn(){
   const U = E.upcoming || [];
   h += `<h2>未來業績（持倉 + 排名頭 15）</h2>` + (U.length ? `<div class="tablewrap"><table><tr><th>股票</th><th>日期</th><th class="r">EPS 預測</th></tr>
     ${U.map(u => `<tr><td class="mono"><b>${esc(u.sym)}</b>${u.held ? ` <span class="tag t-cyan">持倉</span>` : ""}</td><td class="mono">${esc(u.date)} <span class="ind">${esc(u.when)}（美國時間）</span></td><td class="r mono">${u.est != null ? f2(u.est) : "—"}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">冇</p></div>`);
-  return h + `<p class="small muted">更新 ${esc(E.generated)}（每小時）。出咗業績之後 AI 會上網睇新聞同業績會，照「做得好保持到？做得差改善咗？」整理；每次最多分析 3 間，持倉先做${(E.pending || []).length ? `；排緊隊：${E.pending.map(esc).join("、")}` : ""}。測過用盈利增長做買賣規則冇改善（LAB_CANSLIM.md），所以只係資訊，唔改 V2.8。</p>`;
+  return h + `<p class="small muted">更新 ${esc(E.generated)}（每小時）。出咗業績之後 AI 會上網睇新聞同業績會，照「做得好保持到？做得差改善咗？」整理；每次最多分析 3 間，持倉先做${(E.pending || []).length ? `；排緊隊：${E.pending.map(esc).join("、")}` : ""}。測過用盈利增長做買賣規則冇改善（LAB_CANSLIM.md），所以只係資訊，唔改 V2.7。</p>`;
 }
 
 // 經濟數據解釋（2026-09-30 用戶要求：數據出咗唔知代表咩、有咩影響）。

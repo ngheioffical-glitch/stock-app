@@ -332,7 +332,7 @@ def econ_ai(key, N, E, PE, now, light, watch):
         mins = int((now - rel).total_seconds() // 60)
         lines.append(f"{i}. {r.get('zh') or r['name']}（{r['name']}）｜公佈：{r['t']} 美東（{mins} 分鐘前）｜實際 {r['actual']}／預測 {r.get('forecast') or '—'}"
                      f"／上次 {r.get('previous') or '—'}｜公佈至今市場：{reaction(rel)}")
-    prompt = (f"你係美股宏觀分析助手，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.8：45% 揀股、40% TQQQ 趨勢、15% TQQQ 低吸）嘅香港散戶解讀啱啱公佈嘅經濟數據。{STYLE}\n"
+    prompt = (f"你係美股宏觀分析助手，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶解讀啱啱公佈嘅經濟數據。{STYLE}\n"
               f"大市燈號而家係{light}；佢關注嘅股：{', '.join(watch) or '（冇）'}。\n"
               "每項數據寫 2–4 句：①同預測同上次比，代表咩（按數據本身嘅類別講：通脹、就業、消費、製造業、服務業、樓市、能源、貿易等，"
               "例如樓市數據講建築同按揭、原油庫存講油價同能源股、消費信心同零售講消費股同企業盈利、PMI 講工業同晶片需求）；"
@@ -467,7 +467,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     if ca:
         lc_txt += (f"重要：商品有大變動：{'；'.join(ca['alert'])}（{ca['detail']}）。"
                    "points 要有一點講：根據下面新聞，點解會咁郁（例如中東局勢、OPEC、美元、央行買金、經濟預期），同埋對通脹、減息預期同股市（科技股、能源股）有咩影響。" + NL)
-    base = (f"你係美股市場助手，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.8：45% 揀股、40% TQQQ 趨勢、15% TQQQ 低吸）嘅香港散戶睇新聞。{STYLE}\n"
+    base = (f"你係美股市場助手，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
             f"{lc_txt}"
@@ -594,7 +594,7 @@ def commod_ai(key, N, now, force=False):
     heads = [x.get("zh") or x["title"] for x in N["items"] if kw.search((x.get("title") or "") + (x.get("zh") or ""))
              and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=48)][:25]
     light, watch = context()
-    prompt = (f"你係宏觀市場分析員，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.8：45% 揀股、40% TQQQ 趨勢、15% TQQQ 低吸）嘅香港散戶，分析而家商品點樣影響股市。{STYLE}{NL}"
+    prompt = (f"你係宏觀市場分析員，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶，分析而家商品點樣影響股市。{STYLE}{NL}"
               f"佢嘅規則（唔會因為你改變）：大市綠燈揸美股龍頭 + TQQQ，紅燈轉現金／債券；而家{light}。{NL}"
               f"商品數據：{commod_text(C)}。{('異動：' + '；'.join(C['alert']) + '。') if C.get('alert') else ''}{NL}"
               f"美債息：{rates}；今日市場：{snap_text(snapshot())}。{NL}"
@@ -612,7 +612,7 @@ def commod_ai(key, N, now, force=False):
 
 
 def tq_alert():
-    """V2.8 趨勢腳（40% TQQQ／IEF，分 4 份買返；2026-10-02 用戶：黃燈要話我知發生咩事）：有轉換要做 → kind=switch；黃燈 → kind=sell／buy；否則 None。
+    """V2.7 趨勢腳（45% TQQQ／IEF，分 4 份買返；2026-10-02 用戶：黃燈要話我知發生咩事）：有轉換要做 → kind=switch；黃燈 → kind=sell／buy；否則 None。
     view.tq.pend：None = 冇變、True = 下一日加 TQQQ、False = 下一日賣晒（v24.tq_view）。
     條件同 app 嘅 tqYellow() 一樣（只係提示，唔改規則）。"""
     try:
@@ -763,10 +763,10 @@ def think(key, N, P, now, force=False):
                  for m in (MS.get("pm") or [])[:15]) or "（冇）"
     hist = season(now)
     light, watch = context()
-    tq = (lambda t: f"V2.8 趨勢腳（40%）而家{'揸 TQQQ（' + str(t.get('n_on', 1)) + '／' + str(t.get('n', 1)) + ' 份）' if t and t.get('held') else '揸 IEF'}" if t else "")(
+    tq = (lambda t: f"V2.7 趨勢腳（45%）而家{'揸 TQQQ（' + str(t.get('n_on', 1)) + '／' + str(t.get('n', 1)) + ' 份）' if t and t.get('held') else '揸 IEF'}" if t else "")(
         (json.loads((ROOT / "docs" / "model_cont.json").read_text(encoding="utf-8")).get("view") or {}).get("tq") if (ROOT / "docs" / "model_cont.json").exists() else None)
     prompt = (f"你係一個有獨立思考嘅美股宏觀評論人，幫一個香港散戶從多個角度諗而家個市。{STYLE}{NL}"
-              f"佢嘅策略（規則唔會因為你嘅分析改變）：V2.8：45% 領導股（成交額頭 50 按 RS 排名，升穿前高買，swing low 止蝕，紅燈清倉）+ 40% 趨勢腳（揸緊 TQQQ 時紅燈或 QQQ 20 日波幅 ≥ 35% 一次過轉 IEF；買返分 4 份：綠燈而且波幅低過 30%／27.5%／25%／22.5% 各買一份）+ 15% 低吸（綠燈而 NDX 2 日 RSI < 25 買 TQQQ，RSI > 70 或 10 日賣）；冇輪動腳；加密睇 BTC 100 日線。"
+              f"佢嘅策略（規則唔會因為你嘅分析改變）：V2.7：35% 領導股（成交額頭 50 按 RS 排名，升穿前高買，swing low 止蝕，紅燈清倉）+ 45% 趨勢腳（揸緊 TQQQ 時紅燈或 QQQ 20 日波幅 ≥ 35% 一次過轉 IEF；買返分 4 份：綠燈而且波幅低過 30%／27.5%／25%／22.5% 各買一份）+ 5% 低吸（綠燈而 NDX 2 日 RSI < 25 買 TQQQ，RSI > 70 或 10 日賣）+ 15% 輪動（每月揀 TQQQ／TMF／UGL／現金；紅燈或波幅 > 35% 唔揸 TQQQ）；加密睇 BTC 100 日線。"
               f"大市燈號而家係{light}；{tq}。{NL}"
               f"市場數據：{'；'.join(mkt_perf())}；{breadth()}；美債息：{rates}；商品：{commod_text()}；{fng}。{NL}"
               f"今日實際數字：{snap_text(snapshot())}。{NL}"
