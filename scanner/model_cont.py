@@ -1,6 +1,6 @@
-"""建立延續帳戶 docs/model_cont.json（2026-10-01 用戶要求：回測唔好停喺數據尾；2026-10-09 起係 V2.5）。[quant-backtest]
+"""建立延續帳戶 docs/model_cont.json（2026-10-01 用戶要求：回測唔好停喺數據尾；2026-10-12 起係 V2.7，規則同比重跟 v25.py）。[quant-backtest]
 
-1. 讀研究嘅 2000 年起 V2.5 帳戶喺數據尾（2026-09-22）收市嘅狀態（stock-strategy/src/v25_hist.py → results_all/v25_seed.json）：
+1. 讀研究嘅 2000 年起帳戶（v25.VER）喺數據尾（2026-09-22）收市嘅狀態（stock-strategy/src/v25_hist.py → results_all/v25_seed.json）：
    領導股持倉（股數、入場價、止蝕、R、保本）、現金、高位、剎車；三隻 ETF 腳嘅金額、揸緊咩、聽日要做咩。
 2. 價錢換做 Yahoo（同雲端一樣）：領導股入場價、止蝕、R 按「Yahoo 收市 ÷ 研究收市」換算，股數反向換算（金額唔變）；ETF 腳買入價同樣換算。
 3. 用 Yahoo 數據逐日重播 scan.py（每日收市排名、候選股）同 model.run()，補到最新一日；最後一日嘅掃描寫返 docs/scan.json。
@@ -52,13 +52,13 @@ def main(seed_path):
         pos.append(dict(sym=p["sym"], date=p["date"], entry=round(p["entry"] * k, 4), shares=p["shares"] / k, stop=p["stop"] * k,
                         R=round(p["R"] * k, 4), be=p["be"], last_close=yc or p["close"], frac=lead.RULE["frac"]))
     kx = {s: r0["px"][s] / px0[s] for s in px0 if s in r0["px"] and px0.get(s)}
-    for leg, sym in (("trend", "TQQQ" if legs["trend"]["held"] else "IEF"), ("dip", "TQQQ"), ("xr", legs["xr"]["hold"])):
-        if legs[leg].get("epx") and sym in kx:
-            legs[leg]["epx"] *= kx[sym]
+    for leg, key, sym in (("trend", "epx", "TQQQ"), ("trend", "epx_ief", "IEF"), ("dip", "epx", "TQQQ"), ("xr", "epx", legs["xr"]["hold"])):
+        if legs[leg].get(key) and sym in kx:
+            legs[leg][key] *= kx[sym]
     st = dict(legs, ver=v25.VER, start=d0, capital=100_000.0, last=d0, trades=legs.get("trades", [])[-100:], hist=[], nav=[],
               cash=L["cash"], positions=pos, peak=L["peak"], braking=L["braking"], pending={}, slots=0,
               sleeve="bill" if L["green"] else "ief", last_green=L["green"],
-              note=f"2000-01-03 起 V2.5 回測帳戶（stock-strategy/src/v25_hist.py，Tiingo）喺 {d0} 收市嘅狀態，之後用 Yahoo 數據照規則繼續行")
+              note=f"2000-01-03 起 {v25.VER} 回測帳戶（stock-strategy/src/v25_hist.py，Tiingo）喺 {d0} 收市嘅狀態，之後用 Yahoo 數據照規則繼續行")
     actions = dict(fills=[], stops=[], warn=[])
     M.snap(st, r0, [])
     lead.plan(st, sc0, actions)

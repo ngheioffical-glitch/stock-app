@@ -1,4 +1,4 @@
-"""V2.5 領導股部分（40%）：V2.2 規則，雲端每日讀 docs/scan.json 行（由 V2.3 model.py 搬過嚟，規則一樣）。[quant-risk]
+"""領導股部分（比重睇 v25.W["lead"]；V2.7 = 35%）：V2.2 規則，雲端每日讀 docs/scan.json 行（由 V2.3 model.py 搬過嚟，規則一樣）。[quant-risk]
 
 每個交易日（model.py 按次序調用）：
   1. 開市：執行上一日收市決定嘅賣出（開市價）

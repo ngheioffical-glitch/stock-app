@@ -65,6 +65,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "COST": {
+  "date": "2026-10-12",
+  "industry": "Discount Stores",
+  "sector": "Consumer Defensive",
+  "src": "yahoo"
+ },
  "CRM": {
   "date": "2026-09-27",
   "industry": "Software - Application",

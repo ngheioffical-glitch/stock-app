@@ -1,6 +1,6 @@
-"""模型帳戶（2026-09-29 用戶要求；2026-10-09 起係 V2.5）：雲端每日收市後照規則行虛擬帳戶，新手照抄就得。[quant-risk]
+"""模型帳戶（2026-09-29 用戶要求；2026-10-12 起係 V2.7）：雲端每日收市後照規則行虛擬帳戶，新手照抄就得。[quant-risk]
 
-V2.5（stock-strategy/LAB_BEST.md：冇偷睇揀法 RA 2025、2026 年都揀中）= 40% 領導股 + 40% 趨勢腳 + 10% 低吸腳 + 10% 輪動腳：
+V2.7（stock-strategy/LAB_LOSSMIN.md 第 2 輪：冇偷睇揀法 LM2 2026 年揀中）= 35% 領導股 + 45% 趨勢腳（分 4 份買返）+ 5% 低吸腳 + 15% 輪動腳（安全版）；比重同門檻以 v25.py 為準：
   領導股（V2.2 規則）：scanner/lead.py，讀 docs/scan.json（scan.py 先跑）；三隻 ETF 腳：scanner/v24.py；比重同月尾再平衡：scanner/v25.py。
 每日（daily-scan.yml 喺 scan.py 之後跑「python scanner/model.py cont」）：
   1. Yahoo 下載 2 年日線（^NDX、QQQ、TLT、GLD、^IRX、TQQQ、IEF、TMF、UGL；連派息調整價）→ v24.rows() 每日訊號
