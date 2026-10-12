@@ -1,30 +1,31 @@
-"""V2.7 模型（2026-10-12 用戶揀方向 A：「贏 QQQ 優先，回撤盡量細」；stock-strategy/LAB_LOSSMIN.md 第 2 輪冇偷睇揀法 LM2 2026 年揀中：
-35／45／5／15｜趨勢腳分段買返｜輪動腳安全版）。之前 V2.6（30／50／10／10、再買門檻單一 25%，LAB_ROBUST25）、V2.5（40／40／10／10，LAB_BEST）。[quant-risk]
-研究（stock-strategy/src/v25_hist.py：2000 年起歷史）同雲端（scanner/model.py：每日接落去行）共用呢份；三隻 ETF 腳嘅買賣規則喺 v24.py（照用）。
+"""V2.8 模型（2026-10-12 用戶決定：「3 部分。領導股，TQQQ 同埋低吸」= 刪輪動腳；比重用 stock-strategy/LAB_THREE.md 第 2 輪冇偷睇揀法 LM2 2026 年揀中嘅 45／40／15）。
+之前 V2.7（35／45／5／15，有輪動腳安全版，LAB_LOSSMIN）、V2.6（30／50／10／10、再買門檻單一 25%，LAB_ROBUST25）、V2.5（40／40／10／10，LAB_BEST）。[quant-risk]
+研究（stock-strategy/src/v25_hist.py：2000 年起歷史）同雲端（scanner/model.py：每日接落去行）共用呢份；ETF 腳嘅買賣規則喺 v24.py（照用）。
 
-資金分 4 部分：
-  35% 領導股：V2.2 規則（成交額頭 50、RS 排名、前高 buy-stop、swing low 止蝕、2R 保本後跟 swing low 上移、
+資金分 3 部分（冇孖展；產品只有個股、TQQQ、IEF、短期國債）：
+  45% 領導股：V2.2 規則（成交額頭 50、RS 排名、前高 buy-stop、swing low 止蝕、2R 保本後跟 swing low 上移、
        跌穿 200 日線／星期五排名跌出頭 15／大市紅燈賣、呢部分由高位跌 25% 剎車只揸 2 隻；現金綠燈收國債息、紅燈揸 IEF）。
        雲端：scanner/lead.py；研究：stock-strategy 引擎（src/model_bt.py run_days）。
-  45% 趨勢腳：揸緊 TQQQ 時照舊（紅燈或 QQQ 20 日波幅 ≥ 35% 就一次過賣晒轉 IEF）；買返分 4 份：綠燈而且波幅低過 30%／27.5%／25%／22.5% 各買一份
-       （V2.6 單一 25% 門檻係撞啱：改 22.5% 或 27.5% 就唔再全方位，LAB_V26_CHECK；四個門檻平均就冇呢個問題）。
-  5% 低吸腳：同 V2.4 一樣。
-  15% 輪動腳（安全版）：每月揀 TQQQ／TMF／UGL／現金；大市紅燈或 QQQ 20 日波幅 > 35% 就唔揸 TQQQ（月尾唔揀；月中揸緊就轉現金等月尾再揀）。
-每月最後一個交易日收市決定、下一個交易日收市調返 35／45／5／15：領導股部分只用現金調（唔會為咗比例賣股），
-  三隻 ETF 腳按 45：5：15 分餘下嘅錢；每個移動嘅美元每邊 0.1%。
+  40% 趨勢腳：揸緊 TQQQ 時紅燈或 QQQ 20 日波幅 ≥ 35% 就一次過賣晒轉 IEF；買返分 4 份：綠燈而且波幅低過 30%／27.5%／25%／22.5% 各買一份。
+  15% 低吸腳：綠燈而且 NDX 2 日 RSI < 25 → 下一日開市買 TQQQ；RSI > 70 或揸滿 10 日 → 下一日開市賣；冇倉時收國債息。
+  輪動腳（TQQQ／TMF／UGL）：V2.8 冇（W["xr"] = 0、v24.RULE["xr_on"] = False）。
+每月最後一個交易日收市決定、下一個交易日收市調返 45／40／15：領導股部分只用現金調（唔會為咗比例賣股），
+  ETF 腳按 40：15 分餘下嘅錢；每個移動嘅美元每邊 0.1%。
+代價（用戶知道）：對 QQQ 全方位只喺主要情境成立，11 個壓力情境只過 2 個（V2.7 係 6 個）；長牛 +7xx%（QQQ +706%，V2.7 +850%）。
 """
 from __future__ import annotations
 
 import v24
 
 v24.RULE["vol_ins"] = (0.30, 0.275, 0.25, 0.225)     # V2.7：趨勢腳分 4 份買返，每份自己嘅波幅門檻
-v24.RULE["xr_safe"] = True                          # V2.7：輪動腳安全版
-W = dict(lead=0.35, trend=0.45, dip=0.05, xr=0.15)
+v24.RULE["xr_safe"] = True                          # V2.7：輪動腳安全版（V2.8 冇輪動腳，留返設定方便對照）
+v24.RULE["xr_on"] = False                           # V2.8：冇輪動腳
+W = dict(lead=0.45, trend=0.40, dip=0.15, xr=0.0)
 LEGS = ("trend", "dip", "xr")
 LEG = {"lead": "領導股", **v24.LEG}
 COST = v24.RULE["cost"]
-VER = "V2.7"
-TXT = "35％ 領導股、45％ 趨勢、5％ 低吸、15％ 輪動"
+VER = "V2.8"
+TXT = "45％ 領導股、40％ 趨勢、15％ 低吸"
 
 
 def new_legs(capital, prev, note=""):
@@ -114,5 +115,5 @@ def leg_view(st, r, tot):
                 dip=dict(w=W["dip"], frac=round(D["val"] / tot, 4), pos=D["pos"], days=D["days"], rsi2=r["rsi2"], rsi_in=v24.RULE["rsi_in"],
                          rsi_out=v24.RULE["rsi_out"], hold=v24.RULE["hold"]),
                 xr=dict(w=W["xr"], frac=round(X["val"] / tot, 4), hold=X["hold"], why=v24.xr_pick(r)[1], me=r["me"], safe=bool(v24.RULE.get("xr_safe")),
-                        ok_tq=v24.xr_ok(r)))
+                        ok_tq=v24.xr_ok(r)) if v24.RULE.get("xr_on", True) else None)
     return hold, legs, v24.tq_view(T, r, tot, W["trend"], margin)

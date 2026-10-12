@@ -1,6 +1,6 @@
-"""模型帳戶（2026-09-29 用戶要求；2026-10-12 起係 V2.7）：雲端每日收市後照規則行虛擬帳戶，新手照抄就得。[quant-risk]
+"""模型帳戶（2026-09-29 用戶要求；2026-10-12 起係 V2.8）：雲端每日收市後照規則行虛擬帳戶，新手照抄就得。[quant-risk]
 
-V2.7（stock-strategy/LAB_LOSSMIN.md 第 2 輪：冇偷睇揀法 LM2 2026 年揀中）= 35% 領導股 + 45% 趨勢腳（分 4 份買返）+ 5% 低吸腳 + 15% 輪動腳（安全版）；比重同門檻以 v25.py 為準：
+V2.8（用戶決定三部分；比重 stock-strategy/LAB_THREE.md 第 2 輪冇偷睇揀法 LM2 2026 年揀中）= 45% 領導股 + 40% 趨勢腳（分 4 份買返）+ 15% 低吸腳，冇輪動腳；比重同門檻以 v25.py 為準：
   領導股（V2.2 規則）：scanner/lead.py，讀 docs/scan.json（scan.py 先跑）；三隻 ETF 腳：scanner/v24.py；比重同月尾再平衡：scanner/v25.py。
 每日（daily-scan.yml 喺 scan.py 之後跑「python scanner/model.py cont」）：
   1. Yahoo 下載 2 年日線（^NDX、QQQ、TLT、GLD、^IRX、TQQQ、IEF、TMF、UGL；連派息調整價）→ v24.rows() 每日訊號
@@ -31,7 +31,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CONT = ROOT / "docs" / "model_cont.json"
 SCAN = ROOT / "docs" / "scan.json"
 SYMS = ["^NDX", "QQQ", "TLT", "GLD", "^IRX", "TQQQ", "IEF", "TMF", "UGL"]
-NEED = ("TQQQ", "IEF", "TMF", "UGL")
+NEED = ("TQQQ", "IEF", "TMF", "UGL")          # yahoo_frame 一定攞齊（v24.rows 要計輪動）；行唔行得落去睇 need()
+
+
+def need():
+    """模型一定要有價嘅 ETF：冇輪動腳（V2.8）就唔使 TMF、UGL。"""
+    return NEED if v24.RULE.get("xr_on", True) else ("TQQQ", "IEF")
 
 
 def load(p):
@@ -127,7 +132,7 @@ def run(path=CONT, sc=None, F=None):
         lead.fix_splits(st, sc, sidx[new[0]["d"]], actions)
     done = 0
     for r in new:
-        miss = [s for s in NEED if s not in r["px"]] + ([] if r.get("op") else ["TQQQ 開市價"])
+        miss = [s for s in need() if s not in r["px"]] + ([] if r.get("op") else ["TQQQ 開市價"])
         if miss:
             actions["warn"].append(f"{r['d']} 缺數據（{'、'.join(miss)}）：模型停喺 {prev['d']}，下次掃描再補")
             break

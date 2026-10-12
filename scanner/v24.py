@@ -18,6 +18,7 @@ V2.7（2026-10-12，v25.py 開）：
   趨勢腳分段買返：RULE["vol_ins"] 每個門檻一份（V2.7 = 30%、27.5%、25%、22.5% 各四分一）。每份：揸緊時紅燈或波幅 ≥ 35% 先賣；
     冇揸時要綠燈而且波幅低過自己嘅門檻先買。所以賣係一次過賣晒，買返係分 4 次（波幅越低買越多）。未買返嗰部分揸 IEF。
     V2.4 = (35%,)、V2.6 = (25%,)：只得一份，同以前一樣。
+  V2.8（2026-10-12）：RULE["xr_on"] = False = 冇輪動腳（比重 0，永遠唔買賣；月尾再平衡照做）。
   輪動腳安全版：RULE["xr_safe"] = True 時，大市紅燈或 QQQ 20 日波幅 > 35% 就唔揸 TQQQ（月尾唔揀佢；月中揸緊就下一個交易日收市前轉現金，等月尾再揀）。
 """
 from __future__ import annotations
@@ -25,7 +26,7 @@ from __future__ import annotations
 import math
 
 W = dict(trend=0.80, dip=0.10, xr=0.10)
-RULE = dict(vol=0.35, vol_ins=(0.35,), xr_safe=False, rsi_in=25.0, rsi_out=70.0, hold=10, cost=0.001)   # vol_ins：趨勢腳每份嘅再買門檻（由高到低）；v25.py 會改
+RULE = dict(vol=0.35, vol_ins=(0.35,), xr_safe=False, xr_on=True, rsi_in=25.0, rsi_out=70.0, hold=10, cost=0.001)   # vol_ins：趨勢腳每份嘅再買門檻（由高到低）；v25.py 會改
 LEV = {"QQQ": "TQQQ", "TLT": "TMF", "GLD": "UGL"}
 LEG = {"trend": "趨勢腳", "dip": "低吸腳", "xr": "輪動腳"}
 UNDER = {"QQQ": "QQQ", "TLT": "TLT（長債）", "GLD": "黃金"}
@@ -218,10 +219,13 @@ def decide(st, r, first=False):
         D["pend"], D["why"] = "buy", f"大市綠燈 + NDX 2 日 RSI {r['rsi2']:.1f} < 25（短線超賣）：低吸 TQQQ"
     ok_tq = xr_ok(r)
     if r["me"] or first:
+        st["rebal"] = bool(r["me"] and not first)
+    if not RULE.get("xr_on", True):                                # V2.8：冇輪動腳
+        X["pend"] = None
+    elif r["me"] or first:
         pick, why = xr_pick(r)
         X["pend"] = pick if pick != X["hold"] else None
         X["why"] = why
-        st["rebal"] = bool(r["me"] and not first)
     elif not ok_tq and X["hold"] == "TQQQ":                        # 安全版：月中紅燈或波幅 > 35% → 轉現金，等月尾再揀
         X["pend"] = "CASH"
         X["why"] = ("大市轉紅燈" if not r["green"] else f"QQQ 20 日波幅 {r['vol']:.1%} > {pv(RULE['vol'])}") + "：輪動腳安全版唔揸 TQQQ → 轉現金，月尾再揀"
@@ -354,7 +358,8 @@ def view(st, r, next_day, fills, warn):
                 legs=dict(trend=dict(trend_info(T, r), w=W["trend"], frac=round(T["val"] / tot, 4)),
                           dip=dict(w=W["dip"], frac=round(D["val"] / tot, 4), pos=D["pos"], days=D["days"], rsi2=r["rsi2"], rsi_in=RULE["rsi_in"],
                                    rsi_out=RULE["rsi_out"], hold=RULE["hold"]),
-                          xr=dict(w=W["xr"], frac=round(X["val"] / tot, 4), hold=X["hold"], why=xr_pick(r)[1], me=r["me"], safe=bool(RULE.get("xr_safe")), ok_tq=xr_ok(r))),
+                          xr=dict(w=W["xr"], frac=round(X["val"] / tot, 4), hold=X["hold"], why=xr_pick(r)[1], me=r["me"], safe=bool(RULE.get("xr_safe")), ok_tq=xr_ok(r))
+                          if RULE.get("xr_on", True) else None),
                 tq=tq_view(T, r, tot, W["trend"], margin),
                 actions=dict(fills=[dict(x, ret=round(x["ret"], 4) if x.get("ret") is not None else None) for x in fills], warn=warn))
 
