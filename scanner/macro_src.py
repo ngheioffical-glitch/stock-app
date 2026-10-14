@@ -20,6 +20,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import xfeed
+
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
 ACCOUNTS = [("NickTimiraos", "Nick Timiraos（WSJ 聯儲局記者）"), ("elerianm", "Mohamed El-Erian"), ("LizAnnSonders", "Liz Ann Sonders（Schwab）"),
             ("biancoresearch", "Jim Bianco"), ("DiMartinoBooth", "Danielle DiMartino Booth"), ("LynAldenContact", "Lyn Alden"),
@@ -47,7 +49,7 @@ def x_posts(now, accounts=None):
     out, errs = [], []
     for u, nm in (accounts or ACCOUNTS):
         try:
-            d = get("https://api.fxtwitter.com/2/search?" + urllib.parse.urlencode({"q": f"from:{u}", "feed": "latest", "count": "20"}))
+            d = xfeed.posts(u, 20)                       # 2026-10-14：fxtwitter 搜尋停咗，改讀帳戶時間線
             for t in d.get("results") or []:
                 txt = (t.get("text") or "").strip()
                 ts = datetime.strptime(t["created_at"], "%a %b %d %H:%M:%S %z %Y")

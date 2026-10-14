@@ -3,7 +3,7 @@ name: Serenity 關注
 # fxtwitter 慢（約 10 分鐘），所以獨立一個 workflow，唔拖慢每日掃描
 on:
   schedule:
-    - cron: "15 23 * * *"     # 23:15 UTC = 香港時間 07:15
+    - cron: "23 23 * * *"     # 23:23 UTC = 香港時間 07:23（2026-10-14 由 23:15 改，避開 15 分）
   workflow_dispatch:
 permissions:
   contents: write

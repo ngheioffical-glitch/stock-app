@@ -1,6 +1,6 @@
 """Serenity（X @aleabitoreddit）近期提過邊啲股，app 用嚟標示「Serenity 關注緊」（2026-09-29 用戶要求）。
 
-來源：api.fxtwitter.com 搜尋（from:aleabitoreddit since/until），唔使 key。淨係留有 cashtag 嘅推文。
+來源：api.fxtwitter.com 帳戶時間線（scanner/xfeed.py；2026-10-14 前用搜尋 from:aleabitoreddit since/until，搜尋停咗），唔使 key。淨係留有 cashtag 嘅推文。
 回測（stock-strategy/LAB_SERENITY.md）：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；技術面唔合格嘅就差過 QQQ。
 所以只係參考標示，唔改 V2.1 規則。
 
@@ -19,6 +19,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import xfeed
 
 ROOT = Path(__file__).resolve().parents[1]
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
@@ -44,37 +46,19 @@ def save_all(new):
     return len(tw)
 
 
-def get(q, cursor=""):
-    p = dict(q=q, feed="latest", count="100", **({"cursor": cursor} if cursor else {}))
-    url = "https://api.fxtwitter.com/2/search?" + urllib.parse.urlencode(p)
-    for k in range(3):
-        try:
-            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=30) as r:
-                return json.loads(r.read().decode("utf-8"))
-        except Exception as e:  # noqa: BLE001
-            print(f"[serenity] 重試 {k}：{e}")
-            time.sleep(3 + 5 * k)
-    raise RuntimeError("fxtwitter 攞唔到")
-
-
 def fetch(a, b):
-    out, cur, seen = {}, "", set()
-    for _ in range(60):
-        d = get(f"from:aleabitoreddit since:{a} until:{b}", cur)
-        res = [x for x in d.get("results", []) if x.get("type") == "status"]
-        for s in res:
-            if (s.get("author") or {}).get("screen_name", "").lower() != "aleabitoreddit":
-                continue
-            facets = (s.get("raw_text") or {}).get("facets") or []
-            syms = sorted({f["original"].upper() for f in facets if f.get("type") == "symbol"} - SKIP)
-            if syms:
-                out[s["id"]] = dict(id=s["id"], ts=s["created_timestamp"], syms=syms, reply=bool(s.get("replying_to")),
-                                    text=short(s.get("text"), 160), full=s.get("text") or "")
-        cur = (d.get("cursor") or {}).get("bottom") or ""
-        if not res or not cur or cur in seen:
-            break
-        seen.add(cur)
-        time.sleep(0.8)
+    """a、b：YYYY-MM-DD（包 a 唔包 b，同以前 since／until 一樣），由帳戶時間線新到舊翻到 a 為止。"""
+    lo = datetime.fromisoformat(a).replace(tzinfo=timezone.utc).timestamp()
+    hi = datetime.fromisoformat(b).replace(tzinfo=timezone.utc).timestamp()
+    out = {}
+    for s in xfeed.posts("aleabitoreddit", 100, since_ts=lo, pages=60)["results"]:
+        if not lo <= (s.get("created_timestamp") or 0) < hi:
+            continue
+        facets = (s.get("raw_text") or {}).get("facets") or []
+        syms = sorted({f["original"].upper() for f in facets if f.get("type") == "symbol"} - SKIP)
+        if syms:
+            out[s["id"]] = dict(id=s["id"], ts=s["created_timestamp"], syms=syms, reply=bool(s.get("replying_to")),
+                                text=short(s.get("text"), 160), full=s.get("text") or "")
     return out
 
 
@@ -94,11 +78,7 @@ def main():
     now = datetime.now(timezone.utc)
     tw = {}
     try:
-        a = (now - timedelta(days=days)).date()
-        while a <= now.date():
-            b = min(a + timedelta(days=10), now.date() + timedelta(days=1))
-            tw.update(fetch(a.isoformat(), b.isoformat()))
-            a = b
+        tw.update(fetch((now - timedelta(days=days)).date().isoformat(), (now.date() + timedelta(days=1)).isoformat()))   # 時間線一次翻晒（以前搜尋要分 10 日一段）
     except Exception as e:  # noqa: BLE001
         print(f"[serenity] 失敗，唔覆蓋舊檔：{e}")
         return

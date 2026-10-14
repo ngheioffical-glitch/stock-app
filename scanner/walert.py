@@ -1,6 +1,6 @@
 """大額轉帳（2026-10-05 用戶：追大戶工具清單，Whale Alert）。只係資訊，唔改 BTC 100 日線規則：通知只係線索，唔係買賣訊號。
 
-來源：Whale Alert 官方 X 帳戶 @whale_alert（api.fxtwitter.com 搜尋，唔使 key），近 48 小時。
+來源：Whale Alert 官方 X 帳戶 @whale_alert（api.fxtwitter.com 帳戶時間線，唔使 key；2026-10-14 前用搜尋，搜尋停咗），近 48 小時。
 每條帖解析：數量、幣、美元、由邊度到邊度、連結。方向：
   入交易所（由非交易所轉入 #交易所）= 可能準備賣；出交易所 = 可能長揸；交易所之間；穩定幣印發／銷毀（Treasury）；其他（錢包之間、DeFi）。
 24 小時每隻幣：入交易所、出交易所、淨流入（美元）。穩定幣淨流入交易所 = 有新錢準備買；BTC／ETH 淨流入 = 可能有賣壓。
@@ -16,6 +16,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+import xfeed
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
 HK = ZoneInfo("Asia/Hong_Kong")
@@ -65,8 +67,7 @@ def main(out):
         old_ai = None
     items, errs = [], []
     try:
-        d = json.loads(urllib.request.urlopen(urllib.request.Request(
-            "https://api.fxtwitter.com/2/search?" + urllib.parse.urlencode({"q": "from:whale_alert", "feed": "latest", "count": "40"}), headers=UA), timeout=30).read())
+        d = xfeed.posts("whale_alert", 100, since_ts=now.timestamp() - 48 * 3600, pages=4)   # 2026-10-14：fxtwitter 搜尋停咗，改讀帳戶時間線
         for t in d.get("results") or []:
             ts = datetime.strptime(t["created_at"], "%a %b %d %H:%M:%S %z %Y")
             if now - ts > timedelta(hours=48):

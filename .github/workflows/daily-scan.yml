@@ -2,7 +2,7 @@ name: 每日掃描
 # 美股收市後跑 scanner/scan.py，更新 docs/scan.json（GitHub Pages 會自動發佈）
 on:
   schedule:
-    - cron: "30 22 * * 1-5"    # 22:30 UTC = 香港時間 06:30（夏令時間收市後 2.5 小時，冬令 1.5 小時）
+    - cron: "43 22 * * 1-5"    # 22:43 UTC = 香港時間 06:43（夏令時間收市後約 2.7 小時，冬令 1.7 小時）；2026-10-14 由 22:30 改，避開半點
   workflow_dispatch:          # 可以喺 Actions 頁面手動按 Run workflow
 permissions:
   contents: write

@@ -20,6 +20,8 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import xfeed
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
@@ -168,7 +170,7 @@ def x_mentions(now, rows):
     posts, errs = [], []
     for u, nm in X_ACCOUNTS:
         try:
-            d = get("https://api.fxtwitter.com/2/search?" + urllib.parse.urlencode({"q": f"from:{u}", "feed": "latest", "count": "40"}), 30)
+            d = xfeed.posts(u, 40, since_ts=now.timestamp() - X_DAYS * 86400)   # 2026-10-14：fxtwitter 搜尋停咗，改讀帳戶時間線
             for t in d.get("results") or []:
                 txt = (t.get("text") or "").strip()
                 ts = datetime.strptime(t["created_at"], "%a %b %d %H:%M:%S %z %Y")
@@ -178,6 +180,9 @@ def x_mentions(now, rows):
             time.sleep(0.5)
         except Exception as e:  # noqa: BLE001
             errs.append(f"X {u}：{str(e)[:60]}")
+    if errs and len(errs) * 2 < len(X_ACCOUNTS):        # 2026-10-14：個別帳戶攞唔到（改名／停用）唔當系統出錯，照用其餘帳戶
+        print(f"[radar] 個別 X 帳戶攞唔到，其餘照用：{errs}")
+        errs = []
     M, hit = collections.defaultdict(list), []
     for r in rows:
         pats = [re.compile(r"\$" + re.escape(r["sym"]) + r"\b", re.I)] if len(r["sym"]) >= 2 else []

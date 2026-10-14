@@ -23,6 +23,8 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import xfeed
+
 ROOT = Path(__file__).resolve().parents[1]
 ALL = ROOT / "docs" / "trump_all.json"
 RECENT60 = ROOT / "docs" / "trump.json"
@@ -115,10 +117,8 @@ ZW = re.compile("[​-‏⁠﻿]")
 
 
 def xmirror(days=3):
-    """後備來源：經 fxtwitter 搜尋 @TrumpTruthOnX。只收有「( TS: … ET )」標記嘅（= Trump 原文）；「New media post」＝淨係相／片，跳過。"""
-    a = (datetime.now(timezone.utc) - timedelta(days=days)).date().isoformat()
-    q = urllib.parse.urlencode(dict(q=f"from:{XMIRROR} since:{a}", feed="latest", count="100"))
-    d = json.loads(get("https://api.fxtwitter.com/2/search?" + q))
+    """後備來源：經 fxtwitter 讀 @TrumpTruthOnX 時間線（2026-10-14 前用搜尋，搜尋停咗）。只收有「( TS: … ET )」標記嘅（= Trump 原文）；「New media post」＝淨係相／片，跳過。"""
+    d = xfeed.posts(XMIRROR, 100, since_ts=(datetime.now(timezone.utc) - timedelta(days=days)).timestamp(), pages=6)
     et, out = ZoneInfo("America/New_York"), []
     for x in d.get("results", []):
         if x.get("type") != "status" or (x.get("author") or {}).get("screen_name", "").lower() != XMIRROR.lower():
