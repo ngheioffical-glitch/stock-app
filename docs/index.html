@@ -1472,6 +1472,9 @@ function viewRank(){
 // 系統健康（2026-10-01 用戶：唔想有後顧之憂）：每個自動更新嘅部分最後幾時更新、有冇出錯
 const hkt = t => t ? Date.parse(String(t).replace(" HKT", "+08:00").replace(" ", "T")) : NaN;
 const HONEST = `<div class="info small"><b>點睇回測數字</b>：V2.7 組合係 2026 年 1 月用之前數據揀出嚟（LAB_LOSSMIN 第 2 輪揀法 LM2：喺成本加倍、開市落單、遲一日、借貸息貴、領導股參數改動等 11 個壓力情境之下，揀「對 QQQ 全方位」比例最高、回撤最細嗰個），套返去以前嘅回測（2000 年起年化 24.2%、2006 年起 29.8%、最大回撤 −33%）係<b>事後</b>數字。冇偷睇（2006 年起每年 1 月只用當時數據揀，逐年換）2000 年起<b>年化約 23%、最大回撤約 −41%</b>（QQQ 8.7%、−83%），而且冇偷睇版本「開始年份回撤細過 QQQ」只得 16/25。仲有弱點：揀中嗰個喺 11 個壓力情境只有 6 個仍然全方位（預先定落要 8 個，未達標）：開市落單、遲一日、借貸息一直 4%、領導股揸 4 隻或 6 隻都唔過（趨勢腳要收市前落單）；領導股同趨勢比重改 5 點（30／50）都唔過。回撤：全期細過 S&P 500（−33% vs −55%），但 2021 之後幾次調整仍然跌 25–32%，大過 S&P 500（S&P 500 只跌 4–23%）；27 年入面 13 年年內跌過 25% 以上，試過一日跌 12.5%。27 年輸 QQQ 9 年。將來實際可能再低啲（滑價、稅、執行）。用 20–25% 做期望，而且要預咗會跌 35–40% 以上、可以連續幾年輸 QQQ。</div>`;   // 2026-10-05 用戶要求：回報期望講誠實
+// 美股開市時間（紐約星期一至五 09:30–16:00；唔理假期）：收市後新聞變慢係正常（scanner/feeds_gate.py：每 4 個鐘或者期貨郁 1%）
+const usOpen = () => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false})
+  .formatToParts(new Date()).map(x => [x.type, x.value])); const m = (+p.hour % 24) * 60 + +p.minute; return !/Sat|Sun/.test(p.weekday) && m >= 570 && m < 960; };
 function healthCard(){
   if (!FEED.news && !FEED.err) fetchFeeds();
   const now = Date.now(), H = [];
@@ -1485,7 +1488,8 @@ function healthCard(){
   if (warns.length) add("模型提示（拆股／退市等，已自動處理）", true, `${warns.length} 條`, warns.join("；"));
   if (FEED.news){
     const g = hkt(FEED.news.generated), age = (now - g) / 60e3;
-    add("新聞、經濟數據、Trump、Serenity 最新", age < 90, FEED.news.generated, age >= 90 ? `已經 ${Math.round(age)} 分鐘冇更新（正常每 15–30 分鐘）` : "");
+    const nmax = usOpen() ? 90 : 300;
+    add("新聞、經濟數據、Trump、Serenity 最新", age < nmax, FEED.news.generated, age >= nmax ? (FEED.cloud || `已經 ${age >= 120 ? Math.round(age / 60) + " 個鐘" : Math.round(age) + " 分鐘"}冇更新（開市時間每 15–30 分鐘；收市後每 4 個鐘或者期貨郁 1%；開 app 超過 15 分鐘會自動更新）`) : "");
     const D = FEED.news.digest;
     add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
   } else add("新聞", false, "讀唔到", FEED.err || "");
@@ -1498,16 +1502,17 @@ function healthCard(){
     const shown = /HKT/.test(String(t)) ? String(t).slice(0, 16) : new Date(now - a * 60e3 + 8 * 3600e3).toISOString().slice(0, 16).replace("T", " ");   // 一律顯示香港時間
     add(name, a < maxMin && !e.length, shown, a >= maxMin ? `已經 ${a >= 120 ? Math.round(a / 60) + " 個鐘" : Math.round(a) + " 分鐘"}冇更新（正常${normal}）` : e.join("；").slice(0, 160));
   };
+  const FM = usOpen() ? 120 : 300, FN = usOpen() ? "每 15–30 分鐘" : "收市後每 4 個鐘或者期貨郁 1%";
   if (FEED.news){
-    fresh("美債息", FEED.rates && FEED.rates.generated, 120, "每 15–30 分鐘", FEED.rates && FEED.rates.errs);
-    fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, 120, "每 15–30 分鐘", FEED.commod && FEED.commod.errs);
+    fresh("美債息", FEED.rates && FEED.rates.generated, FM, FN, FEED.rates && FEED.rates.errs);
+    fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, FM, FN, FEED.commod && FEED.commod.errs);
     fresh("業績", FEED.earn && FEED.earn.generated, 300, "每 2 個鐘", FEED.earn && FEED.earn.errs);
-    fresh("大額轉帳（Whale Alert）", FEED.walert && FEED.walert.generated, 120, "每 15–30 分鐘", FEED.walert && FEED.walert.errs);
+    fresh("大額轉帳（Whale Alert）", FEED.walert && FEED.walert.generated, FM, FN, FEED.walert && FEED.walert.errs);
   }
   if (!BTC) fetchBtc();
   if (!HYP) fetchHyper();
-  if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), 180, "每 15–30 分鐘");
-  if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", 180, "每 15–30 分鐘", Object.values(HYP.err || {}));
+  if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), Math.max(FM, 180), FN);
+  if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", Math.max(FM, 180), FN, Object.values(HYP.err || {}));
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
   const q429 = /429|Too Many/.test((FEED.news && FEED.news.ai_err) || "");     // 只睇新聞（每 15–30 分鐘更新，最新）；雷達嘅錯誤可能係 6 個鐘前
@@ -1526,7 +1531,7 @@ function viewSet(){
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
     <label>新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
     <label>盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label>
-    <label>GitHub token（可選：撳新聞「重新整理」即刻叫雲端更新 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
+    <label>GitHub token（建議填：開 app 嗰陣新聞超過 15 分鐘會自動叫雲端更新；撳「重新整理」即刻重寫 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
     <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。</p>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
   <div class="card small muted"><p><b>V2.7（2026-10-12 起，模型用緊）：35% 揀領導股 + 65% ETF，唔用孖展。</b>資金分 4 部分，每月最後一個交易日之後調返 35／45／5／15（領導股部分只用現金調，唔會為咗比例賣股；stock-strategy/RULES_V2.md、LAB_LOSSMIN.md；每年 1 月重新驗證）：</p>
@@ -1557,15 +1562,16 @@ const dayLabel = ds => { const d = new Date(ds + "T12:00:00Z"); return `${ds.sli
 const ago = t => { const m = (Date.now() - Date.parse(t)) / 60e3; return m < 60 ? `${Math.max(1, Math.round(m))} 分鐘前` : m < 1440 ? `${Math.round(m / 60)} 小時前` : `${Math.round(m / 1440)} 日前`; };
 
 // 撳「重新整理」：有 GitHub token 就即刻觸發雲端更新（feeds.yml workflow_dispatch），之後每 15 秒睇下有冇新數據（最多 5 分鐘）
+// 2026-10-15 用戶揀 B：GitHub 排程唔準時，開 app 嗰陣新聞超過 15 分鐘就自動觸發（auto：relay=1，唔強制重寫 AI，慳額度；每部機最多 15 分鐘一次）
 const repoOf = () => { const m = /githubusercontent\.com\/([^/]+\/[^/]+)\//.exec(S.feedUrl || ""); return m ? m[1] : "ngheioffical-glitch/stock-app"; };
-async function cloudRefresh(){
+async function cloudRefresh(auto){
   if (!S.ghToken){ fetchFeeds(true); return; }
   const before = FEED.news && FEED.news.generated;
-  FEED.cloud = "觸發緊雲端更新…"; render();
+  FEED.cloud = auto ? "新聞超過 15 分鐘冇更新：自動叫雲端更新緊…" : "觸發緊雲端更新…"; render();
   try {
     const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/feeds.yml/dispatches`, {method: "POST",
       headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
-      body: JSON.stringify({ref: "main"})});
+      body: JSON.stringify(auto ? {ref: "main", inputs: {relay: "1"}} : {ref: "main"})});
     if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : ""));
   } catch(e){ FEED.cloud = "觸發唔到：" + e.message; render(); fetchFeeds(true); return; }
   const t0 = Date.now();
@@ -1579,6 +1585,14 @@ async function cloudRefresh(){
   };
   setTimeout(tick, 20e3);
 }
+function autoRefresh(){
+  if (!S.ghToken || !FEED.news || FEED.cloud || document.visibilityState !== "visible") return;
+  const age = (Date.now() - hkt(FEED.news.generated)) / 60e3;
+  let last = 0; try { last = +localStorage.getItem("autoRefreshAt") || 0; } catch(e){}
+  if (!(age >= 15) || Date.now() - last < 15 * 60e3) return;
+  try { localStorage.setItem("autoRefreshAt", String(Date.now())); } catch(e){}
+  cloudRefresh(true);
+}
 async function fetchFeeds(force){
   if (FEED.busy || (!force && Date.now() - FEED.at < 5 * 60e3 && FEED.news)) return;
   FEED.busy = true;
@@ -1590,6 +1604,7 @@ async function fetchFeeds(force){
     FEED.err = null; FEED.at = Date.now();
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;
+  autoRefresh();
   if (TAB === "news" || TAB === "crypto" || TAB === "model") render();
 }
 
@@ -1838,6 +1853,8 @@ function viewNews(){
   let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button><button data-nt="earn" aria-pressed="${NT === "earn"}">業績</button></div>
     <button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`;
   if (FEED.cloud) h += `<p class="small" style="color:var(--cyan)">${esc(FEED.cloud)}</p>`;
+  if (FEED.news && FEED.news.fut && FEED.news.fut.text) h += `<div class="alert small"><b>${esc(FEED.news.fut.text)}</b><span class="muted">（${esc(FEED.news.fut.at || "")}）原因睇下面「AI 今日重點」。</span></div>`;
+  if (!S.ghToken) h += `<p class="small muted">提示：喺「設定」填 GitHub token，開 app 嗰陣新聞超過 15 分鐘就會自動更新。</p>`;
   if (FEED.err) h += `<div class="alert"><b>讀唔到新聞數據</b><p class="small">${esc(FEED.err)}</p></div>`;
   if (!FEED.news || !FEED.econ) return h + (FEED.err ? "" : `<p class="muted">載入中…</p>`);
   const D = FEED.news.digest;           // Gemini「今日重點」（scanner/ai.py，GitHub 每 30 分鐘；冇 key 就冇）
@@ -1983,11 +2000,12 @@ fetchModel();
 fetchLive();
 fetchSer();
 fetchTrump();
+fetchFeeds();                 // 2026-10-15：一開 app 就讀新聞，超過 15 分鐘就自動叫雲端更新（autoRefresh）
 fetchBtc(); fetchFng(); fetchHyper();
 setInterval(() => { if (document.visibilityState === "visible"){ fetchBtc(); fetchFng(); fetchHyper(); } }, 5 * 60e3);
 fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchLive(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchLive(); fetchFeeds(); } });
 </script>
 </body>
 </html>

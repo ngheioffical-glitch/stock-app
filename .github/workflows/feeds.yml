@@ -5,7 +5,7 @@ on:
     - cron: "7,22,37,52 * * * *"   # 2026-10-14：避開整點（GitHub 整點最多人排，排程最易遲或者被跳過）；2026-10-06 慳運算：每 15 分鐘；今日重點喺 ai.py 限制每 45 分鐘先寫一次
   workflow_dispatch:
     inputs:
-      relay:               # 2026-10-05：接力觸發會傳 "1"；app「重新整理」唔傳 → 只有 app 先當手動（強制重寫 AI）
+      relay:               # "1" = 自動（2026-10-15 起係 app 開嗰陣新聞超過 15 分鐘自動更新），唔強制重寫 AI；app 撳「重新整理」唔傳 → 當手動（強制重寫 AI）
         required: false
         default: ""
   push:                    # 2026-10-03：改呢個檔 push 上嚟就即刻跑一次
@@ -15,21 +15,26 @@ permissions:
   contents: write
   models: read            # GitHub Models：Gemini 失敗時嘅 AI 後備（用內置 GITHUB_TOKEN）
 # 2026-10-06：GitHub 帳戶被封（好大機會因為 10-03 加嘅「接力」：每 5 分鐘自己觸發自己、24 小時唔停，似長期伺服器用途）。
-# 已拎走接力，只靠排程；guard 保留：排程觸發時 feeds 分支 8 分鐘內有更新就跳過。解封後唔好再加任何自己觸發自己嘅設計。
+# 已拎走接力。解封後唔好再加任何自己觸發自己嘅設計。
+# 2026-10-15：GitHub 排程唔準時（幾個鐘先跑一次），用戶揀「開 app 自動更新」（app 用手機 token 觸發 workflow_dispatch，relay=1）；
+#   排程只做後備，由 guard 嘅 scanner/feeds_gate.py 決定行唔行：開市時間行；收市後 Nasdaq 期貨再郁 1% 即刻行，否則每 4 個鐘；10 分鐘內啱啱更新過就唔行。
 jobs:
   guard:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 3
     outputs:
       run: ${{ steps.g.outputs.run }}
+      fut: ${{ steps.g.outputs.fut }}
+      fut_b: ${{ steps.g.outputs.fut_b }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scanner/feeds_gate.py
+          sparse-checkout-cone-mode: false
       - id: g
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then echo "run=1" >> "$GITHUB_OUTPUT"; exit 0; fi
           last=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/commits/feeds" | python3 -c "import json,sys,datetime;d=json.load(sys.stdin);print(int(datetime.datetime.fromisoformat(d['commit']['committer']['date'].replace('Z','+00:00')).timestamp()))" || echo 0)
-          age=$(( $(date +%s) - last ))
-          echo "feeds 分支 $age 秒前更新"
-          if [ "$age" -lt 480 ]; then echo "run=0" >> "$GITHUB_OUTPUT"; else echo "run=1" >> "$GITHUB_OUTPUT"; fi
+          python3 scanner/feeds_gate.py "${{ github.event_name }}" "$last"
   feeds:
     needs: guard
     if: needs.guard.outputs.run == '1'
@@ -137,6 +142,8 @@ jobs:
           RELAY: ${{ github.event.inputs.relay }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FUT_ALERT: ${{ needs.guard.outputs.fut }}
+          FUT_BUCKET: ${{ needs.guard.outputs.fut_b }}
       - name: 推去 feeds 分支
         working-directory: out
         run: |
