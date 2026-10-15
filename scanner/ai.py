@@ -35,6 +35,18 @@ _AVAIL = None
 API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
 CATS = ("快訊", "市場", "經濟", "加密")
 TR_GAP = int(os.environ.get("TRANSLATE_GAP_MIN", "30"))   # 翻譯最少隔幾耐（2026-10-05：接力每 5 分鐘跑，額度唔夠）
+AI_BUDGET = int(os.environ.get("AI_BUDGET_SEC", "180"))   # 秒：由 ai.py 開始計，叫 AI 嘅時間上限（workflow 呢步 7 分鐘一到就會被殺，乜都寫唔出；用晒之後其餘非 AI 部分仲要大約 1 分鐘）
+T0 = time.time()
+
+
+def ai_to(n):
+    """AI 請求嘅 timeout：唔可以超過剩返嘅時間（2026-10-15：AI 步驟超過 5 分鐘被殺，翻譯同今日重點全部唔見）。用晒就即刻出錯，沿用上一份。"""
+    left = AI_BUDGET - (time.time() - T0) - 10
+    if left < 15:
+        raise RuntimeError(f"AI 時間用晒（上限 {AI_BUDGET} 秒），今次唔再叫 AI，沿用上一份")
+    return min(n, left)
+
+
 GAP = int(os.environ.get("GEMINI_GAP_MIN", "45"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
@@ -91,7 +103,7 @@ def github_models(prompt):
                                          headers={"Content-Type": "application/json", "Accept": "application/json",
                                                   "Authorization": f"Bearer {tok}", "X-GitHub-Api-Version": "2022-11-28"})
             try:
-                with urllib.request.urlopen(req, timeout=120) as r:
+                with urllib.request.urlopen(req, timeout=ai_to(120)) as r:
                     d = json.loads(r.read())
                 txt = d["choices"][0]["message"]["content"].strip()
                 txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt)
@@ -131,14 +143,14 @@ def _gemini(key, prompt, models_):
                 req = urllib.request.Request(API.format(m=m), data=body, method="POST",
                                              headers={"Content-Type": "application/json", "x-goog-api-key": key})
                 try:
-                    with urllib.request.urlopen(req, timeout=180) as r:
+                    with urllib.request.urlopen(req, timeout=ai_to(180)) as r:
                         d = json.loads(r.read())
                     parts = d["candidates"][0]["content"]["parts"]
                     txt = "".join(p.get("text", "") for p in parts if not p.get("thought"))
                     return json.loads(txt), m
                 except urllib.error.HTTPError as e:
                     last = f"{m}: HTTP {e.code} {e.read()[:300].decode('utf-8', 'ignore')}"
-                    if e.code in (500, 503) and attempt == 0:
+                    if e.code in (500, 503) and attempt == 0 and AI_BUDGET - (time.time() - T0) > 60:
                         time.sleep(10)            # 伺服器忙：等陣再試一次（429 額度用完就唔等，直接試下一個型號）
                         continue
                     break
@@ -769,7 +781,7 @@ def gemini_search(key, prompt):
         try:
             req = urllib.request.Request(API.format(m=m), data=json.dumps(body).encode(), method="POST",
                                          headers={"Content-Type": "application/json", "x-goog-api-key": key})
-            d = json.loads(urllib.request.urlopen(req, timeout=180).read())
+            d = json.loads(urllib.request.urlopen(req, timeout=ai_to(180)).read())
             txt = "".join(x.get("text", "") for x in d["candidates"][0]["content"]["parts"] if not x.get("thought"))
             j = re.search(r"\{.*\}", txt, re.S)
             if j:

@@ -40,7 +40,7 @@ jobs:
     needs: guard
     if: needs.guard.outputs.run == '1'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 14
     steps:
       - run: echo "T0=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
@@ -137,7 +137,7 @@ jobs:
       - name: AI 翻譯（新聞 + 加密 + Serenity + Trump，即時）、今日重點、加密重點；Gemini 優先、GitHub Models 後備；出錯都唔影響新聞
         run: python scanner/ai.py out
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 7            # 2026-10-15：5 分鐘會超時被殺（翻譯同今日重點全部唔見）；ai.py 自己有 AI_BUDGET_SEC 時間預算
         env:
           PYTHONIOENCODING: utf-8
           RELAY: ${{ github.event.inputs.relay }}
