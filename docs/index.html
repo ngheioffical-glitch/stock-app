@@ -343,10 +343,23 @@ function exitNote(r){
 }
 
 // ───────────────────────── 畫面
+// AI 狀態（2026-10-15 用戶：最緊要話我知係額度用完，唔係我唔知係壞定點）：睇最新一次新聞更新嘅 ai_err
+function aiState(){
+  const e = String((FEED.news && FEED.news.ai_err) || "");
+  if (!e) return null;
+  if (/API key not valid|API_KEY_INVALID|PERMISSION_DENIED/.test(e)) return {kind: "key", text: "AI key 失效：要喺 GitHub 嘅 Secrets 更新 GEMINI_API_KEY。AI 翻譯同分析暫停，新聞、數據、買賣訊號照常更新。"};
+  if (/429|Too Many|RESOURCE_EXHAUSTED|quota/i.test(e)) return {kind: "quota", text: "AI 額度用晒（Google 每日免費額度）：AI 翻譯同分析暫停，顯示緊上一份；新聞、數據、買賣訊號照常更新。大約香港時間 15:00–16:00 重設後自動補返，唔係壞咗。"};
+  if (/AI 時間用晒/.test(e)) return {kind: "time", text: "今次 AI 時間唔夠，部分分析沿用上一份，下次更新會補返。"};
+  return {kind: "other", text: "AI 有部分出錯（詳情睇「設定」→ 系統健康）；新聞、數據、買賣訊號照常更新。"};
+}
+function aiBanner(){
+  const a = aiState();
+  return a && (a.kind === "quota" || a.kind === "key") ? `<div class="info small" style="margin-top:2px">⚠ <b>${a.kind === "quota" ? "AI 額度用晒" : "AI key 失效"}</b>：${esc(a.text.replace(/^[^：]*：/, ""))}</div>` : "";
+}
 function topbar(){
   return `<div class="topbar"><div class="brand">LEADER<span>//</span>BREAKOUT</div>
     <div class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${SCAN ? `<span class="chip">${esc(SCAN.date.slice(5))} 收市</span>` : ""}
-    <button class="gear${TAB === "set" ? " on" : ""}" id="goSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button></div></div>`;
+    <button class="gear${TAB === "set" ? " on" : ""}" id="goSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button></div></div>` + aiBanner();
 }
 
 function header(){
@@ -1556,8 +1569,8 @@ function healthCard(){
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
   fresh("估值（每日）", VAL && VAL.generated, 36 * 60, "每日美股收市後", VAL && VAL.errs);
-  const q429 = /429|Too Many/.test((FEED.news && FEED.news.ai_err) || "");     // 只睇新聞（每 15–30 分鐘更新，最新）；雷達嘅錯誤可能係 6 個鐘前
-  add("AI 額度（Gemini 免費）", !q429, q429 ? "用晒" : "正常", q429 ? "今日免費 AI 額度用晒：數據照常更新，AI 分析暫停，大約香港時間下午 3–4 點重設後自動補返" : "");
+  const AS = aiState();     // 只睇新聞（最新）；雷達嘅錯誤可能係幾個鐘前
+  add("AI 額度同 key", !AS || AS.kind === "time", !AS ? "正常" : AS.kind === "quota" ? "額度用晒" : AS.kind === "key" ? "key 失效" : AS.kind === "time" ? "正常（今次時間唔夠，下次補）" : "部分出錯", AS ? AS.text : "");
   const bad = H.filter(x => !x.ok).length;
   return `<div class="card"><div class="row spread"><b>系統健康</b><span class="tag ${bad ? "t-stop" : "t-buy"}">${bad ? bad + " 項要留意" : "全部正常"}</span></div>
     ${H.map(x => `<div class="small" style="display:flex;gap:8px;align-items:flex-start"><span class="${x.ok ? "up" : "dn"}">${x.ok ? "✓" : "⚠"}</span>
@@ -1904,7 +1917,10 @@ function viewNews(){
     const sn = (D.snap || []).map(x => `<span>${esc(x.name)} <b class="${x.chg >= 0 ? "up" : "dn"}">${x.unit === "bp" ? (x.chg >= 0 ? "+" : "") + x.chg.toFixed(1) + " 基點" : pct(x.chg / 100, 2)}</b></span>`).join("");
     const fc = D.checked ? ((D.warn || []).length ? `<div class="alert small"><b>事實核對：有 ${D.warn.length} 處同實際數字唔符</b>${D.warn.map(w => `<div>· ${esc(w)}</div>`).join("")}</div>`
                                                : `<p class="small up">✓ 市場升跌已同實際數字核對${D.tries > 1 ? "（第一版有錯，已自動重寫）" : ""}</p>`) : "";
+    const AS = aiState(), TRC = ["快訊", "市場", "經濟", "加密"], nz = (FEED.news.items || []).slice(0, 100).filter(x => TRC.includes(x.cat) && !x.zh).length;   // TRC 同 scanner/ai.py 嘅 CATS 一樣：淨係呢幾類會翻譯
     h += `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>AI 今日重點</b>${D.pre ? ` <span class="tag t-cyan">開市前版</span>` : ""} <span class="small muted">· ${esc(D.generated)}</span> ${mdl(D.model)}</summary>
+    ${AS && AS.kind !== "other" ? `<p class="small" style="color:var(--warn,#f5b041);margin:4px 0">${AS.kind === "quota" ? `AI 額度用晒：而家顯示緊 ${esc(D.generated)} 嘅版本，額度重設後會自動重寫。` : esc(AS.text)}</p>` : ""}
+    ${nz ? `<p class="small muted" style="margin:4px 0">最新 100 條新聞入面有 ${nz} 條快訊／市場／經濟／加密新聞未翻譯${AS && AS.kind === "quota" ? "（AI 額度用晒，重設後先繼續）" : "（下次更新會譯）"}，未譯嘅顯示英文原文。個股、國際、科技新聞本來就唔翻譯（慳 AI 額度）。</p>` : ""}
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${D.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
     ${D.econ ? `<p class="small" style="margin-top:6px"><b>經濟數據：</b>${esc(D.econ)}</p>` : ""}
     ${sn ? `<div class="snap small"><span class="muted">全日實際（最新 vs 上日收市${D.snap[0] && D.snap[0].at ? "，" + esc(D.snap[0].at) : ""}）</span>${sn}</div>` : ""}${fc}
