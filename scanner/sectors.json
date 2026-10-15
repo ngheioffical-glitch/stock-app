@@ -41,6 +41,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "BA": {
+  "date": "2026-10-15",
+  "industry": "Aerospace & Defense",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
  "BAC": {
   "date": "2026-09-27",
   "industry": "Banks - Diversified",
@@ -95,16 +101,34 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "CVX": {
+  "date": "2026-10-15",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "DELL": {
   "date": "2026-09-27",
   "industry": "Computer Hardware",
   "sector": "Technology",
   "src": "yahoo"
  },
+ "GE": {
+  "date": "2026-10-15",
+  "industry": "Aerospace & Defense",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
  "GEV": {
   "date": "2026-09-27",
   "industry": "Specialty Industrial Machinery",
   "sector": "Industrials",
+  "src": "yahoo"
+ },
+ "GLW": {
+  "date": "2026-10-15",
+  "industry": "Electronic Components",
+  "sector": "Technology",
   "src": "yahoo"
  },
  "GOOG": {
@@ -125,6 +149,12 @@
   "sector": "Financial Services",
   "src": "yahoo"
  },
+ "HD": {
+  "date": "2026-10-15",
+  "industry": "Home Improvement Retail",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
  "HOOD": {
   "date": "2026-09-27",
   "industry": "Capital Markets",
@@ -137,6 +167,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "JNJ": {
+  "date": "2026-10-15",
+  "industry": "Drug Manufacturers - General",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "JPM": {
   "date": "2026-09-27",
   "industry": "Banks - Diversified",
@@ -147,6 +183,12 @@
   "date": "2026-10-09",
   "industry": "Semiconductor Equipment & Materials",
   "sector": "Technology",
+  "src": "yahoo"
+ },
+ "KO": {
+  "date": "2026-10-15",
+  "industry": "Beverages - Non-Alcoholic",
+  "sector": "Consumer Defensive",
   "src": "yahoo"
  },
  "LITE": {
@@ -167,10 +209,34 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "MA": {
+  "date": "2026-10-15",
+  "industry": "Credit Services",
+  "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "MCD": {
+  "date": "2026-10-15",
+  "industry": "Restaurants",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
+ "MDT": {
+  "date": "2026-10-15",
+  "industry": "Medical Devices",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "META": {
   "date": "2026-09-27",
   "industry": "Internet Content & Information",
   "sector": "Communication Services",
+  "src": "yahoo"
+ },
+ "MRK": {
+  "date": "2026-10-15",
+  "industry": "Drug Manufacturers - General",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "MRNA": {
@@ -215,6 +281,12 @@
   "sector": "Communication Services",
   "src": "yahoo"
  },
+ "NKE": {
+  "date": "2026-10-15",
+  "industry": "Footwear & Accessories",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
  "NOW": {
   "date": "2026-09-27",
   "industry": "Software - Application",
@@ -251,6 +323,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "SMCI": {
+  "date": "2026-10-15",
+  "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
  "SNDK": {
   "date": "2026-09-27",
   "industry": "Computer Hardware",
@@ -263,6 +341,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "TMO": {
+  "date": "2026-10-15",
+  "industry": "Diagnostics & Research",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "TSLA": {
   "date": "2026-09-27",
   "industry": "Auto Manufacturers",
@@ -271,6 +355,12 @@
  },
  "TSM": {
   "date": "2026-09-27",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "TXN": {
+  "date": "2026-10-15",
   "industry": "Semiconductors",
   "sector": "Technology",
   "src": "yahoo"
