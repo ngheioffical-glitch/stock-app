@@ -442,8 +442,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     ra = rates_alert()
     ca = commod_alert()
     fa = fut_alert()
+    mv = intraday_move()
     sn = snapshot()
-    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra, ca, fa], ensure_ascii=False).encode()).hexdigest()
+    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra, ca, fa, mv], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
@@ -465,6 +466,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     if ra:
         lc_txt += (f"重要：美債息有大變動：{'；'.join(ra['alert'])}（{ra['detail']}；10 年減 2 年息差 {(ra.get('curve') or {}).get('10y_2y', '—')} 基點）。"
                    "points 要有一點講：根據下面新聞同數據，點解債息會咁郁（例如通脹、聯儲局、財政赤字、發債、經濟數據），同埋對科技股估值有咩影響。" + NL)
+    if mv:
+        lc_txt += (f"重要：{mv['text']}。points 第一點一定要講：根據下面新聞，點解今日會咁大郁（邊單新聞、數據、業績、聯儲局或者事件最有關），"
+                   "同埋對佢嘅 TQQQ（3 倍）同領導股有咩影響；唔好估未發生嘅事。" + NL)
     if fa:
         lc_txt += (f"重要：{fa['text']}（美股已經收市，呢個係期貨價）。points 第一點一定要講：根據下面新聞，收市後發生咗咩事令期貨咁郁"
                    "（邊單新聞、業績、數據或者事件最有關），同埋對下一個交易日開市、科技股同 TQQQ 可能有咩影響；唔好估未發生嘅事。" + NL)
@@ -498,7 +502,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
              "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
-             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca, "fut_alert": fa},
+             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca, "fut_alert": fa, "move": mv},
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
@@ -617,13 +621,41 @@ def commod_ai(key, N, now, force=False):
 
 def fut_alert():
     """收市後 Nasdaq 100 期貨大郁（2026-10-15 用戶：收盤後追蹤期貨跌幾多先更新新聞，方便知道發生咩事）：
-    scanner/feeds_gate.py 計好，經環境變數 FUT_ALERT（提示字）同 FUT_BUCKET（每 1% 一格，例如 −1.6% → -1）傳入；由收市計郁唔夠 1% 就冇。"""
-    t, b = os.environ.get("FUT_ALERT", "").strip(), os.environ.get("FUT_BUCKET", "").strip()
+    scanner/feeds_gate.py 計好，經環境變數 FUT_ALERT（提示字）、FUT_BUCKET（每 0.75% 一格，例如 −1.6% → -2）、FUT_DAY（參考收市日）傳入；
+    由收市計郁唔夠 0.75% 就冇。key = 收市日｜格：同一晚再郁多一格先再重寫。"""
+    t, b, d = os.environ.get("FUT_ALERT", "").strip(), os.environ.get("FUT_BUCKET", "").strip(), os.environ.get("FUT_DAY", "").strip()
     try:
         b = int(b)
     except ValueError:
         return None
-    return dict(text=t, b=b) if t and b else None
+    return dict(text=t, b=b, key=f"{d}|{b}") if t and b else None
+
+
+MOVE_STEP = 1.5      # 盤中 QQQ 由上日收市計每郁 1.5% 一格（過去兩年大約三日一日盤中郁到 1.5%）
+_MV = {}
+
+
+def intraday_move():
+    """美股開市時間 QQQ 由上日收市計郁幾多（2026-10-15 用戶：盤中大跌大升都要更新）；每 1.5% 一格，唔夠一格就冇。key = 紐約日期｜格。"""
+    if "v" in _MV:
+        return _MV["v"]
+    v = None
+    try:
+        ny = datetime.now(ZoneInfo("America/New_York"))
+        if ny.weekday() < 5 and (9, 30) <= (ny.hour, ny.minute) < (16, 0):
+            d = json.loads(urllib.request.urlopen(urllib.request.Request(YQ.format(s="QQQ"), headers=UA), timeout=20).read())
+            m = d["chart"]["result"][0]["meta"]
+            pc, px = m.get("chartPreviousClose") or m.get("previousClose"), m.get("regularMarketPrice")
+            if pc and px:
+                chg = (px / pc - 1) * 100
+                b = int(chg / MOVE_STEP)
+                if b:
+                    v = dict(text=f"盤中 QQQ {'大跌' if chg < 0 else '大升'} {abs(chg):.1f}%（由上日收市計；TQQQ 大約 {chg * 3:+.1f}%）", b=b,
+                             chg=round(chg, 2), key=f"{ny.date()}|{b}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] QQQ 盤中變動攞唔到：{e}")
+    _MV["v"] = v
+    return v
 
 
 def tq_alert():
@@ -1126,8 +1158,13 @@ def main():
         last_ai = None
     fa = fut_alert()                                                     # 收市後期貨再郁一格（1%）而上一份重點未講：即刻重寫（2026-10-15）
     N["fut"] = dict(fa, at=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT")) if fa else None
-    if fa and (((P.get("digest") or {}).get("fut_alert")) or {}).get("b") != fa["b"] and last_ai:
+    if fa and (((P.get("digest") or {}).get("fut_alert")) or {}).get("key") != fa["key"] and last_ai:
         print(f"[ai] {fa['text']}，即刻重寫今日重點")
+        last_ai = None
+    mv = intraday_move()                                                 # 盤中 QQQ 再郁一格（1.5%）而上一份重點未講：即刻重寫（2026-10-15）
+    N["move"] = dict(mv, at=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT")) if mv else None
+    if mv and (((P.get("digest") or {}).get("move")) or {}).get("key") != mv["key"] and last_ai:
+        print(f"[ai] {mv['text']}，即刻重寫今日重點")
         last_ai = None
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and not os.environ.get("RELAY")   # app 撳「重新整理」先當手動（接力觸發唔算，2026-10-05 修正：之前每 5 分鐘強制重寫，額度用晒）
     if manual:

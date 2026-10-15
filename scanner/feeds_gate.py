@@ -4,10 +4,11 @@
 規則（只管排程觸發；app 撳「重新整理」同開 app 自動更新一定行）：
   1. feeds 分支 10 分鐘內啱啱更新過 → 唔行（避免重覆）。
   2. 美股開市時間（紐約星期一至五 09:30–16:00）→ 行。
-  3. 收市後同週末：Nasdaq 100 期貨（NQ=F）由上一個 16:00 收市計，同上次更新嗰陣比再郁 1% 或以上 → 行（即刻更新新聞，AI 解釋）；
+  3. 收市後同週末：Nasdaq 100 期貨（NQ=F）由上一個 16:00 收市計，同上次更新嗰陣比再郁 0.75% 或以上 → 行（即刻更新新聞，AI 解釋）；
+     （2026-10-15 由 1% 改 0.75%：過去兩年 1% 大約四晚一晚，0.75% 大約五晚兩晚，用戶覺得 1% 太鬆）
      否則距離上次更新夠 4 個鐘先行（底線）。期貨數據攞唔到：夠 2 個鐘就行。
-唔理行唔行都計期貨：收市後由收市計郁 1% 或以上就輸出提示，ai.py 寫入今日重點同 app 橫額。
-輸出（GITHUB_OUTPUT；冇就印出嚟）：run=0／1、why=原因、fut=期貨提示（冇就空）、fut_b=檔位（每 1% 一格，向零取整，例如 −1.6% → -1）。
+唔理行唔行都計期貨：收市後由收市計郁 0.75% 或以上就輸出提示，ai.py 寫入今日重點同 app 橫額。
+輸出（GITHUB_OUTPUT；冇就印出嚟）：run=0／1、why=原因、fut=期貨提示（冇就空）、fut_b=檔位（每 0.75% 一格，向零取整，例如 −1.6% → -2）、fut_d=參考收市日。
 用法：python scanner/feeds_gate.py 事件名 上次更新（Unix 秒）
 """
 from __future__ import annotations
@@ -21,7 +22,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 NY = ZoneInfo("America/New_York")
-MOVE = 0.01            # 期貨再郁 1% 先算大郁
+MOVE = 0.0075          # 期貨再郁 0.75% 先算大郁（每 0.75% 一格）
 BASE_H, FAIL_H, DEDUPE_MIN = 4, 2, 10
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
 
@@ -64,18 +65,18 @@ def futures(now, last_ts):
     c0, p_now = ref[-1], b[-1][1]
     then = [c for t, c in b if cut.timestamp() <= t <= last_ts]
     p_then = then[-1] if then else c0
-    return p_now / c0 - 1, p_then / c0 - 1, c0, p_now
+    return p_now / c0 - 1, p_then / c0 - 1, c0, p_now, str(cut.date())
 
 
 def main(event, last_ts):
     now = datetime.now(NY)
     age_min = (time.time() - last_ts) / 60 if last_ts else 1e9
-    fut, fut_b, f = "", "", None
+    fut, fut_b, fut_d, f = "", "", "", None
     try:
         f = futures(now, last_ts)
         if f and abs(f[0]) >= MOVE:
             fut = f"收市後 Nasdaq 100 期貨{'跌' if f[0] < 0 else '升'} {abs(f[0]) * 100:.1f}%（16:00 收市 {f[2]:,.0f} → 而家 {f[3]:,.0f}）"
-            fut_b = str(int(f[0] * 100))
+            fut_b, fut_d = str(int(f[0] / MOVE)), f[4]
     except Exception as e:  # noqa: BLE001
         f = "err"
         print(f"期貨攞唔到：{e}")
@@ -91,7 +92,7 @@ def main(event, last_ts):
         run, why = 1, f"收市後期貨再郁 {abs(f[0] - f[1]) * 100:.1f}%（由收市計 {f[0] * 100:+.1f}%，上次更新時 {f[1] * 100:+.1f}%）"
     else:
         run, why = int(age_min >= BASE_H * 60), f"收市後期貨冇大郁，距離上次 {age_min / 60:.1f} 個鐘（夠 {BASE_H} 個鐘先行）"
-    out = {"run": run, "why": why, "fut": fut, "fut_b": fut_b}
+    out = {"run": run, "why": why, "fut": fut, "fut_b": fut_b, "fut_d": fut_d}
     print(json.dumps(out, ensure_ascii=False))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:

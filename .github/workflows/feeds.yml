@@ -17,7 +17,7 @@ permissions:
 # 2026-10-06：GitHub 帳戶被封（好大機會因為 10-03 加嘅「接力」：每 5 分鐘自己觸發自己、24 小時唔停，似長期伺服器用途）。
 # 已拎走接力。解封後唔好再加任何自己觸發自己嘅設計。
 # 2026-10-15：GitHub 排程唔準時（幾個鐘先跑一次），用戶揀「開 app 自動更新」（app 用手機 token 觸發 workflow_dispatch，relay=1）；
-#   排程只做後備，由 guard 嘅 scanner/feeds_gate.py 決定行唔行：開市時間行；收市後 Nasdaq 期貨再郁 1% 即刻行，否則每 4 個鐘；10 分鐘內啱啱更新過就唔行。
+#   排程只做後備，由 guard 嘅 scanner/feeds_gate.py 決定行唔行：開市時間行；收市後 Nasdaq 期貨再郁 0.75% 即刻行，否則每 4 個鐘；10 分鐘內啱啱更新過就唔行。
 jobs:
   guard:
     runs-on: ubuntu-latest
@@ -26,6 +26,7 @@ jobs:
       run: ${{ steps.g.outputs.run }}
       fut: ${{ steps.g.outputs.fut }}
       fut_b: ${{ steps.g.outputs.fut_b }}
+      fut_d: ${{ steps.g.outputs.fut_d }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -144,6 +145,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FUT_ALERT: ${{ needs.guard.outputs.fut }}
           FUT_BUCKET: ${{ needs.guard.outputs.fut_b }}
+          FUT_DAY: ${{ needs.guard.outputs.fut_d }}
       - name: 推去 feeds 分支
         working-directory: out
         run: |
