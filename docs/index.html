@@ -231,6 +231,8 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}
   .sp-logo b{opacity:1!important}.sp-logo b.sl{opacity:.55!important}.sp-ring .chart{stroke-dashoffset:0!important}.sp-ring .dot{opacity:1!important}}
 @media (max-width:380px){.kv{grid-template-columns:repeat(2,1fr)} .price{font-size:30px}}
+/* 長文字格（例如「幾時賣」）任何闊度都要摺行，唔好推到表格闊過畫面（2026-10-15 用戶：手機有啲字見唔到） */
+td.small{white-space:normal;min-width:9em;line-height:1.45}
 /* 手機：表格唔好闊過畫面 */
 @media (max-width:600px){
   .hide-sm{display:none}
@@ -238,6 +240,15 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
   td .ind{max-width:110px;white-space:normal}
   td.st,th.st{white-space:normal;min-width:84px} td.st .tag{white-space:normal;line-height:1.35}
   .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
+/* 窄機（大約 400px 以下）：標誌細啲，日期唔使變「…」；表格再窄少少 */
+@media (max-width:400px){
+  .brand{font-size:12px;letter-spacing:.07em}
+  .topbar .chip{flex:none}
+  th,td{padding:7px 4px;font-size:11.5px}
+  td.st,th.st{min-width:66px}
+  td .ind{max-width:96px}
+  td.mono:not(.r){white-space:normal;min-width:70px}   /* 股票名嗰格（代號 + Serenity 標記 + 升跌 + 行業）可以摺行；數字格（.r）照舊唔摺 */
 }
 </style>
 </head>
@@ -356,7 +367,7 @@ function header(){
     </div>
     <p class="small"><b>V2.7：</b>${g ? "綠燈：領導股照 buy-stop 買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、輪動腳唔揸 TQQQ；轉返綠燈之後按波幅分 4 份買返"}。今日要做乜睇下面「V2.7 要做」。</p>
     <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
-  </div>` + fearCard() + bounceCard() + fngCard("stock");
+  </div>` + fearCard() + bounceCard() + fngCard("stock") + valCard();
 }
 // 恐慌買入訊號（2026-10-01，scan.py fear_info；回測 stock-strategy/LAB_FEAR*.md）：VIX ≥ 30 第一日 → 下一日開市 40% 買 β 最高 5 隻，揸 20 日
 function fearCard(){
@@ -927,7 +938,7 @@ function viewToday(){
         ${liveTag(r.sym)}</div>
       <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
-      ${serNote(r.sym)}${levNote(r.sym)}
+      ${serNote(r.sym)}${levNote(r.sym)}${valOf(r.sym) ? `<p class="small" style="margin:2px 0">${valTxt(r.sym, true)}</p>` : ""}
       <div class="kv">
         <div><span>止蝕價</span><b class="dn">${f2(r.stop)}</b></div>
         <div><span>最多蝕</span><b class="dn">${pct(-r.R / r.pivot)}</b></div>
@@ -1049,6 +1060,29 @@ const serNote = sym => { const o = SER && SER.by[sym]; if (!o) return "";
 // ───────────────────────── 模型帳戶：GitHub 每日收市後照 V2.2 行虛擬帳戶（scanner/model.py），用戶照抄
 let MODEL = null, MODEL_ERR = null, MCONT = null;      // 2026-10-01 用戶：刪新帳戶（9/28 全現金冇參考價值），只用延續帳戶
 const pickModel = () => { MODEL = MCONT; };
+// 估值（2026-10-15 用戶：個股、股市、指數都要估值，同話佢知高定低）：scanner/valuation.py → docs/valuation.json（每日）。只係資訊，唔改買賣規則
+let VAL = null;
+async function fetchVal(){
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "valuation.json") + "?t=" + Date.now(), {cache: "no-store"}); if (r.ok){ VAL = await r.json(); render(); } } catch(e){}
+}
+const VALC = {"偏平": "up", "好平": "up", "偏低": "up", "歷史好低": "up", "偏貴": "dn", "好貴": "dn", "偏高": "dn", "歷史好高": "dn"};
+const valOf = s => VAL && VAL.stocks && VAL.stocks[s];
+function valTxt(s, long){
+  const v = valOf(s); if (!v) return "";
+  const lab = `<b class="${VALC[v.label] || ""}">${esc(v.label)}</b>`;
+  if (!v.fpe || v.fpe <= 0) return `估值：${lab}${v.ps ? `（市銷率 ${v.ps} 倍）` : ""}`;
+  const ndx = VAL.market && VAL.market.ndx && VAL.market.ndx.pe;
+  return `估值：預期市盈率 ${v.fpe} 倍${v.peg ? ` · PEG ${v.peg}` : ""} → ${lab}` + (long ? `<span class="muted">（${esc(v.why)}${ndx ? `；Nasdaq 100 而家 ${ndx} 倍` : ""}）</span>` : "");
+}
+function valCard(){
+  const M = VAL && VAL.market; if (!M) return "";
+  const idx = X => X && X.pe ? `<p style="margin:4px 0"><b>${esc(X.name)}</b>：市盈率 <b class="num">${X.pe}</b> 倍${X.avg && X.avg["10"] ? `，10 年平均 ${X.avg["10"].mu}（正常範圍 ${X.avg["10"].lo}–${X.avg["10"].hi}）` : ""} → <b class="${VALC[X.label] || ""}">${esc(X.label || "—")}</b>${X.stale ? "（舊數據）" : ""}</p>` : "";
+  const C = M.cape;
+  return `<div class="card small"><div class="row spread"><b>大市估值</b><span class="muted">${esc(VAL.generated || "")}</span></div>
+    ${idx(M.ndx)}${idx(M.spx)}
+    ${C ? `<p style="margin:4px 0"><b>Shiller CAPE</b>（S&amp;P 500 用 10 年經通脹調整盈利計）：<b class="num">${C.value}</b>，1990 年後第 ${C.pct1990} 百分位（中位數 ${C.med1990}）→ <b class="${VALC[C.label] || ""}">${esc(C.label)}</b></p>` : ""}
+    <p class="muted" style="margin:4px 0">點睇：指數市盈率同自己 10 年平均比，高過平均 1 個標準差 = 偏貴、2 個 = 好貴，低過就偏平、好平。個股用 PEG（市盈率 ÷ 預期盈利增長）。估值高可以維持好耐，唔係沽貨訊號；周期股盈利高峰時市盈率會好低，唔一定係平。只係參考，唔改買賣規則。</p></div>`;
+}
 async function fetchModel(){
   const get = async f => { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, f) + "?t=" + Date.now(), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
   try { MCONT = await get("model_cont.json"); MODEL_ERR = null; } catch(e){ MODEL_ERR = e.message; MCONT = null; }
@@ -1326,7 +1360,7 @@ function followCard(M){
   if (!FEED.news && !FEED.err) fetchFeeds();
   // 2026-10-03 用戶：冇寫幾時幾錢買入、「佔 13% · 729」唔知咩嚟 → 寫明模型買入日同價，金額標明係市值
   const late = p => p.date && fs.start > p.date;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span><span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
       <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("");
   const tot = {}; v.holdings.forEach(p => { if (p.close) tot[p.sym] = (tot[p.sym] || 0) + Math.floor(fs.val * p.weight / p.close); });
   const multi = Object.keys(tot).filter(s => v.holdings.filter(p => p.sym === s).length > 1);
@@ -1430,7 +1464,7 @@ function viewModel(){
     h += followCard(M);
     for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
     if (!fs) h += `<h2>模型而家揸</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>持倉</th><th class="r">買入</th><th class="r">回報</th><th>幾時賣</th></tr>
-      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span><span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
+      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
         <td class="r mono">${f2(p.entry)}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">全現金</p></div>`);
     h += v24Todo(base);
     const Y = tqYellow(v.tq);
@@ -1462,7 +1496,7 @@ function viewRank(){
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 15" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span></td><td class="r mono hide-sm">${f2(r.close)}</td>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
       <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}
@@ -1492,6 +1526,12 @@ function healthCard(){
     add("新聞、經濟數據、Trump、Serenity 最新", age < nmax, FEED.news.generated, age >= nmax ? (FEED.cloud || `已經 ${age >= 120 ? Math.round(age / 60) + " 個鐘" : Math.round(age) + " 分鐘"}冇更新（開市時間每 15–30 分鐘；收市後每 4 個鐘或者期貨郁 0.75%；開 app 超過 15 分鐘會自動更新）`) : "");
     const D = FEED.news.digest;
     add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
+    // 2026-10-15 用戶：開市前一定要更新一次。紐約平日 09:30 之後檢查今日有冇開市前版今日重點
+    const nyNow = new Intl.DateTimeFormat("en-CA", {timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false})
+      .formatToParts(new Date()).reduce((o, x) => (o[x.type] = x.value, o), {});
+    const nyDay = `${nyNow.year}-${nyNow.month}-${nyNow.day}`, nyMin = (+nyNow.hour % 24) * 60 + +nyNow.minute, wk = !/Sat|Sun/.test(nyNow.weekday);
+    if (wk && nyMin >= 570) add("開市前更新（今日）", !!(D && D.pre === nyDay), D && D.pre === nyDay ? D.generated : "冇", D && D.pre === nyDay ? "" : "今日開市前冇更新到（GitHub 排程冇跑，又冇人開 app）；開 app 就會即刻更新");
+    else if (wk && nyMin >= 240) add("開市前更新（今日）", true, D && D.pre === nyDay ? D.generated : "等緊", D && D.pre === nyDay ? "" : "開市前（香港晚上）會自動更新；你開 app 都會即刻更新");
   } else add("新聞", false, "讀唔到", FEED.err || "");
   if (TR) add("Trump 來源", !(TR.errs || []).length, `${TR.recent.length} 條近 3 日`, (TR.errs || []).join("；"));
   // 2026-10-05 用戶：新功能都要檢查（債息、商品、業績、加密、雷達、AI 額度）
@@ -1515,6 +1555,7 @@ function healthCard(){
   if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", Math.max(FM, 180), FN, Object.values(HYP.err || {}));
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
+  fresh("估值（每日）", VAL && VAL.generated, 36 * 60, "每日美股收市後", VAL && VAL.errs);
   const q429 = /429|Too Many/.test((FEED.news && FEED.news.ai_err) || "");     // 只睇新聞（每 15–30 分鐘更新，最新）；雷達嘅錯誤可能係 6 個鐘前
   add("AI 額度（Gemini 免費）", !q429, q429 ? "用晒" : "正常", q429 ? "今日免費 AI 額度用晒：數據照常更新，AI 分析暫停，大約香港時間下午 3–4 點重設後自動補返" : "");
   const bad = H.filter(x => !x.ok).length;
@@ -1863,7 +1904,7 @@ function viewNews(){
     const sn = (D.snap || []).map(x => `<span>${esc(x.name)} <b class="${x.chg >= 0 ? "up" : "dn"}">${x.unit === "bp" ? (x.chg >= 0 ? "+" : "") + x.chg.toFixed(1) + " 基點" : pct(x.chg / 100, 2)}</b></span>`).join("");
     const fc = D.checked ? ((D.warn || []).length ? `<div class="alert small"><b>事實核對：有 ${D.warn.length} 處同實際數字唔符</b>${D.warn.map(w => `<div>· ${esc(w)}</div>`).join("")}</div>`
                                                : `<p class="small up">✓ 市場升跌已同實際數字核對${D.tries > 1 ? "（第一版有錯，已自動重寫）" : ""}</p>`) : "";
-    h += `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>AI 今日重點</b> <span class="small muted">· ${esc(D.generated)}</span> ${mdl(D.model)}</summary>
+    h += `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>AI 今日重點</b>${D.pre ? ` <span class="tag t-cyan">開市前版</span>` : ""} <span class="small muted">· ${esc(D.generated)}</span> ${mdl(D.model)}</summary>
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${D.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
     ${D.econ ? `<p class="small" style="margin-top:6px"><b>經濟數據：</b>${esc(D.econ)}</p>` : ""}
     ${sn ? `<div class="snap small"><span class="muted">全日實際（最新 vs 上日收市${D.snap[0] && D.snap[0].at ? "，" + esc(D.snap[0].at) : ""}）</span>${sn}</div>` : ""}${fc}
@@ -1998,6 +2039,7 @@ function splashDone(){
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 fetchScan();
 fetchModel();
+fetchVal();
 fetchLive();
 fetchSer();
 fetchTrump();

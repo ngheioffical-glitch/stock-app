@@ -455,8 +455,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     ca = commod_alert()
     fa = fut_alert()
     mv = intraday_move()
+    pm = premarket()
     sn = snapshot()
-    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra, ca, fa, mv], ensure_ascii=False).encode()).hexdigest()
+    sig = hashlib.sha1(json.dumps([heads, econ, watch, lc, ta, ra, ca, fa, mv, pm], ensure_ascii=False).encode()).hexdigest()
     old = P.get("digest") or {}
     if (old.get("sig") == sig and not force) or not (heads or econ):
         return old, "新聞冇變，沿用上一份重點"
@@ -478,6 +479,10 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     if ra:
         lc_txt += (f"重要：美債息有大變動：{'；'.join(ra['alert'])}（{ra['detail']}；10 年減 2 年息差 {(ra.get('curve') or {}).get('10y_2y', '—')} 基點）。"
                    "points 要有一點講：根據下面新聞同數據，點解債息會咁郁（例如通脹、聯儲局、財政赤字、發債、經濟數據），同埋對科技股估值有咩影響。" + NL)
+    if pm:
+        lc_txt += ("重要：而家係美股開市前（香港時間 " + now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%H:%M") + "）。points 第一點一定要係「開市前要知」，"
+                   f"用一句總結：{pm['fut'] or '期貨數字攞唔到'}；今日數據：{'、'.join(pm['econ']) or '冇重要數據'}；"
+                   f"今日業績：{'、'.join(pm['earn']) or '冇佢留意嘅股出業績'}；同埋隔夜最重要嘅一兩單新聞。之後先講其他事。" + NL)
     if mv:
         lc_txt += (f"重要：{mv['text']}。points 第一點一定要講：根據下面新聞，點解今日會咁大郁（邊單新聞、數據、業績、聯儲局或者事件最有關），"
                    "同埋對佢嘅 TQQQ（3 倍）同領導股有咩影響；唔好估未發生嘅事。" + NL)
@@ -514,7 +519,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
              "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
-             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca, "fut_alert": fa, "move": mv},
+             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca, "fut_alert": fa, "move": mv, "pre": pm["day"] if pm else None},
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
@@ -641,6 +646,24 @@ def fut_alert():
     except ValueError:
         return None
     return dict(text=t, b=b, key=f"{d}|{b}") if t and b else None
+
+
+def premarket():
+    """開市前版今日重點（2026-10-15 用戶：開市前一定要更新一次）：feeds_gate.py 喺紐約平日 04:00–09:30 傳 PREMARKET=1。
+    返 {day: 紐約日期, fut: 期貨而家, econ: 今日數據, earn: 今日業績}；唔係開市前就 None。"""
+    if os.environ.get("PREMARKET", "").strip() != "1":
+        return None
+    et = ZoneInfo("America/New_York")
+    day = datetime.now(et).date().isoformat()
+    E = (load(OUTDIR / "econ.json") if OUTDIR else None) or {}
+    K = (load(OUTDIR / "earnings.json") if OUTDIR else None) or {}
+    econ = []
+    for r in E.get("rows", []):
+        if r["t"][:10] == day and (r.get("imp") or 0) >= 2 and not r.get("actual"):
+            hk = datetime.fromisoformat(r["t"]).replace(tzinfo=et).astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%H:%M") if len(r["t"]) > 10 else "全日"
+            econ.append(f"香港 {hk} {r.get('zh') or r['name']}{'（高影響）' if r.get('imp') == 3 else ''}（預測 {r.get('forecast') or '—'}）")
+    earn = [f"{u['sym']}（{u.get('when') or '時間未定'}{'，模型持倉' if u.get('held') else ''}）" for u in K.get("upcoming", []) if u.get("date") == day]
+    return dict(day=day, fut=os.environ.get("FUT_NOW", "").strip(), econ=econ, earn=earn)
 
 
 MOVE_STEP = 1.5      # 盤中 QQQ 由上日收市計每郁 1.5% 一格（過去兩年大約三日一日盤中郁到 1.5%）
@@ -1177,6 +1200,10 @@ def main():
     N["move"] = dict(mv, at=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT")) if mv else None
     if mv and (((P.get("digest") or {}).get("move")) or {}).get("key") != mv["key"] and last_ai:
         print(f"[ai] {mv['text']}，即刻重寫今日重點")
+        last_ai = None
+    pm = premarket()                                                     # 開市前：今日未有開市前版今日重點就即刻寫（2026-10-15）
+    if pm and (P.get("digest") or {}).get("pre") != pm["day"] and last_ai:
+        print(f"[ai] 開市前（{pm['day']}），寫開市前版今日重點")
         last_ai = None
     manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch" and not os.environ.get("RELAY")   # app 撳「重新整理」先當手動（接力觸發唔算，2026-10-05 修正：之前每 5 分鐘強制重寫，額度用晒）
     if manual:

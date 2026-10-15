@@ -2,6 +2,8 @@ name: 新聞同經濟數據
 # 每 5 分鐘抓新聞同經濟日曆，推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
 on:
   schedule:
+    - cron: "41 9-12 * * 1-5"     # 2026-10-15 開市前（夏令紐約 05:41–08:41，冬令 04:41–07:41）：GitHub 每日嘅排程通常會行（只係遲），開市前試多幾次
+    - cron: "11 13 * * 1-5"       # 開市前最後一次（夏令紐約 09:11，冬令 08:11）
     - cron: "7,22,37,52 * * * *"   # 2026-10-14：避開整點（GitHub 整點最多人排，排程最易遲或者被跳過）；2026-10-06 慳運算：每 15 分鐘；今日重點喺 ai.py 限制每 45 分鐘先寫一次
   workflow_dispatch:
     inputs:
@@ -27,6 +29,8 @@ jobs:
       fut: ${{ steps.g.outputs.fut }}
       fut_b: ${{ steps.g.outputs.fut_b }}
       fut_d: ${{ steps.g.outputs.fut_d }}
+      pre: ${{ steps.g.outputs.pre }}
+      fut_now: ${{ steps.g.outputs.fut_now }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -146,6 +150,8 @@ jobs:
           FUT_ALERT: ${{ needs.guard.outputs.fut }}
           FUT_BUCKET: ${{ needs.guard.outputs.fut_b }}
           FUT_DAY: ${{ needs.guard.outputs.fut_d }}
+          PREMARKET: ${{ needs.guard.outputs.pre }}
+          FUT_NOW: ${{ needs.guard.outputs.fut_now }}
       - name: 推去 feeds 分支
         working-directory: out
         run: |
