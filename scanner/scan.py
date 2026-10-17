@@ -113,6 +113,14 @@ def wilder_atr(h, l, c, n=14):
     return tr.ewm(alpha=1 / n, adjust=False).mean()
 
 
+def rsi14(x, n=14):
+    """RSI（Wilder，14 日）：DataFrame 每欄或者 Series。2026-10-18 用戶要求顯示（只係資訊；以前測過對策略冇幫助）。"""
+    d = x.diff()
+    up = d.clip(lower=0).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    dn = (-d.clip(upper=0)).ewm(alpha=1 / n, adjust=False, min_periods=n).mean()
+    return 100 - 100 / (1 + up / dn)
+
+
 # 紐約交易所休市日（2026–2027）：用嚟判斷「今日係咪呢個星期最後一個交易日」
 NYSE_HOLIDAYS = {"2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25", "2026-06-19", "2026-07-03",
                  "2026-09-07", "2026-11-26", "2026-12-25", "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26",
@@ -322,6 +330,7 @@ def scan(end=None):
     piv, swl = swing(H, 3, True).loc[t], swing(L, 3, False).loc[t]
     atr = wilder_atr(H, L, C).loc[t]
     low20 = L.rolling(20).min().loc[t]
+    rsi = rsi14(C).loc[t]
     q = lambda a, b: AC.shift(a) / AC.shift(b) - 1
     rs_hist = 0.4 * q(0, 63) + 0.2 * q(63, 126) + 0.2 * q(126, 189) + 0.2 * q(189, 252)
     rs_all = rs_hist.loc[t]
@@ -349,7 +358,8 @@ def scan(end=None):
         rec = dict(close=round(float(close[s]), 4), sma200=round(float(sma200[s]), 4), swing_low=round(float(swl[s]), 4),
                    atr=round(float(atr[s]), 4), rank=rank.get(s), in_pool=s in rank,
                    c10=r4(C[s].loc[days]), l10=r4(L[s].loc[days]),
-                   o10=r4(O[s].loc[days]), h10=r4(H[s].loc[days]))       # 開市、最高：模型帳戶判斷 buy-stop 成交
+                   o10=r4(O[s].loc[days]), h10=r4(H[s].loc[days]),       # 開市、最高：模型帳戶判斷 buy-stop 成交
+                   rsi=round(float(rsi[s]), 1) if np.isfinite(rsi.get(s, np.nan)) else None)
         stocks[s] = rec
         if s in rank:
             status = "唔合格" if not (c1 and c2 and c3) else ("收市高過前高，唔追" if not close[s] < piv[s] else "候選")
@@ -357,7 +367,7 @@ def scan(end=None):
                                 sma50=round(float(sma50[s]), 4), sma200=rec["sma200"], hi52=round(float(hi52[s]), 4),
                                 c1=c1, c2=c2, c3=c3, pivot=round(float(piv[s]), 4), stop=round(float(stop), 4),
                                 R=round(float(piv[s] - stop), 4), be_trigger=round(float(piv[s] + 2 * (piv[s] - stop)), 4),
-                                sector=sect[s][0], industry=sect[s][1], status=status))
+                                sector=sect[s][0], industry=sect[s][1], status=status, rsi=rec["rsi"]))
     ranking.sort(key=lambda r: r["rank"])
     stops = pd.Series({s: (swl[s] - 0.2 * atr[s]) if np.isfinite(swl[s] - 0.2 * atr[s]) and swl[s] - 0.2 * atr[s] < piv[s]
                        else low20[s] - 0.2 * atr[s] for s in C.columns})
@@ -385,7 +395,7 @@ def scan(end=None):
                days=[str(d.date()) for d in days], days_we=days_we,
                generated=pd.Timestamp.now(tz="Asia/Hong_Kong").strftime("%Y-%m-%d %H:%M HKT"),
                ndx=round(float(ndx[t]), 2), ndx_e21=round(float(e21[t]), 2), ndx_s50=round(float(s50n[t]), 2),
-               ndx_s200=round(float(s200n[t]), 2), green=green, rank1=ranking[0]["sym"] if ranking else None,
+               ndx_s200=round(float(s200n[t]), 2), ndx_rsi=round(float(rsi14(ndx)[t]), 1), green=green, rank1=ranking[0]["sym"] if ranking else None,
                cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
                          ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),

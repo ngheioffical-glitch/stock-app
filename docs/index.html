@@ -314,6 +314,9 @@ const pct = (x, d=1) => (x == null || !isFinite(x)) ? "—" : (x >= 0 ? "+" : ""
 // 升 = 綠、跌 = 紅（用戶要求：app 入面所有升跌都咁顯示）
 const chg = (x, d=1) => (x == null || !isFinite(x)) ? "" : `<span class="${x > 0 ? "up" : x < 0 ? "dn" : "muted"}">${x > 0 ? "▲" : x < 0 ? "▼" : ""}${pct(Math.abs(x), d).replace("+", "")}</span>`;
 const dayChg = sym => { const c = SCAN?.stocks?.[sym]?.c10; return c && c.length > 1 ? c[c.length - 1] / c[c.length - 2] - 1 : null; };
+// RSI（2026-10-18 用戶：以前測過對策略冇幫助，但需要呢個資訊）：14 日 RSI，≥ 70 超買、≤ 30 超賣；scan.py 每日計
+const rsiOf = s => { const v = (SCAN && SCAN.stocks && SCAN.stocks[s] && SCAN.stocks[s].rsi); return v == null ? null : v; };
+const rsiTxt = v => v == null ? "" : `RSI ${Math.round(v)}${v >= 70 ? ` <b class="dn">超買</b>` : v <= 30 ? ` <b class="up">超賣</b>` : ""}`;
 const indOf = r =>r?.industry ? `${r.industry}${r.sector && r.sector !== r.industry ? " · " + r.sector : ""}` : "";
 const HK = new Intl.DateTimeFormat("en-CA", {timeZone:"Asia/Hong_Kong", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
 const NY = new Intl.DateTimeFormat("en-CA", {timeZone:"America/New_York", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"});
@@ -379,7 +382,7 @@ function header(){
       <div class="gauge"><span>21 EMA vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
     </div>
     <p class="small"><b>V2.7：</b>${g ? "綠燈：領導股照 buy-stop 買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、輪動腳唔揸 TQQQ；轉返綠燈之後按波幅分 4 份買返"}。今日要做乜睇下面「V2.7 要做」。</p>
-    <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
+    <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span>${SCAN.ndx_rsi != null ? ` · ${rsiTxt(SCAN.ndx_rsi)}` : ""} · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
   </div>` + fearCard() + bounceCard() + fngCard("stock") + valCard();
 }
 // 恐慌買入訊號（2026-10-01，scan.py fear_info；回測 stock-strategy/LAB_FEAR*.md）：VIX ≥ 30 第一日 → 下一日開市 40% 買 β 最高 5 隻，揸 20 日
@@ -955,6 +958,7 @@ function viewToday(){
       <div class="kv">
         <div><span>止蝕價</span><b class="dn">${f2(r.stop)}</b></div>
         <div><span>最多蝕</span><b class="dn">${pct(-r.R / r.pivot)}</b></div>
+        ${rsiOf(r.sym) != null ? `<div><span>RSI（14 日）</span><b>${rsiTxt(rsiOf(r.sym))}</b></div>` : ""}
         <div><span>注碼${r.shares != null ? " · 股數" : ""}</span><b>${Math.round(r.frac * 100)}%${MCONT && MCONT.view && MCONT.view.legs && MCONT.view.legs.lead ? `（帳戶 ${(r.frac * MCONT.view.legs.lead.w * 100).toFixed(0)}%）` : ""}${r.shares != null ? ` · ${f0(r.shares)}` : ""}</b></div>
       </div>
       <details><summary>落單方法</summary>
@@ -1373,7 +1377,7 @@ function followCard(M){
   if (!FEED.news && !FEED.err) fetchFeeds();
   // 2026-10-03 用戶：冇寫幾時幾錢買入、「佔 13% · 729」唔知咩嚟 → 寫明模型買入日同價，金額標明係市值
   const late = p => p.date && fs.start > p.date;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
       <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("");
   const tot = {}; v.holdings.forEach(p => { if (p.close) tot[p.sym] = (tot[p.sym] || 0) + Math.floor(fs.val * p.weight / p.close); });
   const multi = Object.keys(tot).filter(s => v.holdings.filter(p => p.sym === s).length > 1);
@@ -1477,7 +1481,7 @@ function viewModel(){
     h += followCard(M);
     for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
     if (!fs) h += `<h2>模型而家揸</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>持倉</th><th class="r">買入</th><th class="r">回報</th><th>幾時賣</th></tr>
-      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
+      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
         <td class="r mono">${f2(p.entry)}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">全現金</p></div>`);
     h += v24Todo(base);
     const Y = tqYellow(v.tq);
@@ -1509,7 +1513,7 @@ function viewRank(){
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 15" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}${rsiOf(r.sym) != null ? " · " + rsiTxt(rsiOf(r.sym)) : ""}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
       <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}

@@ -21,7 +21,8 @@ jobs:
           cache: pip
           cache-dependency-path: scanner/requirements.txt
       - run: pip install -r scanner/requirements.txt
-      - run: python scanner/scan.py
+      - name: 每日掃描（2026-10-17 試過 Yahoo 數據唔齊停咗：唔得就等 3 分鐘再試，最多 3 次）
+        run: for i in 1 2 3; do python scanner/scan.py && exit 0; echo "第 $i 次唔得，3 分鐘後再試"; sleep 180; done; exit 1
         env:
           PYTHONIOENCODING: utf-8
       - name: 2 倍個股 ETF 對照（失敗唔影響）
