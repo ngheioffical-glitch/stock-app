@@ -382,8 +382,22 @@ function header(){
       <div class="gauge"><span>21 EMA vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
     </div>
     <p class="small"><b>V2.7：</b>${g ? "綠燈：領導股照 buy-stop 買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、輪動腳唔揸 TQQQ；轉返綠燈之後按波幅分 4 份買返"}。今日要做乜睇下面「V2.7 要做」。</p>
-    <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span>${SCAN.ndx_rsi != null ? ` · ${rsiTxt(SCAN.ndx_rsi)}` : ""} · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
-  </div>` + fearCard() + bounceCard() + fngCard("stock") + valCard();
+    <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
+  </div>` + rsiCard() + fearCard() + bounceCard() + fngCard("stock") + valCard();
+}
+// 大市 RSI 大卡（2026-10-18 用戶：顯示得太婉轉，好難睇到）：NDX 14 日 RSI，≥ 70 超買、≤ 30 超賣；只係資訊
+const rsiZone = v => v >= 70 ? ["超買", "warnc"] : v >= 55 ? ["偏強", "up"] : v > 45 ? ["中性", ""] : v > 30 ? ["偏弱", "warnc"] : ["超賣", "dn"];
+function rsiCard(){
+  const v = SCAN && SCAN.ndx_rsi; if (v == null) return "";
+  const [lab, cls] = rsiZone(v), h = SCAN.ndx_rsi10 || [], n = h.length;
+  const cmp = [["昨日", h[n - 2]], ["5 日前", h[n - 6]], ["10 日前", h[0]]].filter(x => x[1] != null);
+  return `<div class="card"><div class="row spread"><div><div class="small muted">大市 RSI（Nasdaq 100，14 日）</div>
+      <div class="status ${cls}" style="font-size:16px">${lab}</div></div>
+      <div style="text-align:right"><div class="mono ${cls}" style="font-size:28px;font-weight:800">${Math.round(v)}</div><div class="small muted">/ 100</div></div></div>
+    <div class="fngbar"><i style="left:${Math.max(0, Math.min(100, v))}%"></i></div>
+    <div class="small muted" style="display:flex;justify-content:space-between;margin-top:2px"><span>超賣 ≤ 30</span><span>中性 50</span><span>超買 ≥ 70</span></div>
+    ${cmp.length ? `<div class="kv">${cmp.map(x => `<div><span>${x[0]}</span><b class="${rsiZone(x[1])[1]}">${Math.round(x[1])}</b></div>`).join("")}</div>` : ""}
+    <p class="small muted">RSI 量度最近 14 日升跌嘅力度：70 以上 = 升得急（超買），30 以下 = 跌得急（超賣）。只係參考：以前測過用 RSI 做買賣規則冇幫助，所以唔改 V2.7 規則。</p></div>`;
 }
 // 恐慌買入訊號（2026-10-01，scan.py fear_info；回測 stock-strategy/LAB_FEAR*.md）：VIX ≥ 30 第一日 → 下一日開市 40% 買 β 最高 5 隻，揸 20 日
 function fearCard(){

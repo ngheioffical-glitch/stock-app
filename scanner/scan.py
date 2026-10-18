@@ -395,7 +395,7 @@ def scan(end=None):
                days=[str(d.date()) for d in days], days_we=days_we,
                generated=pd.Timestamp.now(tz="Asia/Hong_Kong").strftime("%Y-%m-%d %H:%M HKT"),
                ndx=round(float(ndx[t]), 2), ndx_e21=round(float(e21[t]), 2), ndx_s50=round(float(s50n[t]), 2),
-               ndx_s200=round(float(s200n[t]), 2), ndx_rsi=round(float(rsi14(ndx)[t]), 1), green=green, rank1=ranking[0]["sym"] if ranking else None,
+               ndx_s200=round(float(s200n[t]), 2), ndx_rsi=round(float(rsi14(ndx)[t]), 1), ndx_rsi10=[round(float(x), 1) for x in rsi14(ndx).reindex(days)], green=green, rank1=ranking[0]["sym"] if ranking else None,
                cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
                          ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
