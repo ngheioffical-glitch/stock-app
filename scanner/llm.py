@@ -3,8 +3,11 @@
 
 所有 AI 功能經呢度叫，換供應商只改環境變數，唔使改功能：
   ask(prompt, gem_models=None, timeout=None)    → (dict, 型號標籤)：要一個 JSON object；全部供應商都失敗就 raise RuntimeError。
+      schema=（JSON Schema）：Claude 用官方固定格式（output_config.format），保證格式啱；後備供應商就將格式寫入提示。
   search(prompt, gem_models=None, timeout=None) → (dict 或 None, 標籤, 有冇真係上網查證, 來源清單)：
       Claude 分兩步（先搜尋、再用另一個請求寫 JSON），因為佢嘅搜尋引用同固定 JSON 格式唔可以喺同一個請求。
+  gather(prompt, max_search, timeout, first)    → (筆記, 來源清單, 標籤, 搜尋次數)：淨係上網搜尋同寫筆記，
+      筆記每句後面標 [S#]（由 first 開始編號），俾研究報告（research.py）之後幾步用同一套來源編號。
 供應商次序：AI_PROVIDER（預設 claude）先，再試 AI_FALLBACK（預設 gemini,github）。用咗後備，標籤寫明「後備」同原因。
 Claude：key 只由環境變數 ANTHROPIC_API_KEY 讀（GitHub Secrets）；AI_MODEL 預設 claude-opus-5-5、AI_EFFORT 預設 high
   （Opus 5.5 預設係 medium，所以一定要寫明）；開 server-side fallback（拒答時 Anthropic 自己轉後備型號）；全部用串流。
@@ -182,10 +185,13 @@ def _claude_client(timeout):
     return anthropic.Anthropic(api_key=key, max_retries=1, timeout=timeout)
 
 
-def _claude_call(messages, system, timeout, kind, tools=None, max_tokens=None):
+def _claude_call(messages, system, timeout, kind, tools=None, max_tokens=None, schema=None):
     cl = _claude_client(timeout)
+    oc = {"effort": EFFORT}
+    if schema:
+        oc["format"] = {"type": "json_schema", "schema": schema}       # 固定 JSON 格式（同搜尋工具嘅引用唔可以一齊用）
     kw = dict(model=MODEL, max_tokens=max_tokens or MAX_TOKENS, system=system, messages=messages,
-              output_config={"effort": EFFORT}, betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+              output_config=oc, betas=["server-side-fallback-2026-07-01"], fallbacks="default")
     if tools:
         kw["tools"] = tools
     t0 = time.time()
@@ -203,8 +209,8 @@ def _text(msg):
     return "".join(getattr(b, "text", "") for b in msg.content if getattr(b, "type", "") == "text")
 
 
-def _sources(msgs):
-    """由搜尋結果同引用攞來源（網址去重，最多 12 個）：[{title, url, age}]。"""
+def _sources(msgs, limit=12, cited_only=False):
+    """由搜尋結果同引用攞來源（網址去重；有引用嘅排先）：[{title, url, age}]。cited_only：淨係要 AI 真係引用過嘅。"""
     out, seen = [], set()
 
     def add(url, title, age=None):
@@ -215,18 +221,66 @@ def _sources(msgs):
         for b in m.content:
             for ci in (getattr(b, "citations", None) or []):
                 add(getattr(ci, "url", None), getattr(ci, "title", ""))
-    for m in msgs:
-        for b in m.content:
-            if getattr(b, "type", "") == "web_search_tool_result" and isinstance(getattr(b, "content", None), list):
-                for r in b.content:
-                    if getattr(r, "type", "") == "web_search_result":
-                        add(r.url, r.title, getattr(r, "page_age", None))
-    return out[:12]
+    if not cited_only:
+        for m in msgs:
+            for b in m.content:
+                if getattr(b, "type", "") == "web_search_tool_result" and isinstance(getattr(b, "content", None), list):
+                    for r in b.content:
+                        if getattr(r, "type", "") == "web_search_result":
+                            add(r.url, r.title, getattr(r, "page_age", None))
+    return out[:limit]
 
 
-def _claude_ask(prompt, timeout):
-    msg = _claude_call([{"role": "user", "content": prompt}], JSON_SYS, timeout, "ask")
+def schema_hint(schema):
+    """後備供應商冇固定 JSON 格式：將 JSON Schema 寫入提示（description 入面有每格要寫乜）。"""
+    return "\n\n回覆嘅 JSON 一定要跟呢個 JSON Schema（每個欄位都要有）：\n" + json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
+
+
+def _schema_rejected(e):
+    return getattr(e, "status_code", None) == 400 and re.search(r"schema|output_config|format|grammar", str(e), re.I)
+
+
+def _claude_ask(prompt, timeout, schema=None, system=None, max_tokens=None, kind="ask"):
+    msgs = [{"role": "user", "content": prompt}]
+    try:
+        msg = _claude_call(msgs, system or JSON_SYS, timeout, kind, max_tokens=max_tokens, schema=schema)
+    except Exception as e:  # noqa: BLE001
+        if getattr(e, "status_code", None) == 400 and "max_tokens" in str(e) and (max_tokens or 0) > MAX_TOKENS:
+            print(f"[llm] max_tokens {max_tokens} 太大（{str(e)[:120]}），改用 {MAX_TOKENS}")
+            return _claude_ask(prompt, timeout, schema=schema, system=system, max_tokens=MAX_TOKENS, kind=kind)
+        if not (schema and _schema_rejected(e)):
+            raise
+        print(f"[llm] Claude 唔收呢個固定格式（{str(e)[:160]}），改用提示要求 JSON")
+        msg = _claude_call([{"role": "user", "content": prompt + schema_hint(schema)}], system or JSON_SYS, timeout, kind,
+                           max_tokens=max_tokens)
     return _json(_text(msg)), label_claude()
+
+
+GATHER_SYS = ("你係財經研究員。用網上搜尋搵最新、可靠嘅資料（公司公告、財報、監管文件、主要財經媒體優先），"
+              "然後用文字寫研究筆記：每一點都要有具體數字或者日期，同埋要引用搜尋結果。搵唔到就寫搵唔到，唔好估。")
+
+
+def _claude_gather(prompt, timeout, max_search, first):
+    deadline = time.time() + timeout
+    tools = [{"type": "web_search_20260209", "name": "web_search", "max_uses": max_search}]
+    msgs, got = [{"role": "user", "content": prompt}], []
+    for _ in range(6):                                   # 搜尋太耐會 pause_turn：將回覆接返落去繼續
+        m = _claude_call(msgs, GATHER_SYS, _left(deadline, timeout), "gather", tools=tools)
+        got.append(m)
+        if m.stop_reason != "pause_turn":
+            break
+        msgs = msgs + [{"role": "assistant", "content": m.content}]
+    src = _sources(got, limit=40, cited_only=True) or _sources(got, limit=15)
+    idx = {s["url"]: k for k, s in enumerate(src)}
+    parts = []
+    for m in got:
+        for b in m.content:
+            if getattr(b, "type", "") != "text":
+                continue
+            refs = sorted({idx[c.url] for c in (getattr(b, "citations", None) or []) if getattr(c, "url", None) in idx})
+            parts.append(b.text + "".join(f" [S{first + k}]" for k in refs))
+    n_search = sum(u["search"] for u in USAGE[-len(got):])
+    return "".join(parts).strip(), src, f"{label_claude()}（上網搜尋 {n_search} 次）", n_search
 
 
 def _claude_search(prompt, timeout):
@@ -352,6 +406,29 @@ def _gemini_search(prompt, timeout):
     raise RuntimeError(f"gemini：搜尋失敗（{last}）")
 
 
+def _gemini_gather(prompt, timeout, first):
+    """Gemini + Google 搜尋寫筆記（後備）：筆記冇逐句引用，來源清單由 groundingChunks 嚟，接住 first 編號列喺筆記尾。"""
+    key, deadline = _gem_key(), time.time() + timeout
+    body = {"contents": [{"parts": [{"text": GATHER_SYS + "\n\n" + prompt}]}], "tools": [{"google_search": {}}],
+            "generationConfig": {"temperature": 0.3}}
+    last = ""
+    for m in gem_pick(key, GEM_D):
+        try:
+            req = urllib.request.Request(GEM_API.format(m=m), data=json.dumps(body).encode(), method="POST",
+                                         headers={"Content-Type": "application/json", "x-goog-api-key": key})
+            d = json.loads(urllib.request.urlopen(req, timeout=_left(deadline, 240)).read())
+            c = d["candidates"][0]
+            txt = "".join(x.get("text", "") for x in c["content"]["parts"] if not x.get("thought")).strip()
+            chunks = (c.get("groundingMetadata") or {}).get("groundingChunks", [])
+            src = [dict(title=w.get("web", {}).get("title", ""), url=w.get("web", {}).get("uri", ""), age=None) for w in chunks][:30]
+            if src:
+                txt += "\n\n（呢份筆記嘅來源：" + "、".join(f"[S{first + k}] {s['title']}" for k, s in enumerate(src)) + "）"
+            return txt, src, f"{m}（Google 搜尋）", len(src)
+        except Exception as e:  # noqa: BLE001
+            last = f"{m}：{str(e)[:80]}"
+    raise RuntimeError(f"gemini：搜尋失敗（{last}）")
+
+
 # ---------------------------------------------------------------- GitHub Models（最後後備；冇上網）
 GH_API = "https://models.github.ai/inference/chat/completions"
 GH_MODELS = [m for m in (os.environ.get("GH_MODEL"), "openai/gpt-4.1-mini", "openai/gpt-4o-mini", "deepseek/deepseek-v3-0324") if m]
@@ -387,18 +464,22 @@ def _github(prompt, timeout):
 
 
 # ---------------------------------------------------------------- 對外
-def ask(prompt, gem_models=None, timeout=None):
-    """要一個 JSON object。返 (dict, 型號標籤)；用咗後備，標籤會寫「後備：原因」。全部失敗 raise RuntimeError（訊息有齊每個供應商嘅錯）。"""
+def ask(prompt, gem_models=None, timeout=None, schema=None, system=None, max_tokens=None, kind="ask"):
+    """要一個 JSON object。返 (dict, 型號標籤)；用咗後備，標籤會寫「後備：原因」。全部失敗 raise RuntimeError（訊息有齊每個供應商嘅錯）。
+    schema：JSON Schema（Claude 用固定格式；後備寫入提示）。system：Claude 嘅 system 提示（預設淨係要求 JSON）。"""
     timeout = timeout or 300
     errs = []
+    other = prompt + schema_hint(schema) if schema else prompt
+    if system:
+        other = system + "\n\n" + other
     for p in _order():
         try:
             if p == "claude":
-                res, lab = _claude_ask(prompt, timeout)
+                res, lab = _claude_ask(prompt, timeout, schema=schema, system=system, max_tokens=max_tokens, kind=kind)
             elif p == "gemini":
-                res, lab = _gemini_ask(prompt, gem_models, timeout)
+                res, lab = _gemini_ask(other, gem_models, timeout)
             elif p == "github":
-                res, lab = _github(prompt, timeout)
+                res, lab = _github(other, timeout)
             else:
                 continue
             if errs:
@@ -429,3 +510,24 @@ def search(prompt, gem_models=None, timeout=None):
         except Exception as e:  # noqa: BLE001
             errs.append(f"{p}：{str(e)[:240]}" if not str(e).startswith(p) else str(e)[:260])
     return None, "；".join(errs) or "冇可以上網搜尋嘅 AI 供應商", False, []
+
+
+def gather(prompt, max_search=None, timeout=None, first=1):
+    """淨係上網搜尋同寫筆記（研究報告第一步）。返 (筆記, 來源, 標籤, 搜尋次數)；筆記入面 [S#] 由 first 開始，
+    對應來源清單次序。全部有搜尋嘅供應商都失敗就 raise RuntimeError。"""
+    timeout, max_search = timeout or 480, max_search or MAX_SEARCH
+    errs = []
+    for p in _order():
+        try:
+            if p == "claude":
+                notes, src, lab, n = _claude_gather(prompt, timeout, max_search, first)
+            elif p == "gemini":
+                notes, src, lab, n = _gemini_gather(prompt, timeout, first)
+            else:
+                continue                                     # GitHub Models 冇上網搜尋
+            if errs:
+                lab += f"（後備：{_why(errs[0])}）"
+            return notes, src, lab, n
+        except Exception as e:  # noqa: BLE001
+            errs.append(f"{p}：{str(e)[:240]}" if not str(e).startswith(p) else str(e)[:260])
+    raise RuntimeError("；".join(errs) or "冇可以上網搜尋嘅 AI 供應商")

@@ -1,0 +1,52 @@
+name: 個股研究
+# 2026-10-20 用戶：「我想我個 app 都好似佢咁」— AI 個股研究報告（scanner/research.py）：
+# 程式攞數據（Yahoo、SEC 財報）→ Claude Opus 5.5（effort high）上網搜尋 → 固定格式分析 → 程式按公式計估值 → 寫結論；輸出 docs/research/。
+# 排程：每個交易日美股收市後檢查一次，清單（docs/research/index.json + scanner/research_list.txt）入面冇正式報告、
+#   7 日未更新、或者業績公佈咗嘅先做；每次最多 2 隻（每份約 US$1–1.5），每月上限 RESEARCH_MONTH_USD。
+# 冇 ANTHROPIC_API_KEY 就唔做（唔會用 Gemini 由頭寫）；Claude 中途出事先退 Gemini，報告會標明後備。
+# app「研究」分頁可以用 GitHub token 觸發（workflow_dispatch，輸入代號）。
+on:
+  schedule:
+    - cron: "17 23 * * 1-5"    # 23:17 UTC = 香港時間 07:17（每日掃描之後）
+  workflow_dispatch:
+    inputs:
+      sym:
+        description: "股票代號（空白 = 揀到期嘅）"
+        required: false
+        default: ""
+permissions:
+  contents: write
+concurrency:
+  group: research
+  cancel-in-progress: false
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scanner/requirements.txt
+      - run: pip install -r scanner/requirements.txt
+      - name: 生成研究報告
+        run: |
+          SYM="$(printf '%s' "$SYM_IN" | tr -cd 'A-Za-z0-9.-' | tr 'a-z' 'A-Z' | cut -c1-10)"
+          if [ -n "$SYM" ]; then python scanner/research.py "$SYM"; else python scanner/research.py --due; fi
+        timeout-minutes: 40
+        env:
+          SYM_IN: ${{ github.event.inputs.sym }}
+          PYTHONIOENCODING: utf-8
+          RESEARCH_MONTH_USD: "40"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: 提交報告
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/research
+          if git diff --cached --quiet; then echo "冇新報告"; exit 0; fi
+          git commit -m "研究報告 $(date -u +%F)"
+          for i in 1 2 3; do git pull --rebase origin main && git push && exit 0; sleep 5; done; exit 1

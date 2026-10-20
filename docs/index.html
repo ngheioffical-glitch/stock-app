@@ -126,9 +126,10 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(8,1fr);z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(9,minmax(0,1fr));z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-nav button{border:0;background:none;padding:9px 2px 8px;font-size:11px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button{border:0;background:none;padding:9px 0 8px;font-size:10.5px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;white-space:nowrap;letter-spacing:-.02em}   /* 2026-10-20：加「研究」變 9 格，字細少少、格寬一樣（底部指示條先對得準） */
+nav button[data-tab="ser"]{font-size:9.5px;letter-spacing:-.05em}
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 nav button[aria-current="page"]{color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.5)}
 nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
@@ -218,7 +219,7 @@ details.card>summary::-webkit-details-marker{display:none}
 @keyframes fadein{from{opacity:.35}to{opacity:1}}
 button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
 button:active{transform:scale(.95)}
-nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 8);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 9);padding:0 4px;pointer-events:none;transition:transform .42s var(--ease)}
 nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
   box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
 nav button{position:relative;z-index:1}
@@ -250,6 +251,194 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
   td .ind{max-width:96px}
   td.mono:not(.r){white-space:normal;min-width:70px}   /* 股票名嗰格（代號 + Serenity 標記 + 升跌 + 行業）可以摺行；數字格（.r）照舊唔摺 */
 }
+/* ───────── 個股研究頁（2026-10-20 用戶：「想複製佢個界面，真係幾正」— 跟影片：純黑底、白色大字、青色價錢、圓角卡、白色膠囊分頁） */
+.t-res{color:#9be3f2;background:rgba(125,211,232,.12);border-color:rgba(125,211,232,.45);cursor:pointer}
+#rs{--rbg:#0a0a0d;--rc:#16161b;--rc2:#1f1f25;--rl:rgba(255,255,255,.08);--rt:#ececf1;--rm:#8f8f9a;--rteal:#7dd3e8;--rteal2:#4fb6d6;
+  --rpur:#b9a2ff;--rora:#f3a56d;--rgrn:#8be0b4;
+  position:fixed;inset:0;z-index:40;background:var(--rbg);color:var(--rt);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+  font-family:var(--sans);font-size:15.5px;line-height:1.72;-webkit-font-smoothing:antialiased}
+#rs>.rs-in{animation:rsIn .28s var(--ease)}
+@keyframes rsIn{from{transform:translateX(18px)}to{transform:none}}
+#rs[hidden]{display:none}
+#rs button{font:inherit;box-shadow:none;transition:transform .14s var(--ease),background-color .2s,color .2s}
+#rs details{border:0;padding:0}
+#rs summary{color:inherit;letter-spacing:0}
+#rs summary::before{content:none}
+#rs details b{font-family:inherit;color:inherit}
+.rs-in{max-width:760px;margin:0 auto;padding-bottom:calc(56px + env(safe-area-inset-bottom,0px))}
+.rs-top{position:sticky;top:0;z-index:4;display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top,0px)) 12px 4px;background:var(--rbg)}
+.rs-top h1{flex:1;min-width:0;font-size:17px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:0}
+.rs-ib{flex:none;width:38px;height:38px;border-radius:50%!important;border:0!important;background:var(--rc2)!important;color:var(--rt)!important;display:grid;place-items:center;padding:0!important}
+.rs-ib svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.rs-bar{position:sticky;top:calc(50px + env(safe-area-inset-top,0px));z-index:3;background:var(--rbg);padding:4px 14px 8px;border-bottom:1px solid var(--rl)}
+.rs-tick{display:flex;align-items:center;gap:9px;min-width:0;white-space:nowrap}
+.rs-tick b{font-size:19px;font-weight:900;letter-spacing:.01em}
+.rs-tick .px{font-family:var(--mono);font-size:17px;font-weight:700}
+.rs-tick .st{font-size:12px;color:var(--rm);font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.rs-tick .st i{font-style:normal;color:var(--rt);letter-spacing:1px;font-size:14px}
+.rs-pills{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin-top:7px}
+.rs-pills::-webkit-scrollbar{display:none}
+.rs-pills button{flex:none;border:0!important;background:none!important;color:#a5a5af!important;font-weight:600!important;font-size:14.5px;padding:5px 13px!important;border-radius:999px!important}
+.rs-pills button.on{background:#f3f3f5!important;color:#101014!important;font-weight:800!important}
+.rs-sec{padding:24px 16px 4px;scroll-margin-top:calc(116px + env(safe-area-inset-top,0px))}
+.rs-sec+.rs-sec{border-top:1px solid var(--rl);margin-top:18px}
+.rs-h{font-size:24px;font-weight:900;line-height:1.32;margin:0;letter-spacing:0;text-transform:none;color:var(--rt)}
+.rs-h3{font-size:18px;font-weight:900;margin:22px 0 2px;color:var(--rt)}
+.rs-by{font-size:12.5px;color:var(--rm);margin-top:2px}
+.rs-hrow{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.rs-card{background:var(--rc);border:1px solid var(--rl);border-radius:16px;padding:14px 16px;margin-top:12px}
+.rs-plain{font-size:15.5px;line-height:1.72}
+.bh{display:inline-block;background:#f3f3f5;color:#0b0b0e;font-size:12px;font-weight:800;border-radius:5px;padding:0 6px;margin-right:7px;line-height:1.75;vertical-align:1px;font-style:normal}
+.rs-more summary{color:var(--rm)!important;font-size:13px;font-weight:700;margin-top:8px;cursor:pointer}
+.rs-more summary::after{content:" ▸"} .rs-more[open] summary::after{content:" ▾"}
+.rs-more p{font-size:14.5px;color:#d2d2d9;margin-top:6px}
+.rs-cite{display:inline-block;font-size:10.5px;font-weight:700;color:var(--rteal);background:rgba(125,211,232,.1);border-radius:4px;padding:0 3px;margin:0 1px;line-height:1.5;
+  vertical-align:super;cursor:pointer;font-family:var(--mono)}
+.rs-gl{text-decoration:underline dotted rgba(236,236,241,.55);text-underline-offset:4px;cursor:pointer}
+.rs-p{font-size:17px;line-height:1.85;margin-top:14px;color:#f0f0f4}
+.rs-p2{font-size:16px;line-height:1.8;margin-top:12px;color:#e6e6ec}
+.rs-meta{font-size:13px;color:var(--rm);margin-top:8px;line-height:1.6}
+.rs-hero{position:relative;margin:0 -16px;height:280px;background:radial-gradient(120% 90% at 60% 30%,rgba(79,182,214,.1),transparent 70%)}
+.rs-hero svg{display:block;width:100%;height:100%}
+.rs-cap{position:absolute;top:6px;right:16px;font-size:11px;color:var(--rm);margin:0;pointer-events:none}
+.rs-ev{cursor:pointer}
+.rs-ev text{font-size:11px;font-weight:700;fill:#f3f3f5;font-family:var(--sans)}
+.rs-ev rect{fill:rgba(26,26,32,.92);stroke:rgba(255,255,255,.14)}
+.rs-pulse{animation:rsPulse 2.2s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes rsPulse{0%{opacity:.8;transform:scale(.6)}100%{opacity:0;transform:scale(2.6)}}
+.rs-lg{display:inline-grid;place-items:center;flex:none;border-radius:24%;background:linear-gradient(135deg,hsl(var(--h) 55% 46%),hsl(calc(var(--h) + 50) 65% 28%));
+  color:#fff;font-weight:900;font-family:var(--mono);letter-spacing:-.03em;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.rs-name{font-size:31px;font-weight:900;line-height:1.18;margin:12px 0 2px;letter-spacing:0;text-transform:none;color:var(--rt)}
+.rs-sub{font-size:13.5px;color:var(--rm)}
+.rs-big{font-family:var(--mono);font-size:38px;font-weight:800;line-height:1.1;margin-top:12px;background:linear-gradient(90deg,#9fe6f5,#56b9dc);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.rs-big small{font-family:var(--sans);font-size:16px;font-weight:700;color:var(--rt);-webkit-text-fill-color:var(--rt)}
+.rs-g4{display:grid;grid-template-columns:1fr 1fr;margin-top:14px;border-top:1px solid var(--rl)}
+.rs-g4>div{padding:12px 4px 12px 0;border-bottom:1px solid var(--rl);min-width:0}
+.rs-g4>div:nth-child(odd){border-right:1px solid var(--rl)} .rs-g4>div:nth-child(even){padding-left:14px}
+.rs-g4 span{display:block;font-size:13px;color:var(--rm)}
+.rs-g4 b{display:block;font-size:19px;font-weight:900;margin-top:2px}
+.rs-g4 em{display:block;font-size:12.5px;color:var(--rm);font-style:normal;margin-top:2px}
+.rs-stars{letter-spacing:2px}
+.rs-th{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.rs-th .l{font-size:13px;color:var(--rm);margin-right:2px}
+.rs-th span.c{display:inline-flex;align-items:center;gap:6px;background:var(--rc2);border:1px solid var(--rl);border-radius:9px;padding:3px 4px 3px 9px;font-weight:700;font-size:13.5px}
+.rs-th span.c b{background:#f3f3f5;color:#0b0b0e;border-radius:6px;padding:0 6px;font-family:var(--mono);font-size:13px;min-width:22px;text-align:center}
+.rs-chipbtn{border:1px solid var(--rl)!important;background:none!important;color:var(--rm)!important;border-radius:999px!important;padding:3px 11px!important;font-size:12.5px!important;font-weight:600!important}
+.rs-row2{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.rs-pillbtn{border:1px solid var(--rl)!important;background:var(--rc)!important;color:#d6d6dd!important;border-radius:999px!important;padding:7px 15px!important;font-size:14px!important;font-weight:600!important}
+.rs-pc .h{font-size:13px;color:var(--rm)}
+.rs-pc .p{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:2px}
+.rs-pc .p b{font-family:var(--mono);font-size:36px;font-weight:800;line-height:1.15}
+.rs-pc .p span{font-size:15px;font-weight:800;color:var(--rm)} .rs-pc .p span i{font-style:normal;color:var(--rt);letter-spacing:1px}
+.rs-sl{position:relative;height:22px;margin:14px 2px 4px}
+.rs-sl-bar{position:absolute;left:0;right:0;top:7px;height:8px;border-radius:5px}
+.rs-mk{position:absolute;top:0;transform:translateX(-50%)}
+.rs-mk.mp{top:2px;width:18px;height:18px;border-radius:50%;background:#f6f6f8;border:3px solid #0b0b0e;box-shadow:0 0 0 1.5px #f6f6f8}
+.rs-mk.mf{width:3px;height:22px;background:#f6f6f8;border-radius:2px}
+.rs-mk.mc{width:3px;height:22px;background:repeating-linear-gradient(#f6f6f8 0 4px,transparent 4px 7px)}
+.rs-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--rm);margin-top:4px}
+.rs-leg i{display:inline-block;vertical-align:middle;margin-right:5px}
+.rs-leg i.lc{width:12px;height:3px;background:repeating-linear-gradient(90deg,#d8d8de 0 3px,transparent 3px 5px)}
+.rs-leg i.lp{width:8px;height:8px;border-radius:50%;background:#f3f3f5}
+.rs-leg i.lf{width:12px;height:3px;background:#f3f3f5}
+.rs-m4{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.rs-m{position:relative;text-align:left;border-radius:16px!important;padding:12px 14px 12px!important;border:1px solid rgba(125,211,232,.38)!important;
+  background:linear-gradient(180deg,rgba(60,140,160,.22),rgba(25,40,46,.25))!important;color:var(--rt)!important;min-width:0;display:block;width:100%}
+.rs-m span{display:block;font-size:13px;color:#b9c9cf;font-weight:600}
+.rs-m b{display:block;font-family:var(--mono);font-size:29px;font-weight:800;color:var(--rteal);line-height:1.25}
+.rs-m em{display:block;font-size:12.5px;color:#a9b5ba;font-style:normal;font-weight:500;line-height:1.45;padding-right:12px}
+.rs-m::after{content:"›";position:absolute;right:11px;bottom:8px;color:var(--rm);font-size:17px}
+.rs-m.pur{border-color:rgba(185,162,255,.55)!important;background:linear-gradient(180deg,rgba(110,80,200,.28),rgba(40,30,70,.25))!important}
+.rs-m.pur b{color:var(--rpur)} .rs-m.pur span{color:#cdbffc}
+.rs-m.gry{border-color:rgba(255,255,255,.14)!important;border-style:dashed!important;background:var(--rc)!important}
+.rs-m.gry b{font-family:var(--sans);font-size:16px;color:var(--rt);line-height:1.4;margin-top:4px}
+.rs-m3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.rs-s{text-align:left;border:1px solid var(--rl)!important;background:var(--rc)!important;border-radius:14px!important;padding:9px 11px!important;color:var(--rt)!important;min-width:0;display:block;width:100%}
+.rs-s span{display:block;font-size:12.5px;color:var(--rm);font-weight:600}
+.rs-s b{display:block;font-size:15.5px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs-tbl{width:100%;border-collapse:collapse;font-size:14px;margin-top:4px}
+.rs-tbl th{background:none;color:var(--rm);font-size:12.5px;font-weight:700;letter-spacing:0;text-align:left;padding:8px 6px;border-bottom:1px solid var(--rl);position:static}
+.rs-tbl td{padding:10px 6px;border-bottom:1px solid var(--rl);white-space:normal;vertical-align:top;line-height:1.5}
+.rs-tbl td.n{font-family:var(--mono);white-space:nowrap}
+.rs-tbl tr:last-child td{border-bottom:0}
+.rs-tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.rs-cmp-h{display:flex;align-items:center;gap:10px;font-weight:900;font-size:16px;font-family:var(--mono)}
+.rs-cmp-h .bh{font-family:var(--sans)}
+.rs-inp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rs-inp label{font-size:12.5px;color:var(--rm)}
+.rs-inp input{background:#0e0e12;border:1px solid var(--rl);color:var(--rt);border-radius:10px;padding:9px 11px;font-size:16px}
+.rs-inp p{grid-column:1/-1;font-size:12px;color:var(--rm);margin:0}
+.rs-chk{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.rs-chk span{border:1px solid rgba(139,224,180,.5);color:var(--rgrn);border-radius:8px;padding:2px 9px;font-size:13px;font-weight:700}
+.rs-chk span.x{border-color:rgba(243,165,109,.6);color:var(--rora)}
+.rs-chk span.u{border-color:var(--rl);color:var(--rm)}
+.rs-tagb{display:inline-block;font-size:12px;font-weight:800;border-radius:6px;padding:1px 8px;background:var(--rc2);color:#cfcfd6;margin-right:8px}
+.rs-bb{font-size:17px;font-weight:900;margin:18px 0 4px;display:flex;align-items:center;gap:6px}
+.rs-bb.up{color:var(--rteal)} .rs-bb.dn{color:var(--rora)}
+.rs-ul{margin:4px 0 0;padding-left:20px} .rs-ul li{margin:6px 0;font-size:15.5px;line-height:1.7}
+.rs-sc{padding:12px 0;border-bottom:1px solid var(--rl)} .rs-sc:last-child{border-bottom:0}
+.rs-sc .t{display:flex;align-items:center;gap:12px}
+.rs-sc .t b{flex:0 0 auto;font-size:15.5px;font-weight:900;min-width:7.5em}
+.rs-sc .t i{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;font-style:normal}
+.rs-sc .t i u{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#56b9dc,#9fe6f5);text-decoration:none}
+.rs-sc .t i u.lo{background:linear-gradient(90deg,#e88a5a,#f6b48a)}
+.rs-sc .t em{font-style:normal;font-family:var(--mono);font-weight:800;font-size:17px;width:1.6em;text-align:right}
+.rs-sc p{font-size:14px;color:#b8b8c1;margin-top:4px;line-height:1.65}
+.rs-gh{font-size:15px;font-weight:800;color:#c9c9d1;margin:20px 0 6px}
+.rs-qa{background:var(--rc);border:1px solid var(--rl)!important;border-radius:16px;margin-top:10px;padding:0!important}
+.rs-qa summary{display:block;padding:13px 40px 13px 16px;position:relative;cursor:pointer}
+.rs-qa summary b{display:block;font-size:16.5px;font-weight:900;line-height:1.45}
+.rs-qa summary span{display:block;font-size:14.5px;color:#b8b8c1;margin-top:3px;line-height:1.6}
+.rs-qa summary::after{content:"";position:absolute;right:14px;top:16px;width:22px;height:22px;border-radius:50%;background:var(--rc2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a5a5af' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") center/14px no-repeat;transition:transform .2s}
+.rs-qa[open] summary::after{transform:rotate(180deg)}
+.rs-qa>div{padding:0 16px 14px}
+.rs-fact{font-size:14.5px;line-height:1.7;margin-top:9px}
+.rs-fact .bt{display:inline-block;background:#26262d;color:#e9e9ee;font-size:11.5px;font-weight:800;border-radius:5px;padding:0 6px;margin-right:8px;vertical-align:1px}
+.rs-fact .bt.m{background:rgba(243,165,109,.16);color:var(--rora)}
+.rs-dg{margin:6px 0 10px;border-radius:14px;padding:14px 12px;background:radial-gradient(120% 120% at 50% 0%,#14324a,#0d1724 70%);border:1px solid rgba(125,211,232,.18)}
+.rs-dg p.t{font-size:12px;color:#9fc3d3;margin:0 0 8px;text-align:center}
+.rs-flow{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px}
+.rs-flow span{border:1px solid rgba(125,211,232,.45);background:rgba(40,90,120,.35);color:#e6f6fb;border-radius:8px;padding:5px 9px;font-size:12.5px;font-weight:700}
+.rs-flow em{display:inline-flex;align-items:center;gap:6px;font-style:normal}
+.rs-flow i{color:#7dd3e8;font-style:normal;font-weight:800}
+.rs-bars div{display:grid;grid-template-columns:6.5em 1fr 3.4em;align-items:center;gap:8px;font-size:12.5px;margin:5px 0;color:#d9eef5}
+.rs-bars i{height:9px;border-radius:5px;background:linear-gradient(90deg,#3d9cc4,#9fe6f5);display:block}
+.rs-bars b{font-family:var(--mono);text-align:right}
+.rs-seg{margin-top:10px}
+.rs-seg div{display:flex;justify-content:space-between;gap:8px;font-size:14.5px;font-weight:700}
+.rs-seg i{display:block;height:8px;border-radius:4px;background:rgba(255,255,255,.08);margin:5px 0 3px;overflow:hidden}
+.rs-seg i u{display:block;height:100%;background:linear-gradient(90deg,#56b9dc,#9fe6f5)}
+.rs-seg p{font-size:13.5px;color:#b8b8c1;margin:0}
+.rs-scn{border-left:3px solid var(--rteal2)} .rs-scn.bear{border-left-color:var(--rora)} .rs-scn.bull{border-left-color:var(--rgrn)}
+.rs-scn h4{margin:0;font-size:16px;font-weight:900;display:flex;justify-content:space-between;gap:8px}
+.rs-scn .kv3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.rs-scn .kv3 div{background:#0f0f13;border-radius:10px;padding:6px 8px}
+.rs-scn .kv3 span{display:block;font-size:11.5px;color:var(--rm)} .rs-scn .kv3 b{font-family:var(--mono);font-size:14.5px}
+.rs-src{font-size:13.5px;line-height:1.6;padding:8px 0;border-bottom:1px solid var(--rl);display:flex;gap:8px}
+.rs-src b{font-family:var(--mono);color:var(--rteal);flex:none;min-width:2.6em}
+.rs-src a{color:#dcdce3;text-decoration:none;word-break:break-word} .rs-src small{color:var(--rm)}
+.rs-foot{font-size:12.5px;color:var(--rm);line-height:1.7;margin-top:6px}
+.rs-sample{background:rgba(243,165,109,.14);border:1px solid rgba(243,165,109,.45);color:#ffd2b0;border-radius:12px;padding:9px 12px;font-size:13.5px;margin:12px 16px 0}
+.rs-flag{color:var(--rora);font-size:12.5px}
+#rsSheet{position:fixed;inset:0;z-index:60}
+#rsSheet[hidden]{display:none}
+.rs-sh-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;transition:opacity .25s}
+.rs-sh{position:absolute;left:0;right:0;bottom:0;max-width:760px;margin:0 auto;max-height:78vh;overflow-y:auto;background:#17171c;color:#ececf1;border-radius:20px 20px 0 0;
+  padding:8px 18px calc(22px + env(safe-area-inset-bottom,0px));transform:translateY(100%);transition:transform .28s var(--ease);font-size:15px;line-height:1.7;border-top:1px solid rgba(255,255,255,.1)}
+#rsSheet.on .rs-sh{transform:none} #rsSheet.on .rs-sh-bg{opacity:1}
+.rs-sh-grip{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.25);margin:4px auto 12px}
+.rs-sh h4{margin:0 0 6px;font-size:17px;font-weight:900}
+.rs-sh a{color:var(--cyan);word-break:break-all}
+.rs-sh button{display:block;width:100%;text-align:left;margin-top:8px;background:#22222a;border:1px solid rgba(255,255,255,.1);color:#ececf1;border-radius:12px;padding:11px 14px;font-weight:700}
+/* 研究分頁（清單） */
+.rsl{display:flex;flex-direction:row!important;gap:12px;align-items:center;cursor:pointer}
+.rsl .m{flex:1;min-width:0}
+.rsl .m b{font-size:16px} .rsl .m .z{color:var(--muted);font-size:13px;margin-left:6px}
+.rsl .m p{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsl .r{text-align:right;flex:none}
+.rsl .r b{font-family:var(--mono);font-size:16px;display:block} .rsl .r span{font-size:12px;letter-spacing:1px}
+@media (max-width:380px){.rs-name{font-size:27px}.rs-big{font-size:33px}.rs-m b{font-size:25px}.rs-pc .p b{font-size:31px}.rs-s b{font-size:14px}}
 </style>
 </head>
 <body>
@@ -270,11 +459,13 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
   </div>
 </div>
 <main id="app"><div class="skel"></div><div class="skel s2"></div><div class="skel s3"></div></main>
+<div id="rs" hidden></div>
 
 <nav id="tabs" aria-label="分頁"><span class="pill" aria-hidden="true"></span>
   <button data-tab="today" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>訊號</button>
   <button data-tab="model"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>模型</button>
   <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
+  <button data-tab="res"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>研究</button>
   <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
   <button data-tab="crypto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5m0-8v8M11 6v1.5M11 16.5V18"/></svg>加密</button>
   <button data-tab="radar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg>雷達</button>
@@ -909,7 +1100,7 @@ function bounceCard(){
   const rows = L.map(r => {
     const piv = r.above_piv ? `<span class="small muted">已過前高</span>` : f2(r.pivot);
     const risk = (!r.above_piv && r.pivot && r.stop) ? pct(r.stop / r.pivot - 1) : "—";
-    return `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${r.rank ? ` <span class="tag t-cyan">#${r.rank}</span>` : ""}<span class="ind">${esc(r.industry || "")}</span></td>
+    return `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}${r.rank ? ` <span class="tag t-cyan">#${r.rank}</span>` : ""}<span class="ind">${esc(r.industry || "")}</span></td>
       <td class="r mono">${Math.round(r.rs_pct * 100)}</td><td class="r mono ${r.dd > b.ndx_dd ? "up" : ""}">${pct(r.dd)}</td><td class="r mono">${pct(r.off_hi)}</td>
       <td class="r mono hl">${piv}</td><td class="r mono dn">${f2(r.stop)}</td><td class="r mono dn hide-sm">${risk}</td></tr>`;
   }).join("");
@@ -964,14 +1155,14 @@ function viewToday(){
   h += `<div class="row spread"><h2>揀股參考（V2.2）· ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅 buy-stop 喺上面「V2.7 要做」。</p>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
-    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
+    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
       <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
     <p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺上面「V2.7 要做」；下面「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
     + liveStatus();
   h += o.list.map(r => {
     const gap = r.pivot / r.close - 1, fill = Math.max(3, Math.min(100, (1 - gap / 0.15) * 100));
     return `<div class="card sig">
-      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${serTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
+      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
         ${liveTag(r.sym)}</div>
       <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
@@ -1398,7 +1589,7 @@ function followCard(M){
   if (!FEED.news && !FEED.err) fetchFeeds();
   // 2026-10-03 用戶：冇寫幾時幾錢買入、「佔 13% · 729」唔知咩嚟 → 寫明模型買入日同價，金額標明係市值
   const late = p => p.date && fs.start > p.date;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${resTag(p.sym)}${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
       <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("");
   const tot = {}; v.holdings.forEach(p => { if (p.close) tot[p.sym] = (tot[p.sym] || 0) + Math.floor(fs.val * p.weight / p.close); });
   const multi = Object.keys(tot).filter(s => v.holdings.filter(p => p.sym === s).length > 1);
@@ -1502,7 +1693,7 @@ function viewModel(){
     h += followCard(M);
     for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
     if (!fs) h += `<h2>模型而家揸</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>持倉</th><th class="r">買入</th><th class="r">回報</th><th>幾時賣</th></tr>
-      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
+      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${resTag(p.sym)}${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
         <td class="r mono">${f2(p.entry)}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">全現金</p></div>`);
     h += v24Todo(base);
     const Y = tqYellow(v.tq);
@@ -1534,7 +1725,7 @@ function viewRank(){
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 15" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}${rsiOf(r.sym) != null ? " · " + rsiTxt(rsiOf(r.sym)) : ""}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}${rsiOf(r.sym) != null ? " · " + rsiTxt(rsiOf(r.sym)) : ""}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
       <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}
@@ -1961,11 +2152,454 @@ function viewNews(){
   return h + (NT === "econ" ? viewEcon() : viewNewsList());
 }
 
-const ORDER = ["today", "model", "rank", "news", "crypto", "radar", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
+// ───────────────────────── 個股研究（2026-10-20 用戶：想個 app 好似影片嗰個 AI 研究 app、「想複製佢個界面」）
+// scanner/research.py → docs/research/index.json（清單）+ docs/research/<SYM>.json（報告）。數字（公允價值、情境、星級）程式計，
+// 評級同文字 AI 寫（預設 Claude Opus 5.5 high）；成本、倉位只存呢部手機（localStorage "res-pos"），唔會上傳
+let RS = {index: null, err: null, cache: {}, sym: null, msg: "", r: null};
+const resUrl = f => S.dataUrl.replace(/scan\.json(\?.*)?$/, "research/" + f);
+async function fetchResIndex(){
+  try { const r = await fetch(resUrl("index.json") + "?t=" + Date.now(), {cache: "no-store"});
+    if (r.ok){ RS.index = await r.json(); RS.err = null; } else RS.err = r.status === 404 ? null : "HTTP " + r.status; }
+  catch(e){ RS.err = e.message; }
+  if (["res", "rank", "model"].includes(TAB)) render();
+}
+const resItem = sym => RS.index && (RS.index.items || []).find(x => x.sym === sym && !x.dry);
+const stars = n => n ? "★".repeat(n) : "";
+const stars5 = n => n ? "★".repeat(n) + `<span style="opacity:.28">${"★".repeat(5 - n)}</span>` : "";
+const resTag = sym => { const it = resItem(sym); return it ? ` <span class="tag t-res" data-ressym="${esc(sym)}" role="button" title="撳落去睇 AI 個股研究">研究${it.stars ? " " + stars(it.stars) : ""}</span>` : ""; };
+const resPos = sym => { try { return (JSON.parse(localStorage.getItem("res-pos") || "{}"))[sym] || null; } catch(e){ return null; } };
+function setResPos(sym, v){ try { const o = JSON.parse(localStorage.getItem("res-pos") || "{}"); if (v) o[sym] = v; else delete o[sym]; localStorage.setItem("res-pos", JSON.stringify(o)); } catch(e){} }
+const rsLogo = (sym, px) => { let h = 0; for (const c of String(sym)) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return `<span class="rs-lg" style="--h:${h};width:${px}px;height:${px}px;font-size:${Math.round(px * (sym.length > 3 ? .3 : .36))}px">${esc(String(sym).slice(0, 4))}</span>`; };
+const zhDate = d => d ? `${+d.slice(0, 4)}年${+d.slice(5, 7)}月${+d.slice(8, 10)}日` : "";
+const rsWho = m => !m ? "AI" : /後備/.test(m) ? m : String(m).replace(/^Claude\s+(?=(Opus|Sonnet|Haiku|Fable)\b)/, "").replace(/（effort[^）]*）/, "").replace(/（上網[^）]*）/, "");
+const rsMoney = x => { if (x == null || !isFinite(x)) return "—"; const a = Math.abs(x), s = x < 0 ? "-" : "";
+  return a >= 1e12 ? `${s}${(a / 1e12).toFixed(2)} 萬億` : a >= 1e10 ? `${s}${Math.round(a / 1e8).toLocaleString()} 億` : a >= 1e8 ? `${s}${(a / 1e8).toFixed(1)} 億` : `${s}${Math.round(a / 1e4).toLocaleString()} 萬`; };
+const pc0 = x => x == null || !isFinite(x) ? "—" : (x * 100).toFixed(0) + "%";
+const pc1 = x => x == null || !isFinite(x) ? "—" : (x * 100).toFixed(1) + "%";
+const xx = x => x == null || !isFinite(x) ? "—" : (x >= 10 ? x.toFixed(1) : x.toFixed(2)).replace(/\.?0+$/, m => m === "." ? "" : m) + "×";
+const RS_SECS = [["sum", "結論"], ["pos", "我的部位"], ["view", "看法"], ["primer", "先搞懂"], ["biz", "商業模式"], ["val", "估值"], ["dir", "估值方向"], ["hist", "歷史"], ["peer", "同業"], ["src", "來源"]];
+
+// 文字：轉義 → 來源編號 [S3] 變可以撳嘅細標 → 名詞表嘅詞加虛線（每段第一次出現）
+function rsT(s){
+  let h = esc(s || "").replace(/\[(S\d+(?:\s*[,，、]\s*S\d+)*)\]/g, (m, g) => g.split(/\s*[,，、]\s*/).map(x => `<sup class="rs-cite" data-src="${x}">${x}</sup>`).join(""));
+  const GL = RS.GL || [];
+  if (!GL.length) return h;
+  const used = new Set();
+  return h.split(/(<[^>]+>)/).map(part => {
+    if (part.startsWith("<")) return part;
+    for (const g of GL){
+      if (used.has(g.i) || g.term.length < 2) continue;
+      const t = esc(g.term), k = part.indexOf(t);
+      if (k >= 0){ used.add(g.i); part = part.slice(0, k) + `\u0001${g.i}\u0002` + part.slice(k + t.length); }
+    }
+    return part.replace(/\u0001(\d+)\u0002/g, (m, i) => `<u class="rs-gl" data-gl="${i}">${esc(RS.gl[+i].term)}</u>`);
+  }).join("");
+}
+const rsSrcs = a => (a || []).map(x => `<sup class="rs-cite" data-src="${esc(x)}">${esc(x)}</sup>`).join("");
+const rsTS = (t, src) => { const inT = new Set(String(t || "").match(/S\d+/g) || []); return rsT(t) + rsSrcs((src || []).filter(s => !inT.has(s))); };   // 文字入面已經有嘅來源唔重複
+
+function rsSheet(html){
+  let sh = $("#rsSheet");
+  if (!sh){ sh = document.createElement("div"); sh.id = "rsSheet"; document.body.appendChild(sh); }
+  sh.innerHTML = `<div class="rs-sh-bg"></div><div class="rs-sh" role="dialog"><div class="rs-sh-grip"></div>${html}</div>`;
+  sh.hidden = false; requestAnimationFrame(() => requestAnimationFrame(() => sh.classList.add("on")));
+  const close = () => { sh.classList.remove("on"); setTimeout(() => { sh.hidden = true; }, 260); };
+  sh.querySelector(".rs-sh-bg").onclick = close;
+  sh.querySelectorAll("[data-close]").forEach(b => b.onclick = close);
+  return {sh, close};
+}
+
+async function openRes(sym){
+  sym = String(sym || "").trim().toUpperCase().replace(/^\$/, "");
+  if (!sym) return;
+  const el = $("#rs"); RS.sym = sym;
+  el.hidden = false; document.body.style.overflow = "hidden";
+  if (!(history.state && history.state.rs)) history.pushState({rs: sym}, "");
+  el.innerHTML = `<div class="rs-in">${rsTop(sym)}<p class="rs-sec" style="color:var(--rm)">載入緊 ${esc(sym)} 嘅研究報告…</p></div>`;
+  $("#rsBack").onclick = () => closeRes();
+  try {
+    let r = RS.cache[sym];
+    if (!r){ const x = await fetch(resUrl(sym + ".json") + "?t=" + Date.now(), {cache: "no-store"});
+      if (!x.ok) throw new Error(x.status === 404 ? "未有呢隻股票嘅研究報告" : "HTTP " + x.status); r = RS.cache[sym] = await x.json(); }
+    if (RS.sym !== sym) return;
+    RS.r = r; el.innerHTML = resPage(r); el.scrollTop = 0; resBind(r);
+  } catch(e){ const p = el.querySelector(".rs-sec"); if (p) p.textContent = "讀唔到報告：" + e.message; }
+}
+function closeRes(fromPop){
+  const el = $("#rs"); if (el.hidden) return;
+  el.hidden = true; el.innerHTML = ""; document.body.style.overflow = ""; RS.sym = null; RS.r = null;
+  window.removeEventListener("resize", rsResize);
+  const sh = $("#rsSheet"); if (sh) sh.hidden = true;
+  if (!fromPop && history.state && history.state.rs) history.back();
+}
+window.addEventListener("popstate", () => { const sh = $("#rsSheet"); if (sh && !sh.hidden){ sh.hidden = true; } if (!$("#rs").hidden) closeRes(true); });
+
+const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsBack" aria-label="返回"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <h1>${esc(title || sym)}</h1><button class="rs-ib" id="rsMenu" aria-label="更多"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button></div>`;
+
+// 股價圖（對數刻度）+ 事件：按實際闊度畫（字唔會跟住放大）
+function rsChart(r){
+  const box = $("#rsHero"); if (!box) return;
+  const C = r.chart || {}, d = C.d || [], c = C.c || [];
+  if (c.length < 2){ box.innerHTML = ""; return; }
+  const W = box.clientWidth || 360, H = box.clientHeight || 250, pl = 14, pr = 22, pb = 18, top0 = 26;
+  // 事件標籤排喺圖上面幾行（同一行唔重疊），虛線連去當日收市點
+  const xi = i => pl + i / (c.length - 1) * (W - pl - pr);
+  const evs = (C.events || []).filter(e => e.i >= 0 && e.i < c.length).map((e, k) => ({...e, k})).sort((a, b) => a.i - b.i), rows = [];
+  evs.forEach(e => {
+    e.w = Math.min(150, 14 + [...e.label].reduce((s, ch) => s + (ch.charCodeAt(0) > 255 ? 11.5 : 7.2), 0));
+    e.tx = Math.min(W - e.w - 4, Math.max(4, xi(e.i) - e.w / 2));
+    let r = rows.findIndex(end => end < e.tx - 4); if (r < 0){ r = rows.length; rows.push(0); }
+    rows[r] = e.tx + e.w; e.row = r;
+  });
+  const pt = top0 + rows.length * 22 + 14;
+  const lo = Math.log(Math.min(...c)), hi = Math.log(Math.max(...c));
+  const X = xi, Y = v => pt + (1 - (Math.log(v) - lo) / ((hi - lo) || 1)) * (H - pt - pb);
+  const line = c.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
+  const area = `${line}L${X(c.length - 1).toFixed(1)},${H}L${X(0).toFixed(1)},${H}Z`;
+  let tags = "";
+  evs.forEach(e => {
+    const x = X(e.i), y = Y(c[e.i]), ty = top0 + e.row * 22;
+    tags += `<g class="rs-ev" data-ev="${e.k}"><line x1="${x}" y1="${ty + 18}" x2="${x}" y2="${y - 6}" stroke="rgba(255,255,255,.3)" stroke-dasharray="2 3"/>
+      <rect x="${e.tx}" y="${ty}" width="${e.w}" height="18" rx="5"/><text x="${e.tx + e.w / 2}" y="${ty + 12.5}" text-anchor="middle">${esc(e.label)}</text>
+      <circle cx="${x}" cy="${y}" r="5.5" fill="#0a0a0d" stroke="#8fdcf0" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="13" fill="transparent"/></g>`;
+  });
+  const lx = X(c.length - 1), ly = Y(c[c.length - 1]);
+  box.innerHTML = `<p class="rs-cap">${esc(d[0].slice(0, 4))} 年起股價（對數刻度）· 撳事件睇說明</p>
+  <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="股價走勢">
+    <defs><pattern id="rsDots" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(143,220,240,.55)"/></pattern>
+      <linearGradient id="rsFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+      <mask id="rsMask"><rect width="${W}" height="${H}" fill="url(#rsFade)"/></mask>
+      <filter id="rsGlow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <path d="${area}" fill="url(#rsDots)" mask="url(#rsMask)"/>
+    <path d="${line}" fill="none" stroke="#8fdcf0" stroke-width="2.2" stroke-linejoin="round" filter="url(#rsGlow)"/>
+    ${tags}
+    <circle class="rs-pulse" cx="${lx}" cy="${ly}" r="7" fill="none" stroke="#8fdcf0" stroke-width="2"/><circle cx="${lx}" cy="${ly}" r="4.5" fill="#8fdcf0"/>
+  </svg>`;
+}
+let RS_RZ = 0;
+function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) rsChart(RS.r); }, 150); }
+
+// 現價、成本、公允價值嘅位置（底色 = 星級區：藍 5 星 → 橙 1 星）
+function rsSlider(r, cost){
+  const V = r.valuation, b = V.bands || [];
+  if (!V.ok || b.length < 5) return "";
+  const pts = [r.price, V.fv, b[0].max, b[3].max].concat(cost > 0 ? [cost] : []);
+  const lo = Math.min(...pts) * 0.85, hi = Math.max(...pts) * 1.08;
+  const X = v => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+  const edges = [lo, b[0].max, b[1].max, b[2].max, b[3].max, hi], cols = ["#4f9fdb", "#86c1e6", "#cdd2d9", "#e9b89c", "#f08f63"];
+  const stops = [];
+  for (let k = 0; k < 5; k++){ const a = X(edges[k]), z = X(edges[k + 1]); if (z > a) stops.push(`${cols[k]} ${((a + z) / 2).toFixed(1)}%`); }
+  if (stops.length < 2) stops.push(stops[0] || "#cdd2d9");
+  return `<div class="rs-sl"><div class="rs-sl-bar" style="background:linear-gradient(90deg,${stops.join(",")})"></div>
+    ${cost > 0 ? `<i class="rs-mk mc" style="left:${X(cost)}%"></i>` : ""}<i class="rs-mk mf" style="left:${X(V.fv)}%"></i><i class="rs-mk mp" style="left:${X(r.price)}%"></i></div>
+    <p class="rs-leg">${cost > 0 ? `<span><i class="lc"></i>成本 ${f2(cost)}</span>` : ""}<span><i class="lp"></i>現價 ${f2(r.price)}</span><span><i class="lf"></i>Claude 公允價值 ${f2(V.fv)}</span></p>`;
+}
+
+function rsPriceCard(r){
+  const V = r.valuation || {};
+  if (!V.ok) return `<div class="rs-card rs-pc"><p class="h">Claude 公允價值</p><p class="p"><b>未能估值</b></p><p class="rs-meta">${esc(V.why || "資料唔齊")}。唔夠數據就唔估，費事誤導。</p></div>`;
+  const g = 1 - V.p_fv, pos = resPos(r.sym), cost = pos && +pos.cost;
+  return `<div class="rs-card rs-pc" id="rsPc"><p class="h">現價 · 比 Claude 公允價值${g >= 0 ? "低" : "高"} ${pc0(Math.abs(g))}</p>
+    <p class="p"><b>${f2(r.price)}</b><span>Claude <i>${stars5(V.stars)}</i></span></p>${rsSlider(r, cost)}</div>`;
+}
+
+function rsMetrics(r){
+  const V = r.valuation || {}, pos = resPos(r.sym), cost = pos && +pos.cost > 0 ? +pos.cost : null, W = r.writing || {};
+  const sc = V.scenarios || [], bear = sc[0];
+  const base = cost || r.price, who = cost ? "成本" : "現價";
+  const allAbove = sc.length && sc.every(s => s.today > base);
+  const m1 = V.ok ? `<button class="rs-m" data-sheet="scen"><span>10 年後</span><b>${xx(V.p10w / base)}</b><em>${cost ? "你成本" : "現價"}嘅倍數（機率加權）</em></button>` : "";
+  const m2 = V.ok && bear ? `<button class="rs-m" data-sheet="scen"><span>最差情境 ÷ ${who}</span><b>${xx(bear.today / base)}</b><em>${allAbove ? `所有情境都喺${who}之上` : `最差情境今日價值 ${f2(bear.today)}`}</em></button>` : "";
+  const m3 = `<button class="rs-m pur" data-sheet="street"><span>同華爾街睇法唔同</span><b>${(r.vs_street || []).length} 處</b><em>撳開睇分歧總表</em></button>`;
+  const m4 = r.blind_spot && r.blind_spot.title ? `<button class="rs-m gry" data-sheet="blind"><span>本檔最大盲區</span><b>${esc(r.blind_spot.title)}</b></button>` : "";
+  const st = r.street || {};
+  return `<div class="rs-m4">${m1}${m2}${m3}${m4}</div>
+    <div class="rs-m3"><button class="rs-s" data-go="pos"><span>倉位</span><b>${pos && pos.lots != null && pos.lots !== "" ? (+pos.lots >= 10 ? "10 倉滿" : `${+pos.lots} 倉`) : "未填"}</b></button>
+    <button class="rs-s" data-sheet="rev"><span>分析師方向</span><b>${esc(st.rev_dir || "—")}</b></button>
+    <button class="rs-s" data-sheet="street"><span>華爾街目標價</span><b class="num">${f2(st.mean)}</b></button></div>`;
+}
+
+function rsSum(r){
+  const V = r.valuation || {}, R0 = r.ratings || {}, W = r.writing || {}, st = r.street || {};
+  const th = (r.themes || []).map(t => `<span class="c">${esc(t.name)}<b>${t.score}</b></span>`).join("");
+  const cmp = r.compare && (r.compare.rows || []).length ? `<div class="rs-card"><div class="rs-cmp-h"><span class="bh">同上次比較</span>${esc(r.compare.prev)} → ${esc(r.research_date)}</div>
+    <div class="rs-tw"><table class="rs-tbl"><tr><th>項目</th><th>上次</th><th>今次</th><th>點解</th></tr>${r.compare.rows.map(x => `<tr><td>${esc(x.item)}</td><td class="n">${esc(x.prev)}</td><td class="n">${esc(x.now)}</td><td>${rsT(x.why)}</td></tr>`).join("")}</table></div></div>` : "";
+  return `<section class="rs-sec" id="rs-sum" data-sec="sum" style="padding-top:6px">
+    <div class="rs-hero" id="rsHero"></div>
+    <p class="rs-meta">個股研究報告 · 資料日期 ${zhDate(r.price_date)}收市（研究日 ${zhDate(r.research_date)}）</p>
+    <div style="margin-top:12px">${rsLogo(r.sym, 58)}</div>
+    <h2 class="rs-name">${esc(r.sym)}-${esc(r.name)}</h2>
+    <p class="rs-sub">${esc(r.name_zh && r.name_zh !== r.name ? r.name_zh + " · " : "")}${esc(r.exchange || "")}${r.one_liner ? " · " + esc(r.one_liner) : ""}</p>
+    <p class="rs-big">${f2(r.price)} <small>${r.currency === "USD" ? "美元" : esc(r.currency)}</small></p>
+    <p class="rs-meta" style="margin-top:2px">截至 ${zhDate(r.price_date)}收市 ${rsSrcs(["S1"])}</p>
+    <div class="rs-g4">
+      <div><span>Claude 星等</span><b class="rs-stars">${V.ok ? stars(V.stars) : "未能估值"}</b><em>華爾街：${esc(st.rec_zh || "—")}${st.n ? `（${st.n} 位）` : ""}</em></div>
+      <div><span>經濟護城河</span><b>${esc(R0.moat || "—")}</b><em>${R0.moat_trend ? "趨勢：" + esc(R0.moat_trend) : ""}</em></div>
+      <div><span>不確定性</span><b>${esc(R0.uncertainty || "—")}</b></div>
+      <div><span>資本配置</span><b>${esc(R0.capital || "—")}</b></div>
+    </div>
+    ${th ? `<div class="rs-th"><span class="l">題材</span>${th}<button class="rs-chipbtn" data-sheet="themes">相關性說明 ›</button></div>` : ""}
+    <p class="rs-meta">第 ${r.n || 1} 次研究${r.prev_date ? ` · 上次研究 ${zhDate(r.prev_date)}` : ""}${r.next_check && (r.next_check.text || r.next_check.date) ? ` · 下次檢查：${esc(r.next_check.text || "業績")}${r.next_check.date ? `（預計 ${esc(r.next_check.date)}）` : ""}` : ""}</p>
+    ${W.verdict_plain ? `<h3 class="rs-h" style="margin-top:26px">30 秒判讀</h3><p class="rs-by">撰寫：${esc(rsWho((r.models || {}).writing))} · ${esc(r.research_date)} ${/後備/.test((r.models || {}).writing || "") ? mdl(r.models.writing) : ""}</p>
+    <div class="rs-card rs-plain"><span class="bh">白話</span>${rsT(W.verdict_plain)}${W.verdict_detail ? `<details class="rs-more"><summary>看懂呢一節</summary><p>${rsT(W.verdict_detail)}</p></details>` : ""}</div>
+    <div class="rs-row2"><button class="rs-pillbtn" id="rsAllPlain">展開全部白話</button>${(r.glossary || []).length ? `<button class="rs-pillbtn" data-sheet="gloss">名詞表（${r.glossary.length}）</button>` : ""}</div>` : ""}
+    ${rsPriceCard(r)}
+    <div id="rsMet">${rsMetrics(r)}</div>
+    ${(W.conclusion || []).map(p => `<p class="rs-p">${rsT(p)}</p>`).join("")}
+    ${cmp}
+  </section>`;
+}
+
+function rsPosOut(r){
+  const V = r.valuation || {}, pos = resPos(r.sym), cost = pos && +pos.cost > 0 ? +pos.cost : null;
+  if (!cost) return `<p class="rs-meta">填咗成本先計到：成本喺邊個星級區、每個情境嘅今日價值同 10 年後價值係成本幾多倍。</p>`;
+  if (!V.ok) return `<p class="rs-meta">今次未能估值（${esc(V.why || "")}），計唔到成本對公允價值。</p>`;
+  const b = V.bands, zone = b.findIndex(x => x.max == null || cost <= x.max), zs = zone < 0 ? 1 : b[zone].stars;
+  const sc = V.scenarios || [], minX = Math.min(...sc.map(s => s.today / cost));
+  const gain = r.price / cost - 1;
+  return `<div class="rs-card rs-plain"><span class="bh">白話</span>你嘅成本 ${f2(cost)} 係 Claude 公允價值 ${f2(V.fv)} 嘅 ${pc0(cost / V.fv)}（${zs} 星區）；
+      而家${gain >= 0 ? "賺" : "蝕"} ${pc0(Math.abs(gain))}。${sc.length ? (minX >= 1 ? `三個情境嘅今日價值都係成本 ${xx(minX)} 或以上。` : `最差情境今日價值得成本嘅 ${xx(minX)}。`) : ""}</div>
+    <div class="rs-card"><div class="rs-tw"><table class="rs-tbl"><tr><th>情境（機率）</th><th>今日價值 ÷ 成本</th><th>10 年後 ÷ 成本</th></tr>
+      ${sc.map(s => `<tr><td>${esc(s.name)}（${pc0(s.prob)}）</td><td class="n">${xx(s.today / cost)}</td><td class="n">${xx(s.p10 / cost)}</td></tr>`).join("")}
+      <tr><td><b>機率加權</b></td><td class="n"><b>${xx(V.fv / cost)}</b></td><td class="n"><b>${xx(V.p10w / cost)}</b></td></tr></table></div>
+      <p class="rs-meta">今日價值 = 將來股息同第 10 年股價用 ${pc0(V.discount)} 折返今日；10 年後 = 第 10 年預計股價（未計股息）。兩個時間唔好混埋睇。</p></div>`;
+}
+
+function rsPos(r){
+  const pos = resPos(r.sym) || {}, ck = r.checks || [];
+  return `<section class="rs-sec" id="rs-pos" data-sec="pos">
+    <div class="rs-hrow"><h3 class="rs-h">我的部位</h3><span class="rs-by">用你嘅成本同倉位睇呢隻股</span></div>
+    <div class="rs-card rs-inp"><label>成本價（每股）<input id="rsCost" type="number" inputmode="decimal" step="any" min="0" value="${pos.cost ?? ""}" placeholder="例如 108.8"></label>
+      <label>倉位（0–10 倉）<input id="rsLots" type="number" inputmode="numeric" min="0" max="10" step="1" value="${pos.lots ?? ""}" placeholder="例如 10"></label>
+      <p>只存喺呢部手機，唔會上傳；雲端寫報告嘅 AI 都唔知你嘅成本。</p></div>
+    <div id="rsPosOut">${rsPosOut(r)}</div>
+    ${ck.length ? `<h4 class="rs-h3">重倉條件（參考）</h4><p class="rs-meta" style="margin-top:0">影片作者嘅做法：五樣都符合先考慮重倉。程式按評分同財報判斷，只係清單，唔係買賣指令。</p>
+      <div class="rs-chk">${ck.map(c => `<span class="${c.ok == null ? "u" : c.ok ? "" : "x"}" title="${esc(c.why || "")}">${c.ok == null ? "？" : c.ok ? "✓" : "✗"} ${esc(c.label)}</span>`).join("")}</div>` : ""}
+  </section>`;
+}
+
+function rsView(r){
+  const W = r.writing || {}, sc = r.scores || [];
+  const li = a => (a || []).map(x => `<li>${rsTS(x.text, x.src)}</li>`).join("");
+  return `<section class="rs-sec" id="rs-view" data-sec="view"><h3 class="rs-h">看法</h3><p class="rs-by">撰寫：${esc(rsWho((r.models || {}).analysis))} · ${esc(r.research_date)}</p>
+    ${W.holder_view || W.buyer_view ? `<div class="rs-card"><p class="rs-plain"><span class="rs-tagb">已經持有</span>${rsT(W.holder_view)}</p><p class="rs-plain" style="margin-top:10px"><span class="rs-tagb">未持有</span>${rsT(W.buyer_view)}</p></div>` : ""}
+    ${(r.bull || []).length ? `<p class="rs-bb up">↗ 看好</p><ul class="rs-ul">${li(r.bull)}</ul>` : ""}
+    ${(r.bear || []).length ? `<p class="rs-bb dn">↘ 看淡</p><ul class="rs-ul">${li(r.bear)}</ul>` : ""}
+    ${sc.length ? `<h4 class="rs-h3">評分卡 <span class="rs-by" style="font-weight:500">0 最差 · 10 最好</span></h4><div class="rs-card" style="padding-top:2px;padding-bottom:2px">
+      ${sc.map(x => `<div class="rs-sc"><div class="t"><b>${esc(x.name)}</b><i><u class="${x.score <= 4 ? "lo" : ""}" style="width:${x.score * 10}%"></u></i><em>${x.score}</em></div><p>${rsTS(x.why, x.src)}</p></div>`).join("")}</div>` : ""}
+    ${(r.vs_street || []).length ? `<h4 class="rs-h3">同華爾街唔同嘅地方</h4><div class="rs-card"><div class="rs-tw"><table class="rs-tbl"><tr><th>議題</th><th>Claude</th><th>華爾街</th></tr>
+      ${r.vs_street.map(x => `<tr><td>${esc(x.topic)}</td><td>${rsT(x.mine)}</td><td>${rsT(x.street)}</td></tr>`).join("")}</table></div></div>` : ""}
+  </section>`;
+}
+
+function rsDiagram(g){
+  if (!g) return "";
+  if (g.type === "flow") return `<div class="rs-dg">${g.title ? `<p class="t">${esc(g.title)}</p>` : ""}<div class="rs-flow">${(g.nodes || []).map((n, i) => `<em>${i ? "<i>→</i>" : ""}<span>${esc(n)}</span></em>`).join("")}</div></div>`;
+  if (g.type === "bars"){ const mx = Math.max(...g.bars.map(b => Math.abs(b.value))) || 1;
+    return `<div class="rs-dg">${g.title ? `<p class="t">${esc(g.title)}</p>` : ""}<div class="rs-bars">${g.bars.map(b => `<div><span>${esc(b.label)}</span><i style="width:${Math.abs(b.value) / mx * 100}%"></i><b>${esc(String(b.value))}</b></div>`).join("")}</div></div>`; }
+  return "";
+}
+
+function rsPrimer(r){
+  const P = r.primer; if (!P || !(P.groups || []).length) return `<section class="rs-sec" id="rs-primer" data-sec="primer"><h3 class="rs-h">先搞懂</h3><p class="rs-meta">今次冇。</p></section>`;
+  return `<section class="rs-sec" id="rs-primer" data-sec="primer"><h3 class="rs-h">${esc(P.title || "先搞懂")}</h3><p class="rs-by">${esc(P.subtitle || "")}${P.subtitle ? " · " : ""}撰寫：${esc(rsWho((r.models || {}).analysis))} · ${esc(r.research_date)}</p>
+    ${P.plain ? `<div class="rs-card rs-plain"><span class="bh">白話</span>${rsT(P.plain)}</div>` : ""}
+    <p class="rs-p2">睇呢間公司之前，先答幾條最基本嘅問題。每題第一行就係答案，想深入再撳開。</p>
+    ${P.groups.map(g => `<h4 class="rs-gh">${esc(g.name)}</h4>` + g.items.map(it => `<details class="rs-qa"><summary><b>${esc(it.q)}</b><span>${rsT(it.a)}</span></summary><div>
+      ${rsDiagram(it.diagram)}${it.detail ? `<p class="rs-fact">${rsT(it.detail)}</p>` : ""}
+      ${(it.facts || []).map(f => `<p class="rs-fact"><span class="bt">事實</span>${rsTS(f.text, f.src)}</p>`).join("")}
+      ${(it.myths || []).map(m => `<p class="rs-fact"><span class="bt m">常見誤解</span>${rsT(m)}</p>`).join("")}</div></details>`).join("")).join("")}
+  </section>`;
+}
+
+function rsBiz(r){
+  const B = r.business || {}, F = r.fin || [], T = r.ttm || {};
+  const seg = (B.segments || []).map(s => `<div class="rs-seg"><div><span>${esc(s.name)}</span><span class="num">${pc0(s.share)}</span></div><i><u style="width:${s.share * 100}%"></u></i><p>${rsTS(s.note, s.src)}</p></div>`).join("");
+  const fy = F.length ? `<h4 class="rs-h3">財務（SEC 財報）${rsSrcs(["S3"])}</h4><div class="rs-card" style="padding:6px 10px"><div class="rs-tw"><table class="rs-tbl">
+      <tr><th>財年至</th><th>收入</th><th>增長</th><th>經營利潤率</th><th>自由現金流</th><th>EPS</th></tr>
+      ${F.map(y => `<tr><td class="n">${esc((y.end || "").slice(0, 7))}</td><td class="n">${rsMoney(y.rev)}</td><td class="n">${y.rev_g == null ? "—" : pct(y.rev_g, 0)}</td><td class="n">${y.op && y.rev ? pc0(y.op / y.rev) : "—"}</td><td class="n">${rsMoney(y.fcf)}</td><td class="n">${y.eps ?? "—"}</td></tr>`).join("")}
+      ${T.rev ? `<tr><td class="n">過去 4 季</td><td class="n">${rsMoney(T.rev)}</td><td class="n">—</td><td class="n">${T.op ? pc0(T.op / T.rev) : "—"}</td><td class="n">${rsMoney(T.fcf)}</td><td class="n">${(r.key || {}).ttm_eps ?? "—"}</td></tr>` : ""}
+    </table></div><p class="rs-meta" style="margin:4px 4px 6px">EPS 已按拆股調整；過去 4 季截至 ${esc(T.end || "—")}。</p></div>` : "";
+  return `<section class="rs-sec" id="rs-biz" data-sec="biz"><h3 class="rs-h">商業模式</h3>
+    ${B.summary ? `<div class="rs-card rs-plain"><span class="bh">白話</span>${rsT(B.summary)}</div>` : `<p class="rs-meta">今次冇。</p>`}
+    ${seg ? `<h4 class="rs-h3">收入來源</h4>${seg}` : ""}
+    ${(B.how || []).length ? `<h4 class="rs-h3">點賺錢</h4><ul class="rs-ul">${B.how.map(x => `<li>${rsT(x)}</li>`).join("")}</ul>` : ""}
+    ${B.customers ? `<h4 class="rs-h3">客戶</h4><p class="rs-p2" style="margin-top:4px">${rsT(B.customers)}</p>` : ""}
+    ${fy}
+  </section>`;
+}
+
+function rsVal(r){
+  const V = r.valuation || {}, W = r.writing || {}, K = r.key || {}, PH = r.pe_hist, st = r.street || {};
+  if (!V.ok) return `<section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3><div class="rs-card"><b>未能估值</b><p class="rs-meta">${esc(V.why || "")}</p></div></section>`;
+  const nm = {bear: "悲觀", base: "基本", bull: "樂觀"};
+  return `<section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3><p class="rs-by">數字由程式按公式計；AI 只俾情境假設</p>
+    <div class="rs-card"><div class="rs-hrow"><span class="rs-by">Claude 公允價值</span><span class="rs-by">不確定性：${esc(V.uncertainty)}</span></div>
+      <p style="font-family:var(--mono);font-size:32px;font-weight:800;color:var(--rteal);line-height:1.2">${f2(V.fv)} <span style="font-size:15px;color:var(--rt)">${stars5(V.stars)}</span></p>
+      <p class="rs-meta" style="margin-top:2px">現價 ${f2(r.price)} 係公允價值嘅 ${pc0(V.p_fv)}；10 年後（機率加權）${f2(V.p10w)}，每年約 ${pc1(V.cagr10)}（未計股息）</p></div>
+    ${W.valuation_plain ? `<div class="rs-card rs-plain"><span class="bh">白話</span>${rsT(W.valuation_plain)}</div>` : ""}
+    ${(V.scenarios || []).map(s => `<div class="rs-card rs-scn ${s.key}"><h4><span>${nm[s.key] || ""}：${esc(s.name)}</span><span class="num">${pc0(s.prob)}</span></h4>
+      <p class="rs-p2" style="font-size:14.5px;margin-top:4px">${rsT(s.story)}</p>
+      <div class="kv3"><div><span>第 2–5 年增長</span><b>${pct(s.g1, 0)}</b></div><div><span>第 6–10 年</span><b>${pct(s.g2, 0)}</b></div><div><span>第 10 年市盈率</span><b>${s.pe.toFixed(0)} 倍</b></div>
+        <div><span>第 10 年股價</span><b>${f2(s.p10)}</b></div><div><span>今日價值</span><b>${f2(s.today)}</b></div><div><span>對現價</span><b class="${s.vs_price >= 0 ? "up" : "dn"}">${pct(s.vs_price, 0)}</b></div></div>
+      ${s.why ? `<p class="rs-meta">依據：${rsTS(s.why, s.src)}</p>` : ""}</div>`).join("")}
+    <details class="rs-card rs-more" style="margin-top:12px"><summary style="margin-top:0">點計（公式）</summary>
+      <p>第 1 年每股盈利 ${V.eps0}（${esc(V.eps0_how || "")}）${rsSrcs(["S2"])}；第 2–5 年、第 6–10 年按情境增長率滾；第 10 年股價 = 第 10 年盈利 × 情境市盈率。</p>
+      <p>今日價值 = 10 年股息（派息率 ${pc0(V.payout)}）+ 第 10 年股價，用 ${pc0(V.discount)} 折返今日。公允價值 = 三個情境今日價值按機率加權。</p>
+      <p>星級（${esc(V.uncertainty)}不確定性）：${V.bands.map(b => b.max == null ? `${b.stars} 星 > ${f2(V.bands[3].max)}` : `${b.stars} 星 ≤ ${f2(b.max)}`).join("、")}。不確定性越高，要越大安全邊際（參考晨星公開方法，唔係晨星評級）。</p></details>
+    <h4 class="rs-h3">對照</h4><div class="rs-card"><div class="rs-tw"><table class="rs-tbl">
+      <tr><td>華爾街目標價 ${rsSrcs(["S2"])}</td><td class="n">平均 ${f2(st.mean)}（${f2(st.low)}–${f2(st.high)}，${st.n || "—"} 位）</td></tr>
+      <tr><td>市盈率（未來 12 個月）</td><td class="n">${K.fpe ?? "—"} 倍；Nasdaq 100 ${K.ndx_pe ?? "—"} 倍 ${rsSrcs(["S4"])}</td></tr>
+      ${PH ? `<tr><td>過去 5 年市盈率 ${rsSrcs(["S1", "S3"])}</td><td class="n">中位數 ${PH.med}（${PH.lo}–${PH.hi}）；而家 ${PH.now}</td></tr>` : ""}
+      <tr><td>PEG／市銷率</td><td class="n">${K.peg ?? "—"}／${K.ps ?? "—"} 倍</td></tr></table></div></div>
+  </section>`;
+}
+
+function rsDir(r){
+  const W = r.writing || {}, st = r.street || {}, H = r.history || [];
+  return `<section class="rs-sec" id="rs-dir" data-sec="dir"><h3 class="rs-h">估值方向</h3>
+    <div class="rs-card"><span class="rs-by">分析師盈利預測（下財年 EPS）${rsSrcs(["S2"])}</span><p style="font-size:20px;font-weight:900">${esc(st.rev_dir || "—")}</p>
+      <p class="rs-meta" style="margin-top:0">30 日 ${pct(st.rev30)}、90 日 ${pct(st.rev90)}</p></div>
+    ${(W.direction_up || []).length ? `<p class="rs-bb up">↗ 會令公允價值向上修</p><ul class="rs-ul">${W.direction_up.map(x => `<li>${rsT(x)}</li>`).join("")}</ul>` : ""}
+    ${(W.direction_down || []).length ? `<p class="rs-bb dn">↘ 會令公允價值向下修</p><ul class="rs-ul">${W.direction_down.map(x => `<li>${rsT(x)}</li>`).join("")}</ul>` : ""}
+    ${H.length > 1 ? `<h4 class="rs-h3">Claude 公允價值走勢</h4><div class="rs-card"><div class="rs-tw"><table class="rs-tbl"><tr><th>研究日</th><th>股價</th><th>公允價值</th><th>星級</th></tr>
+      ${H.slice().reverse().map(h => `<tr><td class="n">${esc(h.date)}</td><td class="n">${f2(h.price)}</td><td class="n">${f2(h.fv)}</td><td>${stars(h.stars)}</td></tr>`).join("")}</table></div></div>` : ""}
+  </section>`;
+}
+
+function rsHist(r){
+  const E = (r.chart || {}).events || [];
+  return `<section class="rs-sec" id="rs-hist" data-sec="hist"><h3 class="rs-h">歷史</h3><p class="rs-by">股價大事（即係上面股價圖嘅事件）</p>
+    ${E.length ? E.slice().reverse().map(e => `<div class="rs-card"><span class="rs-by">${esc(e.date)}</span><p style="font-weight:900;font-size:16px">${esc(e.label)}</p><p class="rs-p2" style="font-size:14.5px;margin-top:2px">${rsTS(e.detail, e.src)}</p></div>`).join("") : `<p class="rs-meta">今次冇。</p>`}
+    <p class="rs-meta">呢隻股票研究咗 ${r.n || 1} 次${(r.history || []).length > 1 ? "，每次嘅公允價值喺「估值方向」" : ""}。</p>
+  </section>`;
+}
+
+function rsPeer(r){
+  const P = r.peers || [], me = r.me || {}, W = r.writing || {};
+  if (!P.length) return `<section class="rs-sec" id="rs-peer" data-sec="peer"><h3 class="rs-h">同業</h3><p class="rs-meta">今次冇。</p></section>`;
+  const row = (p, hl) => `<tr${hl ? ` style="background:rgba(125,211,232,.08)"` : ""}><td><b>${esc(p.sym)}</b></td><td class="n">${p.fpe ?? "—"}</td><td class="n">${pc0(p.rg)}</td><td class="n">${pc0(p.om)}</td><td class="n ${p.chg52 >= 0 ? "up" : "dn"}">${pct(p.chg52, 0)}</td><td class="n">${rsMoney(p.mcap)}</td></tr>`;
+  return `<section class="rs-sec" id="rs-peer" data-sec="peer"><h3 class="rs-h">同業</h3><p class="rs-by">AI 揀同業、數字由 Yahoo ${rsSrcs(["S1"])}</p>
+    ${W.peers_note ? `<p class="rs-p2">${rsT(W.peers_note)}</p>` : ""}
+    <div class="rs-card" style="padding:6px 10px"><div class="rs-tw"><table class="rs-tbl"><tr><th>代號</th><th>預期市盈率</th><th>收入增長</th><th>經營利潤率</th><th>一年</th><th>市值</th></tr>
+      ${row(me, true)}${P.map(p => row(p)).join("")}</table></div><p class="rs-meta" style="margin:4px 4px 6px">${esc(me.sym)} 收入增長用本財年預測，同業用最近一季按年。</p></div>
+  </section>`;
+}
+
+function rsSrc(r){
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return ""; } };
+  return `<section class="rs-sec" id="rs-src" data-sec="src"><h3 class="rs-h">來源</h3><p class="rs-by">S1–S4 係程式攞嘅數據；S5 起係 AI 上網搜尋搵到、真係有引用嘅網頁</p>
+    <div class="rs-card" style="padding-top:4px;padding-bottom:4px">${(r.sources || []).map(s => `<div class="rs-src" id="rs-${esc(s.id)}"><b>${esc(s.id)}</b><span><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a><br><small>${esc(host(s.url))}${s.age ? " · " + esc(s.age) : ""}</small></span></div>`).join("")}</div>
+    <p class="rs-foot">${esc(r.disclaimer || "")}</p>
+    <p class="rs-foot">搜尋：${esc((r.models || {}).gather || "—")}；分析：${esc((r.models || {}).analysis || "—")}；寫作：${esc((r.models || {}).writing || "—")}${Object.values(r.models || {}).some(m => /後備/.test(m)) ? ` <span class="rs-flag">⚠ 有部分用咗後備 AI</span>` : ""}</p>
+    <p class="rs-foot">生成：${esc(r.generated || "")}${r.cost_usd ? ` · AI 用量約 US$${Number(r.cost_usd).toFixed(2)}` : ""}</p>
+  </section>`;
+}
+
+function resPage(r){
+  RS.gl = r.glossary || []; RS.GL = RS.gl.map((g, i) => ({...g, i})).sort((a, b) => b.term.length - a.term.length); RS.src = r.sources || [];
+  const V = r.valuation || {};
+  return `<div class="rs-in">${rsTop(r.sym, `${r.sym}-${r.name}`)}
+    <div class="rs-bar"><div class="rs-tick">${rsLogo(r.sym, 26)}<b>${esc(r.sym)}</b><span class="px">${f2(r.price)}</span><span class="st">Claude <i>${V.ok ? stars(V.stars) : "未能估值"}</i></span></div>
+      <div class="rs-pills" id="rsPills">${RS_SECS.map(([k, l], i) => `<button data-go="${k}" class="${i ? "" : "on"}">${l}</button>`).join("")}</div></div>
+    ${r.sample ? `<div class="rs-sample"><b>樣本</b>：呢份係 Claude Code 喺對話入面人手代入 AI 回覆整嘅測試報告（數據同計法係真嘅），唔係雲端自動生成。</div>` : ""}
+    ${r.dry ? `<div class="rs-sample"><b>未有 AI 分析</b>：呢份淨係程式數據（測試模式）。</div>` : ""}
+    ${rsSum(r)}${rsPos(r)}${rsView(r)}${rsPrimer(r)}${rsBiz(r)}${rsVal(r)}${rsDir(r)}${rsHist(r)}${rsPeer(r)}${rsSrc(r)}</div>`;
+}
+
+function rsSheetFor(kind, r){
+  const V = r.valuation || {}, st = r.street || {};
+  if (kind === "gloss") return `<h4>名詞表（${RS.gl.length}）</h4>${RS.gl.map(g => `<p><b>${esc(g.term)}</b>：${esc(g.define)}</p>`).join("")}`;
+  if (kind === "themes") return `<h4>題材相關性（0–10）</h4>${(r.themes || []).map(t => `<p><b>${esc(t.name)} ${t.score}</b>：${esc(t.why)}</p>`).join("")}`;
+  if (kind === "street") return `<h4>同華爾街比較</h4><p>目標價：平均 <b>${f2(st.mean)}</b>、中位 ${f2(st.median)}、最低 ${f2(st.low)}、最高 ${f2(st.high)}（${st.n || "—"} 位）；評級 ${esc(st.rec_zh || "—")}。</p>
+    ${(r.vs_street || []).map(x => `<p><b>${esc(x.topic)}</b><br>Claude：${esc(x.mine)}<br>華爾街：${esc(x.street)}</p>`).join("") || "<p>冇明顯分歧。</p>"}`;
+  if (kind === "blind") return `<h4>本檔最大盲區：${esc((r.blind_spot || {}).title)}</h4><p>${rsT((r.blind_spot || {}).detail)}${rsSrcs((r.blind_spot || {}).src)}</p>`;
+  if (kind === "rev") return `<h4>分析師方向：${esc(st.rev_dir || "—")}</h4><p>下財年每股盈利預測：30 日 ${pct(st.rev30)}、90 日 ${pct(st.rev90)}。上修 = 分析師越嚟越樂觀；30 日變動細過 1% 當持平。</p>`;
+  if (kind === "scen") return `<h4>三個情境</h4>${(V.scenarios || []).map(s => `<p><b>${esc(s.name)}（${pc0(s.prob)}）</b>：今日價值 ${f2(s.today)}、10 年後 ${f2(s.p10)}<br><span style="color:var(--muted)">${esc(s.story)}</span></p>`).join("")}<p style="color:var(--muted)">今日價值同 10 年後價值係兩個時間點，唔好混埋比較。</p>`;
+  if (kind === "menu") return `<h4>${esc(r.sym)} 研究報告</h4>
+    ${S.ghToken ? `<button id="rsRegen">重新生成報告（雲端 Claude，大約 10 分鐘、約 US$1–1.5）</button>` : `<p style="color:var(--muted)">喺「設定」填 GitHub token 就可以喺度叫雲端重新生成。</p>`}
+    <button data-close data-jump="src">睇來源</button><button data-close id="rsGl2">名詞表</button><button data-close>關閉</button>`;
+  return "";
+}
+
+async function resGenerate(sym){
+  RS.msg = `觸發緊雲端生成 ${sym}…`; if (TAB === "res") render();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/research.yml/dispatches`, {method: "POST",
+      headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
+      body: JSON.stringify({ref: "main", inputs: {sym}})});
+    if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : r.status === 404 ? "（雲端未有 research.yml）" : ""));
+    RS.msg = `已觸發：雲端 Claude 大約 10 分鐘寫好 ${sym}（約 US$1–1.5），之後撳「重新整理」。`;
+  } catch(e){ RS.msg = "觸發唔到：" + e.message; }
+  if (TAB === "res") render();
+  return RS.msg;
+}
+
+function resBind(r){
+  const el = $("#rs");
+  $("#rsBack").onclick = () => closeRes();
+  $("#rsMenu").onclick = () => { const {sh, close} = rsSheet(rsSheetFor("menu", r));
+    const rg = sh.querySelector("#rsRegen"); if (rg) rg.onclick = async () => { rg.textContent = "觸發緊…"; rg.textContent = await resGenerate(r.sym); };
+    const g2 = sh.querySelector("#rsGl2"); if (g2) g2.onclick = () => setTimeout(() => rsSheet(rsSheetFor("gloss", r)), 280);
+    sh.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => rsGo(b.dataset.jump))); };
+  rsChart(r); window.addEventListener("resize", rsResize);
+  const pills = $("#rsPills"), secs = [...el.querySelectorAll(".rs-sec[data-sec]")];
+  let cur = "sum", tick = false;
+  const spy = () => { tick = false; const top = el.scrollTop + 130; let k = secs[0] && secs[0].dataset.sec;
+    for (const s of secs) if (s.offsetTop <= top) k = s.dataset.sec;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) k = secs[secs.length - 1].dataset.sec;
+    if (k !== cur){ cur = k; pills.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.go === k));
+      const b = pills.querySelector(`[data-go="${k}"]`); if (b) pills.scrollTo({left: b.offsetLeft - 14, behavior: "smooth"}); } };
+  el.onscroll = () => { if (!tick){ tick = true; requestAnimationFrame(spy); } };
+  el.onclick = e => {
+    const t = e.target;
+    const go = t.closest("[data-go]"); if (go){ rsGo(go.dataset.go); return; }
+    const c = t.closest(".rs-cite"); if (c){ const s = RS.src.find(x => x.id === c.dataset.src);
+      rsSheet(s ? `<h4>${esc(s.id)}</h4><p>${esc(s.title)}</p><p><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></p>${s.age ? `<p style="color:var(--muted)">${esc(s.age)}</p>` : ""}` : `<p>搵唔到來源 ${esc(c.dataset.src)}</p>`); return; }
+    const g = t.closest(".rs-gl"); if (g){ const x = RS.gl[+g.dataset.gl]; if (x) rsSheet(`<h4>${esc(x.term)}</h4><p>${esc(x.define)}</p><button data-close>知道</button>`); return; }
+    const sh = t.closest("[data-sheet]"); if (sh){ rsSheet(rsSheetFor(sh.dataset.sheet, r)); return; }
+    const ev = t.closest("[data-ev]"); if (ev){ const x = ((r.chart || {}).events || [])[+ev.dataset.ev];
+      if (x) rsSheet(`<h4>${esc(x.label)}</h4><p style="color:var(--muted)">${esc(x.date)} · 收市 ${f2((r.chart.c || [])[x.i])}</p><p>${rsTS(x.detail, x.src)}</p>`); return; }
+    if (t.id === "rsAllPlain"){ const ds = [...el.querySelectorAll("details.rs-more:not(.rs-card)")], open = !ds.every(d => d.open);
+      ds.forEach(d => d.open = open); t.textContent = open ? "收埋全部白話" : "展開全部白話"; }
+  };
+  let tm = 0;
+  const upd = () => { clearTimeout(tm); tm = setTimeout(() => {
+    const cost = parseFloat($("#rsCost").value), lots = $("#rsLots").value === "" ? "" : Math.max(0, Math.min(10, Math.round(+$("#rsLots").value)));
+    setResPos(r.sym, (cost > 0 || lots !== "") ? {cost: cost > 0 ? cost : "", lots} : null);
+    $("#rsPosOut").innerHTML = rsPosOut(r); $("#rsMet").innerHTML = rsMetrics(r);
+    const pc = $("#rsPc"); if (pc) pc.outerHTML = rsPriceCard(r);
+  }, 250); };
+  ["#rsCost", "#rsLots"].forEach(id => { const i = $(id); if (i) i.oninput = upd; });
+}
+function rsGo(k){ const el = $("#rs"), s = el.querySelector("#rs-" + k); if (s) el.scrollTo({top: s.offsetTop - 112, behavior: "smooth"}); }
+
+// 研究分頁：報告清單 + 叫雲端生成
+function viewRes(){
+  if (!RS.index && !RS.err) fetchResIndex();
+  const items = ((RS.index && RS.index.items) || []).filter(x => !x.dry);
+  const u = RS.index && RS.index.usage, mon = new Date().toISOString().slice(0, 7), spent = u ? (u[mon] || 0) : 0;
+  let h = topbar() + `<div class="row spread"><h2>AI 個股研究</h2><button id="resReload" class="small">重新整理</button></div>
+    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ Claude Opus 5.5 上網搜尋 → 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
+  if (RS.err) h += `<div class="alert small">讀唔到研究清單：${esc(RS.err)}</div>`;
+  if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
+  h += items.map(it => `<div class="card rsl" data-ressym="${esc(it.sym)}" role="button">${rsLogo(it.sym, 44)}
+      <div class="m"><b class="mono">${esc(it.sym)}</b><span class="z">${esc(it.name_zh || it.name || "")}</span>${it.sample ? ` <span class="tag t-warn">樣本</span>` : ""}
+        <p>${esc(it.one_liner || "")}</p><p>研究日 ${esc(it.date || "")}${it.moat ? ` · 護城河 ${esc(it.moat)}` : ""}${it.uncertainty ? ` · 不確定性 ${esc(it.uncertainty)}` : ""}</p></div>
+      <div class="r"><b>${f2(it.price)}</b><span>${it.stars ? stars(it.stars) : "未能估值"}</span>${it.p_fv ? `<p class="small ${it.p_fv <= 1 ? "up" : "dn"}" style="margin:0">${it.p_fv <= 1 ? "低" : "高"}過公允 ${pc0(Math.abs(1 - it.p_fv))}</p>` : ""}</div></div>`).join("");
+  h += `<div class="card"><b>生成新報告</b>${S.ghToken ? `<div class="row" style="flex-wrap:nowrap"><input id="resSym" placeholder="美股代號，例如 NVDA" autocapitalize="characters" style="flex:1"><button id="resGo" class="primary">生成</button></div>
+      <p class="small muted">雲端 Claude 大約 10 分鐘寫好一份，約 US$1–1.5；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。清單入面嘅股票每星期同業績後自動更新。</p>`
+      : `<p class="small muted">喺「設定」填 GitHub token 先可以喺度叫雲端生成。</p>`}${RS.msg ? `<p class="small" style="color:var(--cyan)">${esc(RS.msg)}</p>` : ""}</div>`;
+  return h;
+}
+
+const ORDER = ["today", "model", "rank", "res", "news", "crypto", "radar", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
-  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
+  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(TAB); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
@@ -2022,6 +2656,11 @@ function bind(){
   on("#serGo", () => openSer($("#serq").value));
   const q = $("#serq"); if (q) q.onkeydown = e => { if (e.key === "Enter") openSer(q.value); };
   document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render("f"); });
+  document.querySelectorAll("[data-ressym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openRes(b.dataset.ressym); });
+  on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
+  const rgo = () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ alert("請輸入美股代號，例如 NVDA"); return; }
+    if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端 Claude 生成 ${v} 嘅研究報告？大約 10 分鐘、約 US$1–1.5。`)) resGenerate(v); };
+  on("#resGo", rgo); const rsy = $("#resSym"); if (rsy) rsy.onkeydown = e => { if (e.key === "Enter") rgo(); };
 }
 
 let LASTTAB = null;
@@ -2040,7 +2679,7 @@ $("#app").addEventListener("animationend", e => { if (e.target.classList.contain
 let SWP = null;
 const hscroll = el => { for (; el && el !== document.body; el = el.parentElement){ if (el.scrollWidth > el.clientWidth + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowX)) return true; } return false; };
 document.addEventListener("touchstart", e => {
-  if (e.touches.length !== 1 || e.target.closest("input,select,textarea,nav") || hscroll(e.target)) { SWP = null; return; }
+  if (e.touches.length !== 1 || e.target.closest("input,select,textarea,nav,#rs,#rsSheet") || hscroll(e.target)) { SWP = null; return; }
   SWP = {x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now()};
 }, {passive:true});
 document.addEventListener("touchend", e => {
@@ -2084,6 +2723,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 fetchScan();
 fetchModel();
 fetchVal();
+fetchResIndex();
 fetchLive();
 fetchSer();
 fetchTrump();

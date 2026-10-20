@@ -1,0 +1,3 @@
+# 個股研究清單（scanner/research.py --due 用）：一行一個美股代號。已經有報告嘅（docs/research/index.json）會自動繼續更新，
+# 唔使寫喺度；呢度係「想加但未有報告」嘅股票。2026-10-20 用戶：先做一隻（NVDA）睇過先擴展。
+NVDA
