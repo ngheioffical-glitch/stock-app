@@ -34,6 +34,7 @@ jobs:
         run: python scanner/model.py cont
         env:
           PYTHONIOENCODING: utf-8
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}          # 退市／拆股 AI 查證（llm.py：Claude 優先、Gemini 後備；冇搜尋來源唔改帳）
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: 估值（大市、指數、排名同持倉個股；失敗唔影響其他）
         run: python scanner/valuation.py

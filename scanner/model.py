@@ -168,34 +168,21 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 
 
 def ai_search(prompt):
-    """Gemini + Google 搜尋（grounding）：真係上網查；回傳 dict（JSON）同來源，冇 key／出錯回 (None, 原因)。"""
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not key:
-        return None, "冇 GEMINI_API_KEY"
-    body = {"contents": [{"parts": [{"text": prompt + "\n用 Google 搜尋查證，只根據搜尋結果答；唔肯定就答 unknown。最後只回覆一個 JSON object，唔好加其他文字。"}]}],
-            "tools": [{"google_search": {}}], "generationConfig": {"temperature": 0.1}}
-    last = ""
-    base = ["gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-2.5-flash-lite"]
-    try:                                       # 2026-10-02：舊型號名會 404；同今日重點一樣先問 Google 有邊啲型號（新版本排先）
-        import ai as _ai
-        base = _ai.pick(key, base) or base
+    """AI + 上網搜尋（經 llm.py：Claude Opus 5.5 先搜尋再寫 JSON；失敗退 Gemini + Google 搜尋，標籤寫明後備）。
+    返 (dict, 來源標籤)；冇真係上網搵到來源就返 (None, 原因)：退市、拆股呢啲會改模型帳戶嘅查證唔可以靠冇來源嘅答案
+    （2026-10-20 Codex 搵到：舊版冇來源嘅收購價都會照賣）。lead.py、earnings.py、radar.py 用。"""
+    import llm
+    if not llm.available():
+        return None, "冇 AI key"
+    try:
+        res, lab, grounded, src = llm.search(prompt + "\n唔肯定就答 unknown。", timeout=300)
     except Exception as e:  # noqa: BLE001
-        print(f"[model] 型號清單攞唔到，用預設：{e}")
-    for m in base:
-        req = urllib.request.Request(f"https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent", data=json.dumps(body).encode(),
-                                     method="POST", headers={"Content-Type": "application/json", "x-goog-api-key": key})
-        try:
-            d = json.loads(urllib.request.urlopen(req, timeout=120).read())
-            c = d["candidates"][0]
-            txt = "".join(x.get("text", "") for x in c["content"]["parts"])
-            j = re.search(r"\{.*\}", txt, re.S)
-            src = [w.get("web", {}).get("title", "") for w in (c.get("groundingMetadata") or {}).get("groundingChunks", [])][:3]
-            if j:
-                return json.loads(j.group(0)), f"{m}（Google 搜尋：{'、'.join(s for s in src if s) or '冇列出來源'}）"
-            last = f"{m} 冇 JSON"
-        except Exception as e:  # noqa: BLE001
-            last = f"{m}：{str(e)[:80]}"
-    return None, last
+        return None, f"AI 搜尋出錯：{str(e)[:120]}"
+    if res is None:
+        return None, lab[:200]
+    if not grounded:
+        return None, f"{lab}：冇上網搜尋來源，唔當查證"
+    return res, lab
 
 
 if __name__ == "__main__":

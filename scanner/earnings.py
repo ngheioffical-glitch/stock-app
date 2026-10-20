@@ -5,7 +5,7 @@
 2. 啱啱出咗業績（最近 10 日、未分析過；失敗下個鐘再試）→ Gemini + Google 搜尋（真係上網查業績新聞同業績會），用廣東話照框架總結；每次最多 3 間（慳免費額度）。
 3. 每 55 分鐘先做一次（feeds 每 5 分鐘跑，其餘時間沿用上一份）；分析結果留 60 日。
 輸出 <out>/earnings.json：{generated, checked, upcoming: [...], reports: [...], errs}
-用法：python scanner/earnings.py out（要 GEMINI_API_KEY 先會做 AI 分析；冇 key 都會更新業績日期）
+用法：python scanner/earnings.py out（要有 AI key 先會做 AI 分析：ANTHROPIC_API_KEY 優先、GEMINI_API_KEY 後備；冇 key 都會更新業績日期）
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def main(out):
         print("[earn] 未夠 55 分鐘，沿用上一份")
         return
     import yfinance as yf
-    import model as M                                   # ai_search：Gemini + Google 搜尋（同模型帳戶查退市、拆股一樣）
+    import model as M                                   # ai_search：AI + 上網搜尋（llm.py；同模型帳戶查退市、拆股一樣）
     S, held = syms()
     done = {f"{r['sym']}|{r['date']}" for r in prev.get("reports", [])}
     upcoming, todo, errs = [], [], []
@@ -87,4 +87,10 @@ def main(out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "feeds_out")
+    import llm                       # 2026-10-20：記低今日 Claude 用量（同一個 workflow 嘅步驟共用 out/ai_usage.json）
+    _out = sys.argv[1] if len(sys.argv) > 1 else "feeds_out"
+    llm.start(_out)
+    try:
+        main(_out)
+    finally:
+        llm.finish(_out)

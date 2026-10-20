@@ -167,11 +167,11 @@ def main(out):
     guide = prev.get("guide")
     try:
         import ai as A
-        key = os.environ.get("GEMINI_API_KEY", "").strip()
+        key = ""                                    # 用邊個 AI 由 llm.py 決定（2026-10-20）
         data = "\n".join(f"{r['name']}（{r['etf']['sym']}）：5 日 {pc(r['etf']['r5'])}、21 日 {pc(r['etf']['r21'])}、成交 {r['etf']['vs'] or 0:.1f} 倍、熱度 {r['heat']}"
                          f"{'、爆發' if r['boom'] else ''}、新聞 {r['nnews']} 條；AI：{(AI.get(r['key']) or {}).get('stage', '')} {(AI.get(r['key']) or {}).get('why', '')[:120]}"
                          for r in rows)
-        g, m = A.gemini(key, A.STYLE + GUIDE.format(data=data), A.MODELS_D)
+        g, m = A.ask(key, A.STYLE + GUIDE.format(data=data), A.MODELS_D)
         guide = dict(g, model=m, at=now.isoformat(timespec="seconds"))
     except Exception as ex:  # noqa: BLE001
         errs.append(f"導讀：{str(ex)[:80]}")
@@ -180,4 +180,10 @@ def main(out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "out")
+    import llm                       # 2026-10-20：記低今日 Claude 用量（同一個 workflow 嘅步驟共用 out/ai_usage.json）
+    _out = sys.argv[1] if len(sys.argv) > 1 else "out"
+    llm.start(_out)
+    try:
+        main(_out)
+    finally:
+        llm.finish(_out)

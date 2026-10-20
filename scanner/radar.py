@@ -200,15 +200,15 @@ def x_mentions(now, rows):
 
 
 def ai_json(prompt):
-    """Gemini + Google 搜尋；額度用晒（429）就改用冇搜尋嘅 Gemini／GitHub Models。返 (dict 或 None, 來源, 有冇上網)。meme.py、narr.py 共用。"""
+    """AI + 上網搜尋（model.ai_search → llm.py）；搜尋唔得就改用冇搜尋嘅 AI（標明冇上網查證）。返 (dict 或 None, 來源, 有冇上網)。meme.py、narr.py、theme.py 共用。"""
     import model as Mo
     res, src = Mo.ai_search(prompt)
     if res:
         return res, src, True
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
+    key = ""
     try:
         import ai as A
-        res2, m = A.gemini(key, A.STYLE + prompt.replace("用 Google 搜尋查證", "（今次冇得上網，只用你已知嘅資料；唔肯定嘅寫「唔清楚」，唔好估）查證")
+        res2, m = A.ask(key, A.STYLE + prompt.replace("用 Google 搜尋查證", "（今次冇得上網，只用你已知嘅資料；唔肯定嘅寫「唔清楚」，唔好估）查證")
                            + " 只回覆 JSON。", A.MODELS_D)
         return res2, f"{m}（冇上網查證；搜尋版失敗：{str(src)[:60]}）", False
     except Exception as e:  # noqa: BLE001
@@ -239,17 +239,18 @@ def brief(r, a):
 
 
 def ai_guide(R, hit):
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not key:
-        return None, "冇 GEMINI_API_KEY"
+    import llm
+    if not llm.available():
+        return None, "冇 AI key"
     import ai as A
+    key = ""
     parts = []
     for k, t in (("growth", "收入增長最快"), ("big", "收入最大"), ("notoken", "未發幣"), ("new", "新上榜"), ("hot", "CoinGecko 搜尋熱門")):
         parts.append(f"[{t}] " + "；".join(brief(r, R["ai"].get(r["key"])) for r in R[k][:8]))
     parts.append("[解鎖] " + "；".join(f"{u['name']} {u['date']} {u['pct'] * 100:.1f}%" for u in R["unlocks"]))
     xt = "\n".join(f"@{t['user']}：{t['text'][:250]}" for t in hit[:15]) or "冇"
     try:
-        return A.gemini(key, A.STYLE + GUIDE_PROMPT.format(data="\n".join(parts), x=xt), A.MODELS_D)
+        return A.ask(key, A.STYLE + GUIDE_PROMPT.format(data="\n".join(parts), x=xt), A.MODELS_D)
     except Exception as e:  # noqa: BLE001
         return None, str(e)[:120]
 
@@ -342,4 +343,10 @@ def main(out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "out")
+    import llm                       # 2026-10-20：記低今日 Claude 用量（同一個 workflow 嘅步驟共用 out/ai_usage.json）
+    _out = sys.argv[1] if len(sys.argv) > 1 else "out"
+    llm.start(_out)
+    try:
+        main(_out)
+    finally:
+        llm.finish(_out)

@@ -1,4 +1,5 @@
-"""Gemini：新聞同 Serenity 推文翻譯做廣東話 + 「今日重點」總結（2026-09-30 用戶要求，方案 A：喺 GitHub 跑，key 唔會落 app）。
+"""AI：新聞同 Serenity 推文翻譯做廣東話 + 「今日重點」總結（2026-09-30 用戶要求，方案 A：喺 GitHub 跑，key 唔會落 app）。
+2026-10-20 起經 scanner/llm.py 接駁層叫 AI：預設 Claude Opus 5.5（effort high），失敗或者超預算先退 Gemini／GitHub Models，標籤寫明「後備」。
 
 喺 feeds.py 同 serenity.py recent 之後跑（每 5 分鐘），讀／寫 out/news.json、out/serenity_recent.json：
   - 翻譯：快訊／市場／經濟新聞標題加 "zh"；Serenity 推文加 "zh"。一有新嘢就即刻譯（用 Flash-Lite，獨立免費額度）；
@@ -6,7 +7,7 @@
   - 經濟數據：重要數據一公佈就 AI 解讀（加埋公佈後 QQQ／10 年債息／美元嘅實際反應，判斷係咪已經 price in），
     45 分鐘後（6 個鐘內）再解讀一次；寫入 econ.json 每行嘅 "ai"
   - 今日重點：news.json 加 "digest"，最少隔 GAP 分鐘（預設 28）先重新寫；有新嘅高影響快訊就即刻重寫；新聞冇變就沿用
-key 只由環境變數 GEMINI_API_KEY 讀（GitHub Secrets）；冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
+key 只由環境變數讀（ANTHROPIC_API_KEY、GEMINI_API_KEY、GITHUB_TOKEN，GitHub Secrets）；全部冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
 用法：python scanner/ai.py out
 """
 from __future__ import annotations
@@ -24,18 +25,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import llm  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 RAW = "https://raw.githubusercontent.com/{repo}/feeds/{f}"
-# 型號次序（2026-09-30：gemini-2.0-flash 已停用；每次運行先問 Google 有邊啲型號可用，見 models()）
-MODELS_D = [m for m in (os.environ.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-flash-lite-latest",
-                        "gemini-2.5-flash-lite") if m]          # 重點／解讀：Flash 用完額度就退去 Lite（額度分開）
-MODELS_T = [m for m in (os.environ.get("GEMINI_MODEL_T"), "gemini-flash-lite-latest", "gemini-2.5-flash-lite",
-                        "gemini-flash-latest") if m]
-_AVAIL = None
-API = "https://generativelanguage.googleapis.com/v1beta/models/{m}:generateContent"
+# Gemini 後備型號次序（重點／解讀用 MODELS_D、翻譯用 MODELS_T）；Claude 型號同 effort 喺 llm.py（AI_MODEL、AI_EFFORT）
+MODELS_D, MODELS_T = llm.GEM_D, llm.GEM_T
 CATS = ("快訊", "市場", "經濟", "加密")
 TR_GAP = int(os.environ.get("TRANSLATE_GAP_MIN", "30"))   # 翻譯最少隔幾耐（2026-10-05：接力每 5 分鐘跑，額度唔夠）
-AI_BUDGET = int(os.environ.get("AI_BUDGET_SEC", "180"))   # 秒：由 ai.py 開始計，叫 AI 嘅時間上限（workflow 呢步 7 分鐘一到就會被殺，乜都寫唔出；用晒之後其餘非 AI 部分仲要大約 1 分鐘）
+AI_BUDGET = int(os.environ.get("AI_BUDGET_SEC", "540"))   # 秒：由 ai.py 開始計，叫 AI 嘅時間上限（workflow 呢步 7 分鐘一到就會被殺，乜都寫唔出；用晒之後其餘非 AI 部分仲要大約 1 分鐘）
 T0 = time.time()
 
 
@@ -47,124 +46,17 @@ def ai_to(n):
     return min(n, left)
 
 
-GAP = int(os.environ.get("GEMINI_GAP_MIN", "45"))   # 分鐘：今日重點最少隔幾耐先再寫（慳免費額度）
+GAP = int(os.environ.get("AI_GAP_MIN", os.environ.get("GEMINI_GAP_MIN", "45")))   # 分鐘：今日重點最少隔幾耐先再寫
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
 
-def models(key):
-    """問 Google 呢條 key 有邊啲 generateContent 型號（每次運行問一次）；問唔到就回 None（照原本次序試）。
-    新出嘅 gemini-X.Y-flash／flash-lite 會自動加入後備（版本新嘅排先）。"""
-    global _AVAIL
-    if _AVAIL is None:
-        try:
-            req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000", headers={"x-goog-api-key": key})
-            d = json.loads(urllib.request.urlopen(req, timeout=30).read())
-            _AVAIL = [m["name"].split("/", 1)[1] for m in d.get("models", []) if "generateContent" in m.get("supportedGenerationMethods", [])]
-        except Exception as e:  # noqa: BLE001
-            print(f"[ai] 型號清單攞唔到：{e}")
-            _AVAIL = []
-    return _AVAIL
+models, pick = llm.gem_models, llm.gem_pick          # 舊名保留俾其他模組用
 
 
-def pick(key, base):
-    av = models(key)
-    if not av:
-        return base
-    ver = lambda n: tuple(int(x) for x in re.findall(r"\d+", n)[:2])
-    flash = sorted([m for m in av if re.fullmatch(r"gemini-\d+(\.\d+)?-flash", m)], key=ver, reverse=True)
-    lite = sorted([m for m in av if re.fullmatch(r"gemini-\d+(\.\d+)?-flash-lite", m)], key=ver, reverse=True)
-    isl = lambda m: "lite" in m
-    groups = [[m for m in base if m in av and not isl(m)] + [m for m in flash if m not in base],
-              [m for m in base if m in av and isl(m)] + [m for m in lite if m not in base]]
-    if base and isl(base[0]):
-        groups.reverse()                               # 翻譯：Lite 先
-    out = groups[0] + groups[1]
-    return out or base
-
-
-# GitHub Models（2026-09-30 用戶要求：Gemini 唔穩定時嘅後備）：用 Actions 內置 GITHUB_TOKEN（workflow 要 permissions: models: read），唔使另外申請 key
-GH_API = "https://models.github.ai/inference/chat/completions"
-GH_MODELS = [m for m in (os.environ.get("GH_MODEL"), "openai/gpt-4.1-mini", "openai/gpt-4o-mini", "deepseek/deepseek-v3-0324") if m]
-
-
-def github_models(prompt):
-    tok = os.environ.get("GITHUB_TOKEN", "").strip()
-    if not tok:
-        raise RuntimeError("冇 GITHUB_TOKEN")
-    errs = []
-    for m in GH_MODELS:
-        for fmt in (True, False):                  # 先要求 JSON 格式；型號唔支援（400）就唔要
-            body = {"model": m, "temperature": 0.3,
-                    "messages": [{"role": "system", "content": "你只可以回覆一個 JSON object，唔好加其他文字。"},
-                                 {"role": "user", "content": prompt}]}
-            if fmt:
-                body["response_format"] = {"type": "json_object"}
-            req = urllib.request.Request(GH_API, data=json.dumps(body).encode(), method="POST",
-                                         headers={"Content-Type": "application/json", "Accept": "application/json",
-                                                  "Authorization": f"Bearer {tok}", "X-GitHub-Api-Version": "2022-11-28"})
-            try:
-                with urllib.request.urlopen(req, timeout=ai_to(120)) as r:
-                    d = json.loads(r.read())
-                txt = d["choices"][0]["message"]["content"].strip()
-                txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt)
-                return json.loads(txt), "github:" + m
-            except urllib.error.HTTPError as e:
-                errs.append(f"{m} {e.code}")
-                if e.code == 400 and fmt:
-                    continue
-                break
-            except Exception as e:  # noqa: BLE001
-                errs.append(f"{m} {type(e).__name__}")
-                break
-    raise RuntimeError("GitHub Models 失敗（" + "、".join(errs) + "）")
-
-
-def gemini(key, prompt, models_):
-    """先用 Gemini（逐個型號試）；全部失敗就用 GitHub Models 後備。"""
-    try:
-        return _gemini(key, prompt, models_)
-    except Exception as e:  # noqa: BLE001
-        try:
-            res, m = github_models(prompt)
-            print(f"[ai] Gemini 失敗，改用 {m}：{str(e)[:160]}")
-            return res, m
-        except Exception as e2:  # noqa: BLE001
-            raise RuntimeError(f"{e}｜{e2}") from None
-
-
-def _gemini(key, prompt, models_):
-    gen = {"responseMimeType": "application/json", "temperature": 0.3}
-    last, errs = None, []
-    for m in pick(key, models_):
-        for think_off in (True, False):       # 先試關閉「思考」（快好多）；型號唔支援就用預設
-            g = dict(gen, thinkingConfig={"thinkingBudget": 0}) if think_off else gen
-            body = json.dumps({"contents": [{"parts": [{"text": prompt}]}], "generationConfig": g}).encode()
-            for attempt in range(2):
-                req = urllib.request.Request(API.format(m=m), data=body, method="POST",
-                                             headers={"Content-Type": "application/json", "x-goog-api-key": key})
-                try:
-                    with urllib.request.urlopen(req, timeout=ai_to(180)) as r:
-                        d = json.loads(r.read())
-                    parts = d["candidates"][0]["content"]["parts"]
-                    txt = "".join(p.get("text", "") for p in parts if not p.get("thought"))
-                    return json.loads(txt), m
-                except urllib.error.HTTPError as e:
-                    last = f"{m}: HTTP {e.code} {e.read()[:300].decode('utf-8', 'ignore')}"
-                    if e.code in (500, 503) and attempt == 0 and AI_BUDGET - (time.time() - T0) > 60:
-                        time.sleep(10)            # 伺服器忙：等陣再試一次（429 額度用完就唔等，直接試下一個型號）
-                        continue
-                    break
-                except Exception as e:  # noqa: BLE001
-                    last = f"{m}: {type(e).__name__} {e}"
-                    break
-            if last and "HTTP 400" not in last:
-                break                             # 唔係參數問題：唔使再試冇 thinkingConfig 嘅版本
-        if last:
-            code = re.search(r"HTTP (\d+)", last)
-            errs.append(f"{m} {code.group(1) if code else last.split(':', 1)[-1].strip()[:40]}")
-        if last and not any(c in last for c in ("HTTP 404", "HTTP 400", "HTTP 429", "HTTP 500", "HTTP 503")):
-            break                                 # 網絡問題：換型號都冇用（429／503 就試下一個型號：額度分開、繁忙程度唔同）
-    raise RuntimeError(f"全部型號失敗（{'、'.join(errs)}）；最後：{last}")
+def ask(key, prompt, models_):
+    """叫 AI 要一個 JSON object（經 llm.py：預設 Claude Opus 5.5 high，失敗／超預算退 Gemini、GitHub Models，標籤寫明後備）。
+    返 (dict, 型號標籤)；全部失敗 raise。key 參數只係保留舊介面。"""
+    return llm.ask(prompt, gem_models=models_, timeout=ai_to(300))
 
 
 def prev(f):
@@ -211,7 +103,7 @@ def translate(key, N, S, P, PS, T=None, PT=None, allow=True):
               "回覆 JSON：{\"news\": [..], \"tweets\": [..], \"trump\": [..]}，每個陣列次序同數量同輸入一樣。\n"
               + json.dumps({"news": [x["title"] for x in todo_n], "tweets": [t["text"] for t in todo_s],
                             "trump": [t["text"][:900] for t in todo_t]}, ensure_ascii=False))
-    res, model = gemini(key, prompt, MODELS_T)
+    res, model = ask(key, prompt, MODELS_T)
     zn, zs, zt = res.get("news", []), res.get("tweets", []), res.get("trump", [])
     for t, z in zip(todo_t, zt):
         if isinstance(z, str) and z.strip():
@@ -353,7 +245,7 @@ def econ_ai(key, N, E, PE, now, light, watch):
               "公佈唔夠 15 分鐘就講明反應未明朗。只根據提供資料，唔好作新聞，唔好叫人買賣。\n"
               "回覆 JSON：{\"items\": [{\"i\": 編號, \"text\": \"..\"}]}。\n數據：\n" + "\n".join(lines)
               + "\n近 4 個鐘相關快訊：\n" + ("\n".join(heads) or "（冇）"))
-    res, model = gemini(key, prompt, MODELS_D)
+    res, model = ask(key, prompt, MODELS_D)
     n = 0
     for it in res.get("items", []):
         try:
@@ -419,7 +311,7 @@ def fed_ai(key, N, P, now):
                   "\"change\": \"同上次比有咩唔同（文件冇講就寫空字串）\", \"impact\": \"對息口預期、美元、美股科技股嘅含意（一至兩句）\"}。"
                   "只根據文件內容，唔好加外面資料，唔好叫人買賣。\n文件標題：" + x["title"] + "\n全文：\n" + txt)
         try:
-            res, model = gemini(key, prompt, MODELS_D)
+            res, model = ask(key, prompt, MODELS_D)
         except Exception as e:  # noqa: BLE001
             print(f"[ai] 聯儲局總結失敗：{e}")
             break
@@ -505,7 +397,7 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
             "新聞：\n" + "\n".join(heads) + "\n經濟數據：\n" + ("\n".join(econ) or "（冇）"))
     prompt, bad, tries = base, [], 0
     while True:
-        res, model = gemini(key, prompt, MODELS_D)
+        res, model = ask(key, prompt, MODELS_D)
         pts = [p for p in res.get("points", []) if isinstance(p, str) and p.strip()][:6]
         if not pts:
             raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
@@ -627,7 +519,7 @@ def commod_ai(key, N, now, force=False):
               + "用 Google 搜尋查證最新原因。回覆 JSON：{\"summary\": \"而家商品同股市嘅關係（2–3 句，有數字）\", "
               + "\"items\": [{\"name\": \"原油／黃金／白銀／銅\", \"why\": \"最近點解咁郁（具體原因）\", \"impact\": \"對股市、邊啲板塊有咩影響\", \"watch\": \"之後要留意乜（有日期就寫）\"}], "
               + "\"cg\": \"銅金比率而家代表市場點睇經濟（一句）\", \"for_you\": \"對佢嘅規則同科技股持倉有咩意思（一句，唔好叫人買賣）\"}。只用提供或者搜尋到嘅數字，唔好作。")
-    res, model = gemini_search(key, prompt)
+    res, model = ask_search(key, prompt)
     if not res.get("items"):
         raise RuntimeError(f"商品分析冇 items：{json.dumps(res, ensure_ascii=False)[:160]}")
     C["ai"] = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
@@ -795,25 +687,14 @@ def season(now):
     return out
 
 
-def gemini_search(key, prompt):
-    """Gemini + Google 搜尋（grounding）；返 (dict, 型號)。唔得就退返冇搜尋嘅 gemini()。"""
-    body = {"contents": [{"parts": [{"text": prompt + NL + "用 Google 搜尋補充最新背景，只根據搜尋結果同上面數據；最後只回覆一個 JSON object，唔好加其他文字。"}]}],
-            "tools": [{"google_search": {}}], "generationConfig": {"temperature": 0.5}}
-    last = ""
-    for m in pick(key, MODELS_D):
-        try:
-            req = urllib.request.Request(API.format(m=m), data=json.dumps(body).encode(), method="POST",
-                                         headers={"Content-Type": "application/json", "x-goog-api-key": key})
-            d = json.loads(urllib.request.urlopen(req, timeout=ai_to(180)).read())
-            txt = "".join(x.get("text", "") for x in d["candidates"][0]["content"]["parts"] if not x.get("thought"))
-            j = re.search(r"\{.*\}", txt, re.S)
-            if j:
-                return json.loads(j.group(0)), m + "（Google 搜尋）"
-            last = f"{m} 冇 JSON"
-        except Exception as e:  # noqa: BLE001
-            last = f"{m}：{str(e)[:80]}"
-    print(f"[ai] 宏觀思考 Google 搜尋失敗（{last}），改用冇搜尋版本")
-    return gemini(key, prompt, MODELS_D)
+def ask_search(key, prompt):
+    """AI + 上網搜尋（經 llm.py；Claude 先搜尋、再寫 JSON）；返 (dict, 型號標籤)。搜尋全部失敗就退返冇搜尋嘅 ask()，標籤寫明冇上網。"""
+    res, lab, grounded, src = llm.search(prompt, gem_models=MODELS_D, timeout=ai_to(420))
+    if res is not None:
+        return res, lab + ("" if grounded else "（冇搜尋來源）")
+    print(f"[ai] 上網搜尋失敗（{lab[:160]}），改用冇搜尋版本")
+    r2, l2 = ask(key, prompt, MODELS_D)
+    return r2, f"{l2}（冇上網：搜尋失敗）"
 
 
 def think(key, N, P, now, force=False):
@@ -871,7 +752,7 @@ def think(key, N, P, now, force=False):
               + "情景同反方要盡量用到 X 觀點同 Polymarket 概率做證據（例如市場押注加息嘅概率）。" + NL
               + "數字只可以用上面提供嘅或者搜尋到嘅，唔好作。回覆 JSON：{\"phenomena\": [..], \"question\": \"..\", \"scenarios\": [{\"name\": \"..\", \"what\": \"..\", "
               + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..], \"voices\": [..], \"odds\": [..], \"history\": [..]}")
-    res, model = gemini_search(key, prompt)
+    res, model = ask_search(key, prompt)
     if not res.get("scenarios"):
         raise RuntimeError(f"宏觀思考冇 scenarios：{json.dumps(res, ensure_ascii=False)[:200]}")
     d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig, src_x=len(MS.get("x") or []), src_pm=(MS.get("pm") or [])[:8], season=hist,
@@ -990,7 +871,7 @@ def walert_ai(key, now, force=False):
               "\"stable\": \"穩定幣流向代表乜（有冇新錢入場）；冇就空字串\", "
               "\"for_you\": \"對佢嘅 BTC 100 日線規則有冇參考價值（一句，唔好叫人買賣）\", "
               "\"caution\": \"呢次數據要小心解讀嘅地方（一句）\"}。只用提供或者搜尋到嘅數字。")
-    res, model = gemini_search(key, prompt)
+    res, model = ask_search(key, prompt)
     if not res.get("summary"):
         raise RuntimeError(f"大額轉帳分析冇 summary：{json.dumps(res, ensure_ascii=False)[:160]}")
     W["ai"] = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
@@ -1051,7 +932,7 @@ def think_crypto(key, N, H, PH, now, force=False):
               + "9. trump：如果上面 Trump 有講加密，1–2 句講佢講咗咩、對加密政策同市場可能有咩影響（以前類似發言之後市場點反應）；冇就空字串。" + NL
               + "數字只可以用上面提供嘅或者搜尋到嘅，唔好作。回覆 JSON：{\"phenomena\": [..], \"question\": \"..\", \"scenarios\": [{\"name\": \"..\", \"what\": \"..\", "
               + "\"signals\": [..], \"lean\": \"..\", \"impact\": \"..\"}], \"contrarian\": \"..\", \"watch\": [..], \"voices\": [..], \"odds\": [..], \"history\": [..], \"trump\": \"..\"}")
-    res, model = gemini_search(key, prompt)
+    res, model = ask_search(key, prompt)
     if not res.get("scenarios"):
         raise RuntimeError(f"加密宏觀思考冇 scenarios：{json.dumps(res, ensure_ascii=False)[:200]}")
     d = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig, src_x=len(MS.get("x_c") or []), src_pm=(MS.get("pm_c") or [])[:8], season=hist,
@@ -1102,7 +983,7 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
               + "\n巨鯨而家總倉位：\n" + ("\n".join(agg) or "（冇）")
               + "\nTrump 近 18 小時提到加密嘅帖：\n" + ("\n".join(trump_l) or "（冇）")
               + "\nWhale Alert 鏈上大額轉帳（入交易所可能準備賣、出交易所可能長揸；只係線索，可以喺 points 提）：\n" + walert_text())
-    res, model = gemini(key, prompt, MODELS_D)
+    res, model = ask(key, prompt, MODELS_D)
     pts = [x for x in res.get("points", []) if isinstance(x, str) and x.strip()][:6]
     if not pts:
         raise RuntimeError(f"回覆冇 points（{json.dumps(res, ensure_ascii=False)[:200]}）")
@@ -1116,10 +997,11 @@ def main():
     global OUTDIR
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "feeds_out"
     OUTDIR = out
-    key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not key:
-        print("[ai] 冇 GEMINI_API_KEY，跳過")
+    key = os.environ.get("GEMINI_API_KEY", "").strip()          # 只係保留舊介面；用邊個 AI 由 llm.py 決定
+    if not llm.available():
+        print("[ai] 冇任何 AI key（ANTHROPIC_API_KEY／GEMINI_API_KEY／GITHUB_TOKEN），跳過")
         return
+    llm.start(out)
     N = load(out / "news.json")
     E = load(out / "econ.json") or {}
     S = load(out / "serenity_recent.json")
@@ -1272,6 +1154,8 @@ def main():
         errs.append(f"商品分析：{str(e)[:300]}")
     if errs:
         N["ai_err"] = "；".join(errs)
+    N["ai_status"] = dict(llm.status(), at=now.isoformat(timespec="seconds"))
+    llm.finish(out)
     (out / "news.json").write_text(json.dumps(N, ensure_ascii=False), encoding="utf-8")
     if E:
         (out / "econ.json").write_text(json.dumps(E, ensure_ascii=False), encoding="utf-8")

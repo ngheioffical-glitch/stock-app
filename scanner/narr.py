@@ -130,4 +130,10 @@ def main(out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "out")
+    import llm                       # 2026-10-20：記低今日 Claude 用量（同一個 workflow 嘅步驟共用 out/ai_usage.json）
+    _out = sys.argv[1] if len(sys.argv) > 1 else "out"
+    llm.start(_out)
+    try:
+        main(_out)
+    finally:
+        llm.finish(_out)
