@@ -10,7 +10,7 @@
 | App | `docs/`（GitHub Pages） | 手機瀏覽器開，可以「加到主畫面」。讀 `scan.json`，按你自己嘅持倉計空位、掛單、止蝕、賣出提示 |
 | APK | `android/`、`.github/workflows/build-apk.yml` | Android 外殼，打開就係上面個網頁 app。喺 Releases 下載 |
 | 新聞同經濟數據 | `scanner/feeds.py`、`.github/workflows/feeds.yml` | 每 30 分鐘抓新聞（CNBC、Investing.com、MarketWatch、BBC、Al Jazeera、港台、聯儲局；排名股用 Yahoo 個股新聞）同美國經濟日曆（Nasdaq：實際、預測、上次），推去 `feeds` 分支（每次覆蓋）。App「新聞」分頁讀 `raw.githubusercontent.com` 上面嘅 `news.json`、`econ.json` |
-| AI 接駁層 | `scanner/llm.py` | 所有 AI 功能經呢度叫：預設 Claude Opus 5.5（effort high，`ANTHROPIC_API_KEY`），失敗或者超出每日預算先退 Gemini／GitHub Models，app 會標明「後備」。換 AI 改環境變數 `AI_PROVIDER`、`AI_MODEL`、`AI_EFFORT` |
+| AI 接駁層 | `scanner/llm.py` | 所有 AI 功能經呢度叫：而家預設 Gemini（`GEMINI_API_KEY`），唔會自動轉去其他供應商；轉 Claude Opus 5.5 就設 `AI_PROVIDER=claude`（要 `ANTHROPIC_API_KEY`，effort high，有每日預算）。個股研究一定要 Claude 起頭。用咗後備 app 會標明。GitHub Models 2026-07-30 停用，已拎走 |
 | 個股研究 | `scanner/research.py`、`.github/workflows/research.yml` | 一隻股票一份報告（`docs/research/`）：程式攞 Yahoo、SEC 數據 → Claude 上網搜尋 → 固定格式寫評級、情境假設、好淡理由 → 程式按公式計公允價值同星級 → Claude 寫結論。App「研究」分頁睇；成本同倉位只存手機 |
 
 持倉、交易紀錄只存喺手機（瀏覽器或者 APK 嘅 localStorage），唔會上傳。換手機、刪 app、清資料之前，喺「設定」複製備份。

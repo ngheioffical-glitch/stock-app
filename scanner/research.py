@@ -40,6 +40,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import llm  # noqa: E402
+import valuation as appval  # noqa: E402   # app 每日估值（同一條公式，2026-10-21 合併重複）
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get("RESEARCH_OUT") or ROOT / "docs" / "research")      # 測試可以改去 tmp
@@ -51,6 +52,7 @@ MAX_SEARCH = int(os.environ.get("RESEARCH_MAX_SEARCH", "8"))
 MAX_AGE = int(os.environ.get("RESEARCH_MAX_AGE_DAYS", "7"))
 PER_RUN = int(os.environ.get("RESEARCH_MAX_PER_RUN", "2"))
 MONTH_USD = float(os.environ.get("RESEARCH_MONTH_USD", "40"))          # 每月研究用量上限（美元）
+EST_USD = float(os.environ.get("RESEARCH_EST_USD", "1.5"))             # 每份估計費用：開始前「已用 + 估計 > 上限」就唔做（2026-10-21 Codex 改卷）
 MAX_TOKENS = int(os.environ.get("RESEARCH_MAX_TOKENS", "64000"))         # 分析 JSON 長、effort high 思考都計輸出；API 唔收就自動退返 32000
 UA_SEC = {"User-Agent": "stock-app research admin@stock-app.local"}     # SEC 要「名 + 電郵」格式；唔用用戶電郵
 EXCH = {"NMS": "那斯達克", "NGM": "那斯達克", "NCM": "那斯達克", "NAS": "那斯達克", "NYQ": "紐約證券交易所", "NYS": "紐約證券交易所",
@@ -181,6 +183,36 @@ def _dur(facts, tags, splits=None, adj=None):
     return out
 
 
+def _dur_hist(facts, tags, splits=None, adj=None):
+    """同 _dur，但保留每一次申報：{(開始, 結束): [(tag 次序, 申報日, 數)]}。計歷史市盈率用：每個月只用嗰日已經申報咗嘅數，
+    唔用之後重述嘅數（2026-10-21 Codex 改卷：之前用最新重述 + 季尾 45 日，含事後資訊）。冇申報日就當季尾 45 日後先知道。"""
+    g = ((facts or {}).get("facts") or {}).get("us-gaap") or {}
+    out = {}
+    for pri, tg in enumerate(tags):
+        for lst in (g.get(tg) or {}).get("units", {}).values():
+            for x in lst:
+                if "start" not in x or x.get("form", "")[:4] not in ("10-K", "10-Q", "20-F", "40-F"):
+                    continue
+                filed = x.get("filed") or (date.fromisoformat(x["end"]) + timedelta(days=45)).isoformat()
+                v = float(x["val"])
+                if adj and splits:
+                    f = split_factor(splits, filed)
+                    v = v / f if adj == "eps" else v * f
+                out.setdefault((x["start"], x["end"]), []).append((pri, filed, v))
+    return out
+
+
+def _asof(h, d):
+    """_dur_hist → d 嗰日已知嘅期間數：每個期間揀 d 或之前申報、tag 次序最前、最新嗰次。"""
+    ds, out = d.isoformat(), {}
+    for k, lst in h.items():
+        c = [x for x in lst if x[1] <= ds]
+        if c:
+            pri = min(x[0] for x in c)
+            out[k] = max((x for x in c if x[0] == pri), key=lambda x: x[1])[2]
+    return out
+
+
 def _annual(d):
     return {e: v for (s, e), v in d.items() if 350 <= _days(s, e) <= 380}
 
@@ -261,15 +293,15 @@ def sec_block(sym, splits, closes):
             ttm["end"] = e
     if ttm.get("cfo") is not None and ttm.get("capex") is not None:
         ttm["fcf"] = ttm["cfo"] - ttm["capex"]
-    # 過去 5 年市盈率（每月）：調整後股價 ÷ 過去 4 季 EPS（已按拆股調整；季尾 45 日後先當知道）
-    qe = _quarters(F["eps"])
+    # 過去 5 年市盈率（每月）：調整後股價 ÷ 過去 4 季 EPS（已按拆股調整；只用嗰日已經申報咗嘅數，唔用之後重述）
+    H = _dur_hist(facts, TAGS["eps"], splits, adj="eps")
     pes = []
-    if qe and closes:
+    if H and closes:
         days = [closes[-1][0]]
         while len(days) < 61:                            # 過去 60 個月尾 + 最近收市日
             days.append(date(days[-1].year, days[-1].month, 1) - timedelta(days=1))
         for d in reversed(days):
-            eps, _e = _ttm(qe, asof=d, avail=45)
+            eps, _e = _ttm(_quarters(_asof(H, d)))
             px = next((c for dd, c in reversed(closes) if dd <= d), None)
             if eps and eps > 0 and px:
                 pes.append((d.isoformat(), px / eps))
@@ -278,6 +310,36 @@ def sec_block(sym, splits, closes):
         v = sorted(x[1] for x in pes)
         pe_hist = dict(n=len(v), med=num(v[len(v) // 2], 1), lo=num(v[0], 1), hi=num(v[-1], 1), now=num(pes[-1][1], 1), since=pes[0][0])
     return dict(cik=cik, name=facts.get("entityName"), years=years, ttm=ttm, pe_hist=pe_hist)
+
+
+FEED_EARN = "https://raw.githubusercontent.com/{repo}/feeds/earnings.json"
+
+
+def earn_dates(sym, t, pdate):
+    """下次同上次業績日期，同 app「業績」分頁一樣：先讀 feeds 分支 earnings.json（earnings.py；只有持倉 + 排名頭 15，要 2 日內），
+    冇呢隻股或者過期，就用同一個方法（yfinance get_earnings_dates）自己查。都唔得返 (None, None)，由調用者用 Yahoo calendar。"""
+    nxt = None
+    try:
+        repo = os.environ.get("GITHUB_REPOSITORY") or "ngheioffical-glitch/stock-app"
+        e = json.loads(_get(FEED_EARN.format(repo=repo), {"User-Agent": "Mozilla/5.0"}, timeout=20, tries=2))
+        chk = datetime.fromisoformat(e["checked"])
+        if datetime.now(chk.tzinfo) - chk < timedelta(days=2) and sym in (e.get("syms") or []):
+            up = sorted(u["date"] for u in e.get("upcoming") or [] if u.get("sym") == sym and u["date"] >= pdate.isoformat())
+            nxt = date.fromisoformat(up[0]) if up else None
+    except Exception as ex:  # noqa: BLE001
+        print(f"[research] 讀唔到業績分頁數據（{str(ex)[:80]}），自己查")
+    last = None
+    try:
+        df = t.get_earnings_dates(limit=8)
+        if df is not None and not df.empty:
+            ds = sorted(ts.tz_convert(NYT).date() for ts in df.index)
+            past = [d for d in ds if d <= pdate]
+            fut = [d for d in ds if d > pdate]
+            last = past[-1] if past else None
+            nxt = nxt or (fut[0] if fut else None)
+    except Exception as ex:  # noqa: BLE001
+        print(f"[research] {sym} get_earnings_dates 失敗（{str(ex)[:80]}），用 Yahoo calendar")
+    return nxt, last
 
 
 def collect(sym):
@@ -333,11 +395,12 @@ def collect(sym):
         rdir = "上修" if r30 > 0.01 else "下修" if r30 < -0.01 else "持平"
         if rdir == "持平" and r90 is not None and abs(r90) > 0.03:
             rdir = "持平偏上修" if r90 > 0 else "持平偏下修"
-    edates = [d for d in (cal.get("Earnings Date") or []) if isinstance(d, date) and d >= pdate]
+    nxt_e, last_e = earn_dates(sym, t, pdate)            # 2026-10-21 合併重複：同「業績」分頁同一個來源
+    edates = [nxt_e] if nxt_e else [d for d in (cal.get("Earnings Date") or []) if isinstance(d, date) and d >= pdate]
     if not edates and i.get("earningsTimestamp"):
         d = datetime.fromtimestamp(i["earningsTimestamp"], NYT).date()
         edates = [d] if d >= pdate else []
-    last_earn = datetime.fromtimestamp(i["earningsTimestamp"], NYT).date() if i.get("earningsTimestamp") else None
+    last_earn = last_e or (datetime.fromtimestamp(i["earningsTimestamp"], NYT).date() if i.get("earningsTimestamp") else None)
     start = date(pdate.year - 2, 1, 1)
     ch = [(d, c) for d, c in closes if d >= start]
     S = sec_block(sym, splits, closes)
@@ -346,8 +409,18 @@ def collect(sym):
         val = json.loads((ROOT / "docs" / "valuation.json").read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         pass
-    vs = (val.get("stocks") or {}).get(sym) or {}
+    vs = dict((val.get("stocks") or {}).get(sym) or {})
     ndx = ((val.get("market") or {}).get("ndx") or {})
+    # 2026-10-21 合併重複：報告顯示同排名／持倉頁一樣嘅「每日估值」（Yahoo 預期市盈率 + PEG）。唔喺每日估值名單（只有排名同持倉）
+    # 就用同一條公式（valuation.stock_label）即場計，口徑一樣
+    if vs:
+        vs["src"], vs["at"] = "每日估值", val.get("generated")
+    else:
+        fpe_y, peg_y = i.get("forwardPE"), i.get("trailingPegRatio") or i.get("pegRatio")
+        lab, why = appval.stock_label(fpe_y, peg_y, ndx.get("pe"))
+        vs = dict(fpe=num(fpe_y, 1), tpe=num(i.get("trailingPE"), 1), peg=num(peg_y, 2), ps=num(i.get("priceToSalesTrailing12Months"), 1),
+                  label=lab, why=why, vs_ndx=num(fpe_y / ndx["pe"], 2) if fpe_y and fpe_y > 0 and ndx.get("pe") else None,
+                  src="即場計（同每日估值同一條公式）", at=pdate.isoformat())
     return dict(
         sym=sym, name=i.get("longName") or i.get("shortName") or sym, exchange=EXCH.get(i.get("exchange"), i.get("fullExchangeName") or ""),
         currency=i.get("currency") or "USD", sector=i.get("sector"), industry=i.get("industry"), country=i.get("country"),
@@ -712,7 +785,9 @@ def valuation(D, A):
     if not A or not A.get("scenarios"):
         return dict(ok=False, why="未有 AI 情境假設")
     eps0, how = D["ntm_eps"], D["ntm_how"]
-    if not eps0 or eps0 <= 0:
+    if eps0 is not None and eps0 <= 0:                   # 2026-10-21 Codex 改卷：分析師預測虧損 ≠ 冇預測，唔可以跳去用過去 EPS
+        return dict(ok=False, why=f"分析師預測未來 12 個月虧損（每股 {eps0:.2f}），用盈利計唔到公允價值")
+    if not eps0:
         if D["ttm_eps"] and D["ttm_eps"] > 0:
             eps0, how = D["ttm_eps"], "過去 12 個月 EPS（冇分析師預測）"
         else:
@@ -839,6 +914,7 @@ def assemble(D, src, A, V, W, peers, cmp_rows, old, labels, cost, sample=False):
                  gm=D["gm"], om=D["om"], pm=D["pm"], roe=D["roe"], cash=D["cash"], debt=D["debt"], dy=D["dy"], beta=D["beta"],
                  hi52=D["hi52"], lo52=D["lo52"], chg52=D["chg52"], ndx_pe=D["ndx_pe"], e0=D["e0"], e1=D["e1"], g0=D["g0"], g1=D["g1"],
                  rev0=D["rev0"], rev1=D["rev1"], rg0=D["rg0"], rg1=D["rg1"]),
+        app_val=D.get("app_val"),                         # 2026-10-21：同排名／持倉頁一樣嘅每日估值（Yahoo 預期市盈率、PEG → 偏平／偏貴）
         fin=(D.get("sec") or {}).get("years"), ttm=(D.get("sec") or {}).get("ttm"), pe_hist=(D.get("sec") or {}).get("pe_hist"),
         checks=checks(D, A or {}, scores) if A else [], writing=W, compare=dict(prev=(old or {}).get("research_date"), rows=cmp_rows),
         sources=src, disclaimer=DISCLAIMER,
@@ -901,6 +977,7 @@ def _manual(dirp, name, prompt):
 
 def build(sym, dry=False, manual=None, fresh=False):
     sym = sym.upper().strip().lstrip("$")
+    llm.ORDER = ["claude", "gemini"]     # 研究要 Claude 起頭（全個 app 預設 Gemini 都係，2026-10-21）；Claude 中途失敗先退 Gemini，標明後備
     t0, u0 = time.time(), len(llm.USAGE)
     old = None if fresh else load_report(sym)          # --fresh：當第一次研究（唔同上次比較、唔存舊檔）
     D = collect(sym)
@@ -992,16 +1069,23 @@ def main(argv):
         if not os.environ.get("ANTHROPIC_API_KEY", "").strip() and os.environ.get("RESEARCH_REQUIRE_CLAUDE", "1") == "1":
             print("[research] 冇 ANTHROPIC_API_KEY：研究報告要用 Claude 起頭（唔會成份用 Gemini 寫），今次唔做")
             return 0 if "--due" in argv else 1
-        if month_spent() >= MONTH_USD and not force:
-            print(f"[research] 本月研究用量 US${month_spent():.2f} 已到上限 US${MONTH_USD:g}（RESEARCH_MONTH_USD），停；--force 照做")
-            return 1
-    bad = 0
+    bad, done = 0, 0
     for s in syms:
+        # 2026-10-21 Codex 改卷：每份開始前都查上限（之前成批只查一次）；失敗嗰份已經用咗嘅錢都要記帳
+        if not (dry or manual or force) and month_spent() + EST_USD > MONTH_USD:
+            print(f"[research] 本月研究用量 US${month_spent():.2f} + 估計 US${EST_USD:g} 會超過上限 US${MONTH_USD:g}（RESEARCH_MONTH_USD），"
+                  f"{s} 起唔做；--force 照做")
+            return 1 if not done else 0
+        u0 = len(llm.USAGE)
         try:
             build(s, dry=dry, manual=manual, fresh=fresh)
+            done += 1
         except Exception as e:  # noqa: BLE001
             bad += 1
-            print(f"[research] {s} 失敗（舊報告保留）：{str(e)[:400]}")
+            lost = sum(u["usd"] for u in llm.USAGE[u0:])
+            if lost > 0:
+                write_index(add_cost=lost)
+            print(f"[research] {s} 失敗（舊報告保留；已用約 US${lost:.2f} 照記帳）：{str(e)[:400]}")
     return 1 if bad == len(syms) else 0
 
 

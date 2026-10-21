@@ -1,5 +1,5 @@
 """AI：新聞同 Serenity 推文翻譯做廣東話 + 「今日重點」總結（2026-09-30 用戶要求，方案 A：喺 GitHub 跑，key 唔會落 app）。
-2026-10-20 起經 scanner/llm.py 接駁層叫 AI：預設 Claude Opus 5.5（effort high），失敗或者超預算先退 Gemini／GitHub Models，標籤寫明「後備」。
+2026-10-20 起經 scanner/llm.py 接駁層叫 AI（2026-10-21 用戶「AI唔好轉住」：預設照用 Gemini，唔自動轉供應商；設 AI_PROVIDER=claude 先用 Claude Opus 5.5），用咗後備標籤寫明「後備」。
 
 喺 feeds.py 同 serenity.py recent 之後跑（每 5 分鐘），讀／寫 out/news.json、out/serenity_recent.json：
   - 翻譯：快訊／市場／經濟新聞標題加 "zh"；Serenity 推文加 "zh"。一有新嘢就即刻譯（用 Flash-Lite，獨立免費額度）；
@@ -7,7 +7,7 @@
   - 經濟數據：重要數據一公佈就 AI 解讀（加埋公佈後 QQQ／10 年債息／美元嘅實際反應，判斷係咪已經 price in），
     45 分鐘後（6 個鐘內）再解讀一次；寫入 econ.json 每行嘅 "ai"
   - 今日重點：news.json 加 "digest"，最少隔 GAP 分鐘（預設 28）先重新寫；有新嘅高影響快訊就即刻重寫；新聞冇變就沿用
-key 只由環境變數讀（ANTHROPIC_API_KEY、GEMINI_API_KEY、GITHUB_TOKEN，GitHub Secrets）；全部冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
+key 只由環境變數讀（ANTHROPIC_API_KEY、GEMINI_API_KEY，GitHub Secrets）；全部冇 key、額度用完或者出錯都只係跳過，唔影響新聞更新。
 用法：python scanner/ai.py out
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ models, pick = llm.gem_models, llm.gem_pick          # 舊名保留俾其他模�
 
 
 def ask(key, prompt, models_):
-    """叫 AI 要一個 JSON object（經 llm.py：預設 Claude Opus 5.5 high，失敗／超預算退 Gemini、GitHub Models，標籤寫明後備）。
+    """叫 AI 要一個 JSON object（經 llm.py：用邊個 AI 由 AI_PROVIDER 決定，預設 Gemini；用咗後備標籤寫明）。
     返 (dict, 型號標籤)；全部失敗 raise。key 參數只係保留舊介面。"""
     return llm.ask(prompt, gem_models=models_, timeout=ai_to(300))
 
@@ -1000,7 +1000,7 @@ def main():
     OUTDIR = out
     key = os.environ.get("GEMINI_API_KEY", "").strip()          # 只係保留舊介面；用邊個 AI 由 llm.py 決定
     if not llm.available():
-        print("[ai] 冇任何 AI key（ANTHROPIC_API_KEY／GEMINI_API_KEY／GITHUB_TOKEN），跳過")
+        print("[ai] 冇任何 AI key（ANTHROPIC_API_KEY／GEMINI_API_KEY），跳過")
         return
     llm.start(out)
     N = load(out / "news.json")

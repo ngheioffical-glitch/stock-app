@@ -8,10 +8,11 @@
       Claude 分兩步（先搜尋、再用另一個請求寫 JSON），因為佢嘅搜尋引用同固定 JSON 格式唔可以喺同一個請求。
   gather(prompt, max_search, timeout, first)    → (筆記, 來源清單, 標籤, 搜尋次數)：淨係上網搜尋同寫筆記，
       筆記每句後面標 [S#]（由 first 開始編號），俾研究報告（research.py）之後幾步用同一套來源編號。
-供應商次序：AI_PROVIDER（預設 claude）先，再試 AI_FALLBACK（預設 gemini,github）。用咗後備，標籤寫明「後備」同原因。
+供應商次序：AI_PROVIDER（2026-10-21 起預設 gemini，用戶「AI唔好轉住」）先，再試 AI_FALLBACK（預設冇，唔會自動轉去收費供應商）；
+  個別功能可以設 llm.ORDER（研究報告 = ["claude", "gemini"]）。用咗後備，標籤寫明「後備」同原因。timeout 係成個調用嘅總上限。
 Claude：key 只由環境變數 ANTHROPIC_API_KEY 讀（GitHub Secrets）；AI_MODEL 預設 claude-opus-5-5、AI_EFFORT 預設 high
-  （Opus 5.5 預設係 medium，所以一定要寫明）；開 server-side fallback（拒答時 Anthropic 自己轉後備型號）；全部用串流。
-Gemini：GEMINI_API_KEY；GitHub Models：GITHUB_TOKEN（workflow 要 permissions: models: read）。
+  （Opus 5.5 預設係 medium，所以一定要寫明）；開 server-side fallback（拒答時 Anthropic 自己轉後備型號，標籤會照實際型號寫）；全部用串流。
+Gemini：GEMINI_API_KEY。GitHub Models 2026-07-30 停用，已經拎走。
 用量：每次 Claude 請求記 token、搜尋次數同估計美元（USAGE）；AI_DAILY_BUDGET_USD（預設 20，香港時間每日計）用晒就唔再叫 Claude，
   退後備並標明。跨運行嘅累計要由調用者用 load_usage()／usage_record() 讀寫（ai.py 放喺 feeds 分支 ai_usage.json）。
 """
@@ -27,8 +28,11 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 HKT = ZoneInfo("Asia/Hong_Kong")
-PROVIDER = os.environ.get("AI_PROVIDER", "claude").strip().lower()
-FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "gemini,github").split(",") if x.strip()]
+# 2026-10-21 用戶：「AI唔好轉住」→ 預設照用 Gemini、唔自動轉去其他供應商（唔會靜靜雞用錢）；轉 Claude 就設 AI_PROVIDER=claude。
+# GitHub Models 2026-07-30 已經停用，拎走咗。
+PROVIDER = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
+FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "").split(",") if x.strip()]
+ORDER: list[str] | None = None   # 個別功能指定次序（例如研究報告要 Claude 起頭：research.py 設 ["claude", "gemini"]）
 MODEL = os.environ.get("AI_MODEL", "claude-opus-5-5").strip()
 EFFORT = os.environ.get("AI_EFFORT", "high").strip()
 MAX_SEARCH = int(os.environ.get("AI_MAX_SEARCH", "5"))
@@ -77,7 +81,12 @@ def _left(deadline, cap):
     return min(cap, left)
 
 
-def label_claude():
+def label_claude(msgs=None):
+    """型號標籤。Anthropic server-side fallback 自動轉咗型號，就照實際回覆嘅型號寫，標明後備（2026-10-21 Codex 改卷）。"""
+    used = sorted({str(getattr(m, "model", "") or "") for m in (msgs or [])} - {""})
+    other = [u for u in used if not u.startswith(MODEL)]
+    if other:
+        return "、".join(NAMES.get(u, u) for u in other) + f"（後備：Anthropic 自動由 {NAMES.get(MODEL, MODEL)} 轉型號）"
     return f"{NAMES.get(MODEL, MODEL)}（effort {EFFORT}）"
 
 
@@ -88,26 +97,30 @@ def spent_today():
 def available():
     """有冇任何一個供應商有 key（冇就成個 AI 步驟跳過）。"""
     return any((p == "claude" and os.environ.get("ANTHROPIC_API_KEY", "").strip()) or
-               (p == "gemini" and os.environ.get("GEMINI_API_KEY", "").strip()) or
-               (p == "github" and os.environ.get("GITHUB_TOKEN", "").strip()) for p in _order())
+               (p == "gemini" and os.environ.get("GEMINI_API_KEY", "").strip()) for p in _order())
 
 
 def _order():
+    if ORDER:
+        return list(ORDER)
     return [PROVIDER] + [p for p in FALLBACK if p != PROVIDER]
 
 
 def _why(err):
-    """後備原因（俾 app 顯示）。"""
+    """後備原因（俾 app 顯示）：寫明係邊個供應商出事（2026-10-21：之前一律寫 Claude）。"""
     e = str(err)
+    who = "Gemini" if e.startswith("gemini") else "Claude"
     if "預算" in e:
-        return "Claude 今日預算用晒"
+        return f"{who} 今日預算用晒"
     if "冇 ANTHROPIC_API_KEY" in e:
         return "未設定 Claude key"
+    if "冇 GEMINI_API_KEY" in e:
+        return "未設定 Gemini key"
     if "拒答" in e:
-        return "Claude 拒答"
-    if re.search(r"429|rate|overloaded|529", e, re.I):
-        return "Claude 繁忙／額度"
-    return "Claude 出錯"
+        return f"{who} 拒答"
+    if re.search(r"429|rate|overloaded|529|額度", e, re.I):
+        return f"{who} 繁忙／額度"
+    return f"{who} 出錯"
 
 
 # ---------------------------------------------------------------- 用量
@@ -253,7 +266,7 @@ def _claude_ask(prompt, timeout, schema=None, system=None, max_tokens=None, kind
         print(f"[llm] Claude 唔收呢個固定格式（{str(e)[:160]}），改用提示要求 JSON")
         msg = _claude_call([{"role": "user", "content": prompt + schema_hint(schema)}], system or JSON_SYS, timeout, kind,
                            max_tokens=max_tokens)
-    return _json(_text(msg)), label_claude()
+    return _json(_text(msg)), label_claude([msg])
 
 
 GATHER_SYS = ("你係財經研究員。用網上搜尋搵最新、可靠嘅資料（公司公告、財報、監管文件、主要財經媒體優先），"
@@ -280,7 +293,7 @@ def _claude_gather(prompt, timeout, max_search, first):
             refs = sorted({idx[c.url] for c in (getattr(b, "citations", None) or []) if getattr(c, "url", None) in idx})
             parts.append(b.text + "".join(f" [S{first + k}]" for k in refs))
     n_search = sum(u["search"] for u in USAGE[-len(got):])
-    return "".join(parts).strip(), src, f"{label_claude()}（上網搜尋 {n_search} 次）", n_search
+    return "".join(parts).strip(), src, f"{label_claude(got)}（上網搜尋 {n_search} 次）", n_search
 
 
 def _claude_search(prompt, timeout):
@@ -301,7 +314,7 @@ def _claude_search(prompt, timeout):
     m2 = _claude_call([{"role": "user", "content": prompt + JSON_ASK.format(day=DAY, find=find[:12000], src=srct)}],
                       JSON_SYS, _left(deadline, timeout), "json")
     tag = "、".join(s["title"] for s in src[:3] if s["title"]) or "冇列出來源"
-    return _json(_text(m2)), f"{label_claude()}（上網搜尋 {n_search} 次：{tag}）", grounded, src
+    return _json(_text(m2)), f"{label_claude(got + [m2])}（上網搜尋 {n_search} 次：{tag}）", grounded, src
 
 
 # ---------------------------------------------------------------- Gemini（後備；2026-10-20 前係主力，代碼由 ai.py 搬過嚟）
@@ -429,57 +442,36 @@ def _gemini_gather(prompt, timeout, first):
     raise RuntimeError(f"gemini：搜尋失敗（{last}）")
 
 
-# ---------------------------------------------------------------- GitHub Models（最後後備；冇上網）
-GH_API = "https://models.github.ai/inference/chat/completions"
-GH_MODELS = [m for m in (os.environ.get("GH_MODEL"), "openai/gpt-4.1-mini", "openai/gpt-4o-mini", "deepseek/deepseek-v3-0324") if m]
-
-
-def _github(prompt, timeout):
-    tok = os.environ.get("GITHUB_TOKEN", "").strip()
-    if not tok:
-        raise RuntimeError("github：冇 GITHUB_TOKEN")
-    deadline, errs = time.time() + timeout, []
-    for m in GH_MODELS:
-        for fmt in (True, False):                  # 先要求 JSON 格式；型號唔支援（400）就唔要
-            body = {"model": m, "temperature": 0.3,
-                    "messages": [{"role": "system", "content": JSON_SYS}, {"role": "user", "content": prompt}]}
-            if fmt:
-                body["response_format"] = {"type": "json_object"}
-            req = urllib.request.Request(GH_API, data=json.dumps(body).encode(), method="POST",
-                                         headers={"Content-Type": "application/json", "Accept": "application/json",
-                                                  "Authorization": f"Bearer {tok}", "X-GitHub-Api-Version": "2022-11-28"})
-            try:
-                with urllib.request.urlopen(req, timeout=_left(deadline, 120)) as r:
-                    d = json.loads(r.read())
-                return _json(d["choices"][0]["message"]["content"]), "github:" + m
-            except urllib.error.HTTPError as e:
-                errs.append(f"{m} {e.code}")
-                if e.code == 400 and fmt:
-                    continue
-                break
-            except Exception as e:  # noqa: BLE001
-                errs.append(f"{m} {type(e).__name__}")
-                break
-    raise RuntimeError("github：GitHub Models 失敗（" + "、".join(errs) + "）")
-
-
 # ---------------------------------------------------------------- 對外
+# 2026-10-21 Codex 改卷：timeout 係成個調用嘅總上限（之前每個供應商都由頭攞足，三個加埋可以超過 workflow 時限）
+MIN_LEFT = 15                    # 剩低少過呢個秒數就唔再試下一個供應商
+
+
+def _left_or_stop(deadline, p, timeout, errs):
+    left = deadline - time.time()
+    if left < MIN_LEFT:
+        errs.append(f"{p}：AI 時間用晒（總上限 {timeout:.0f} 秒）")
+        return None
+    return left
+
+
 def ask(prompt, gem_models=None, timeout=None, schema=None, system=None, max_tokens=None, kind="ask"):
     """要一個 JSON object。返 (dict, 型號標籤)；用咗後備，標籤會寫「後備：原因」。全部失敗 raise RuntimeError（訊息有齊每個供應商嘅錯）。
     schema：JSON Schema（Claude 用固定格式；後備寫入提示）。system：Claude 嘅 system 提示（預設淨係要求 JSON）。"""
     timeout = timeout or 300
-    errs = []
+    deadline, errs = time.time() + timeout, []
     other = prompt + schema_hint(schema) if schema else prompt
     if system:
         other = system + "\n\n" + other
     for p in _order():
+        left = _left_or_stop(deadline, p, timeout, errs)
+        if left is None:
+            break
         try:
             if p == "claude":
-                res, lab = _claude_ask(prompt, timeout, schema=schema, system=system, max_tokens=max_tokens, kind=kind)
+                res, lab = _claude_ask(prompt, left, schema=schema, system=system, max_tokens=max_tokens, kind=kind)
             elif p == "gemini":
-                res, lab = _gemini_ask(other, gem_models, timeout)
-            elif p == "github":
-                res, lab = _github(other, timeout)
+                res, lab = _gemini_ask(other, gem_models, left)
             else:
                 continue
             if errs:
@@ -495,15 +487,18 @@ def search(prompt, gem_models=None, timeout=None):
     """先上網搜尋再寫 JSON。返 (dict 或 None, 標籤, grounded, 來源)；grounded = 真係搜尋過而且有來源。
     全部有搜尋嘅供應商都失敗就回 (None, 原因, False, [])，由調用者決定要唔要用冇上網嘅 ask()。"""
     timeout = timeout or 420
-    errs = []
+    deadline, errs = time.time() + timeout, []
     for p in _order():
+        left = _left_or_stop(deadline, p, timeout, errs)
+        if left is None:
+            break
         try:
             if p == "claude":
-                res, lab, g, src = _claude_search(prompt, timeout)
+                res, lab, g, src = _claude_search(prompt, left)
             elif p == "gemini":
-                res, lab, g, src = _gemini_search(prompt, timeout)
+                res, lab, g, src = _gemini_search(prompt, left)
             else:
-                continue                                     # GitHub Models 冇上網搜尋
+                continue                                     # 其他供應商冇上網搜尋
             if errs:
                 lab += f"（後備：{_why(errs[0])}）"
             return res, lab, g, src
@@ -516,15 +511,18 @@ def gather(prompt, max_search=None, timeout=None, first=1):
     """淨係上網搜尋同寫筆記（研究報告第一步）。返 (筆記, 來源, 標籤, 搜尋次數)；筆記入面 [S#] 由 first 開始，
     對應來源清單次序。全部有搜尋嘅供應商都失敗就 raise RuntimeError。"""
     timeout, max_search = timeout or 480, max_search or MAX_SEARCH
-    errs = []
+    deadline, errs = time.time() + timeout, []
     for p in _order():
+        left = _left_or_stop(deadline, p, timeout, errs)
+        if left is None:
+            break
         try:
             if p == "claude":
-                notes, src, lab, n = _claude_gather(prompt, timeout, max_search, first)
+                notes, src, lab, n = _claude_gather(prompt, left, max_search, first)
             elif p == "gemini":
-                notes, src, lab, n = _gemini_gather(prompt, timeout, first)
+                notes, src, lab, n = _gemini_gather(prompt, left, first)
             else:
-                continue                                     # GitHub Models 冇上網搜尋
+                continue                                     # 其他供應商冇上網搜尋
             if errs:
                 lab += f"（後備：{_why(errs[0])}）"
             return notes, src, lab, n

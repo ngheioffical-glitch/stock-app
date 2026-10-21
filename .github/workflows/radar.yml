@@ -9,7 +9,6 @@ on:
     paths: [scanner/radar.py, scanner/meme.py, scanner/narr.py, scanner/theme.py, .github/workflows/radar.yml]
 permissions:
   contents: write
-  models: read
 concurrency:
   group: radar
   cancel-in-progress: false
@@ -33,7 +32,6 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: 前瞻敘事（穩定幣、各鏈、各類項目數據 + X + AI；AI 每日寫一次；失敗唔影響其他）
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/narr.json" -o out/narr.json || true
@@ -45,7 +43,6 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Meme 雷達（熱門池、安全檢查、熱度 × 安全排名、AI；失敗唔影響其他）
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/meme.json" -o out/meme.json || true
@@ -57,7 +54,6 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: 題材雷達（核能、稀土等題材 ETF 同成份股、新聞關鍵字、AI；失敗唔影響其他）
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/radar/theme.json" -o out/theme.json || true
@@ -70,7 +66,6 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: 推去 radar 分支
         working-directory: out
         run: |

@@ -15,7 +15,6 @@ on:
     paths: [.github/workflows/feeds.yml]
 permissions:
   contents: write
-  models: read            # GitHub Models：Claude、Gemini 都失敗時嘅 AI 最後後備（用內置 GITHUB_TOKEN）
 concurrency:              # 2026-10-20：Claude Opus high 慢過 Gemini，一次可以行十幾分鐘；唔好兩次同時行（重複畀錢）
   group: feeds
   cancel-in-progress: false
@@ -153,7 +152,6 @@ jobs:
           RELAY: ${{ github.event.inputs.relay }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FUT_ALERT: ${{ needs.guard.outputs.fut }}
           FUT_BUCKET: ${{ needs.guard.outputs.fut_b }}
           FUT_DAY: ${{ needs.guard.outputs.fut_d }}

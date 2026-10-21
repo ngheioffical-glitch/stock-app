@@ -126,10 +126,9 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(9,minmax(0,1fr));z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(8,minmax(0,1fr));z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-nav button{border:0;background:none;padding:9px 0 8px;font-size:10.5px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;white-space:nowrap;letter-spacing:-.02em}   /* 2026-10-20：加「研究」變 9 格，字細少少、格寬一樣（底部指示條先對得準） */
-nav button[data-tab="ser"]{font-size:9.5px;letter-spacing:-.05em}
+nav button{border:0;background:none;padding:9px 0 8px;font-size:10.5px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;white-space:nowrap;letter-spacing:-.02em}   /* 2026-10-20：加「研究」變 9 格，字細少少；2026-10-21 Serenity + Trump 合成「人物」，變返 8 格 */
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 nav button[aria-current="page"]{color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.5)}
 nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
@@ -219,7 +218,7 @@ details.card>summary::-webkit-details-marker{display:none}
 @keyframes fadein{from{opacity:.35}to{opacity:1}}
 button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
 button:active{transform:scale(.95)}
-nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 9);padding:0 4px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 8);padding:0 4px;pointer-events:none;transition:transform .42s var(--ease)}
 nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
   box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
 nav button{position:relative;z-index:1}
@@ -469,8 +468,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
   <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
   <button data-tab="crypto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5m0-8v8M11 6v1.5M11 16.5V18"/></svg>加密</button>
   <button data-tab="radar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg>雷達</button>
-  <button data-tab="ser"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>Serenity</button>
-  <button data-tab="trump"><svg viewBox="0 0 24 24"><path d="M3 10v4h4l6 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>Trump</button>
+  <button data-tab="ppl"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.3A4.5 4.5 0 0 1 21 18.5"/></svg>人物</button>
 </nav>
 
 <script>
@@ -502,6 +500,7 @@ const mdl = m => !m ? "" : /後備/.test(m)
   ? `<span class="tag t-stop" title="Claude 今次用唔到，用咗後備 AI">⚠ ${esc(String(m).replace(/^github:/, "GitHub · "))}</span>`
   : `<span class="tag t-dim" title="用咗呢個 AI 型號">${esc(String(m).replace(/^github:/, "GitHub · "))}</span>`;
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const safeUrl = u => { const s = String(u ?? "").trim(); return /^https?:\/\//i.test(s) ? s : "#"; };   // 2026-10-21 Codex 改卷：外部連結只准 http／https（防 javascript: 之類）
 const f2 = x => (x == null || !isFinite(x)) ? "—" : Number(x).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
 const f0 = x => (x == null || !isFinite(x)) ? "—" : Math.round(x).toLocaleString("en-US");
 const pct = (x, d=1) => (x == null || !isFinite(x)) ? "—" : (x >= 0 ? "+" : "") + (x*100).toFixed(d) + "%";
@@ -738,7 +737,7 @@ function radarCard(){
         <p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>${a.grounded === false ? `<p class="dn">今次冇上網查證（搜尋失敗或者冇搵到來源），可能過時，24 小時內會再試。</p>` : ""}
         <p class="muted">${esc(String(a.src || "").slice(0, 120))} · ${esc(String(a.at || "").slice(5, 16).replace("T", " "))} UTC</p></div>`
       : `<p class="small muted">AI 分析排緊隊（每日 2 次做 4 個）。</p>`;
-    const xh = xs.length ? `<div class="small"><b>X 研究人士提到：</b>${xs.map(t => `<p style="margin:3px 0"><a href="${esc(t.url)}" target="_blank" rel="noopener">@${esc(t.user)}</a>（${esc(t.name)}）：${esc(t.text.slice(0, 220))}</p>`).join("")}</div>` : "";
+    const xh = xs.length ? `<div class="small"><b>X 研究人士提到：</b>${xs.map(t => `<p style="margin:3px 0"><a href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener">@${esc(t.user)}</a>（${esc(t.name)}）：${esc(t.text.slice(0, 220))}</p>`).join("")}</div>` : "";
     return `<details class="exp" style="padding:6px 0;border-bottom:1px solid var(--line)">${head}${body}${xh}</details>`;
   };
   const tabs = [["growth", "收入增長"], ["big", "收入最大"], ["notoken", "未發幣"], ["new", "新上榜"], ["hot", "熱門"], ["unlock", "解鎖"]];
@@ -855,8 +854,8 @@ function memeCard(){
           ${a.outlook ? `<p><b>前景：</b>${esc(a.outlook)}</p>` : ""}${a.rug ? `<p><b>捲款走跡象：</b>${esc(a.rug)}</p>` : ""}
           ${(a.risks || []).length ? `<p><b>風險</b></p>${ul(a.risks)}` : ""}<p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>
           ${a.grounded === false ? `<p class="dn">今次冇上網查證，可能過時。</p>` : ""}` : `<p class="muted">AI 分析排緊隊（每日 2 次做 5 隻）。</p>`}
-        ${(r.x || []).map(t => `<p style="margin:3px 0"><a href="${esc(t.url)}" target="_blank" rel="noopener">@${esc(t.user)}</a>：${esc(t.text.slice(0, 200))}</p>`).join("")}
-        <p><a href="${esc(r.url)}" target="_blank" rel="noopener">睇圖表（${esc(r.src)}）</a></p>
+        ${(r.x || []).map(t => `<p style="margin:3px 0"><a href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener">@${esc(t.user)}</a>：${esc(t.text.slice(0, 200))}</p>`).join("")}
+        <p><a href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener">睇圖表（${esc(r.src)}）</a></p>
       </div></details>`;
   };
   return light + `<div class="card"><div class="lbl"><span class="tag t-dim">研究排名，唔係買入排名</span></div>
@@ -886,7 +885,7 @@ function themeCard(){
     const head = `<summary><b>${esc(r.name)}</b> ${r.boom ? `<span class="tag t-stop">爆發</span>` : ""}<span class="tag t-dim">熱度 ${r.heat}</span>${r.nnews ? ` <span class="tag t-cyan">新聞 ${r.nnews}</span>` : ""}${a ? " " + stageTag(a.stage) : ""}
         <span class="ind">${esc(e.sym)} · 5 日 ${chg(e.r5, 0)} · 21 日 ${chg(e.r21, 0)} · 63 日 ${chg(e.r63, 0)} · 距 52 週高 ${pct(e.hi, 0)} · 成交 ${e.vs ? e.vs.toFixed(1) : "—"} 倍${r.big5 ? ` · ${r.big5} 隻股 5 日 ≥ +15%` : ""}</span></summary>`;
     const mem = (r.mem || []).length ? `<div class="tablewrap"><table><tr><th>股票</th><th class="r">5 日</th><th class="r">21 日</th><th class="r">距高位</th></tr>${r.mem.map(m => `<tr><td class="mono"><b>${esc(m.sym)}</b>${m.up50 ? "" : `<span class="ind dn">低過 50 日線</span>`}</td><td class="r mono">${chg(m.r5, 0)}</td><td class="r mono">${chg(m.r21, 0)}</td><td class="r mono">${pct(m.hi, 0)}</td></tr>`).join("")}</table></div>` : "";
-    const nw = (r.news || []).length ? `<p style="margin:6px 0 2px"><b>相關新聞（近 48 小時）</b></p>${r.news.map(h => `<p style="margin:2px 0">${h.link ? `<a href="${esc(h.link)}" target="_blank" rel="noopener">${esc(h.title)}</a>` : esc(h.title)} <span class="muted">${esc(h.src || "")} · ${ago(h.t)}</span></p>`).join("")}` : "";
+    const nw = (r.news || []).length ? `<p style="margin:6px 0 2px"><b>相關新聞（近 48 小時）</b></p>${r.news.map(h => `<p style="margin:2px 0">${h.link ? `<a href="${esc(safeUrl(h.link))}" target="_blank" rel="noopener">${esc(h.title)}</a>` : esc(h.title)} <span class="muted">${esc(h.src || "")} · ${ago(h.t)}</span></p>`).join("")}` : "";
     const ai = a ? `<div style="margin:4px 0">${a.why ? `<p><b>點解郁：</b>${esc(a.why)}</p>` : ""}${a.driver ? `<p><b>推動力：</b>${esc(a.driver)}</p>` : ""}
         ${(a.leaders || []).length ? `<p><b>領頭股</b></p>${ul(a.leaders)}` : ""}${a.next ? `<p><b>之後留意：</b>${esc(a.next)}</p>` : ""}${a.how ? `<p><b>點參與：</b>${esc(a.how)}</p>` : ""}
         ${(a.risks || []).length ? `<p><b>風險</b></p>${ul(a.risks)}` : ""}<p><b>AI 判斷：</b>${vtag(a.verdict)} ${esc(a.reason || "")}</p>
@@ -922,13 +921,13 @@ function walertCard(){
     ${net.length ? `<div class="tablewrap"><table><tr><th>24 小時</th><th class="r">入交易所</th><th class="r">出交易所</th><th class="r">淨流入</th></tr>${net.map(([k, v]) => `<tr><td><b>${esc(k)}</b><span class="ind">${v.n} 筆${v.mint ? ` · 印發淨 ${m(v.mint)}` : ""}</span></td>
       <td class="r mono">$${(v.in / 1e6).toFixed(0)}M</td><td class="r mono">$${(v.out / 1e6).toFixed(0)}M</td><td class="r mono ${v.net > 0 ? "dn" : v.net < 0 ? "up" : ""}">${m(v.net)}</td></tr>`).join("")}</table></div>` : ""}
     ${W.items.slice(0, 12).map(x => `<div class="news"><div><span class="tag ${kc(x.kind)}">${esc(x.kind)}</span> <b class="mono">${esc(x.amt)} ${esc(x.sym)}</b> <span class="small muted">（$${(x.usd / 1e6).toFixed(0)}M）</span></div>
-      <div class="meta"><span>${esc(x.frm || "")}${x.frm || x.to ? " → " : ""}${esc(x.to || "")}</span><span>${ago(new Date(x.ts * 1000).toISOString())}</span>${x.link ? `<a href="${esc(x.link)}" target="_blank" rel="noopener">詳情</a>` : ""}</div></div>`).join("")}
+      <div class="meta"><span>${esc(x.frm || "")}${x.frm || x.to ? " → " : ""}${esc(x.to || "")}</span><span>${ago(new Date(x.ts * 1000).toISOString())}</span>${x.link ? `<a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">詳情</a>` : ""}</div></div>`).join("")}
     <p class="small muted">Whale Alert 官方 X（大約 1,000 萬美元以上），每 15–30 分鐘更新。紅「入交易所」= 可能準備賣；綠「出交易所」= 可能長揸；穩定幣淨流入交易所 = 有新錢準備買。<b>只係線索，唔係買賣訊號</b>：轉入交易所可能只係內部調動或者託管，錢包身份多數唔知；你嘅 BTC 100 日線規則唔會因此改變。想知錢包係邊個，可以自己用 Arkham 查（要註冊）。</p></div>`;
 }
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
   if (!L.length) return "";
-  return `<div class="card" style="gap:0"><div class="lbl" style="margin-bottom:4px">加密快訊</div>${L.map(x => `<div class="news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
+  return `<div class="card" style="gap:0"><div class="lbl" style="margin-bottom:4px">加密快訊</div>${L.map(x => `<div class="news"><a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
       <div class="meta"><span>${esc(x.src)}</span><span>${ago(x.t)}</span>${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`).join("")}
     <p class="small muted">CoinDesk、Cointelegraph、Decrypt、The Block，每 5 分鐘更新；新聞頁「加密」分類有更多。</p></div>`;
 }
@@ -1234,14 +1233,19 @@ function openTr(sym){
   if (TRSYM) fetchTrAll();
   render("r"); window.scrollTo(0, 0);
 }
-const trPost = (t, cand, skip) => `<div class="news"><a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
+const trPost = (t, cand, skip) => `<div class="news"><a href="${esc(safeUrl(t.url))}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
   <div class="meta">${t.kind ? `<span class="tag ${t.kind === "講 BUY" ? "t-stop" : "t-warn"}">${esc(t.kind)}</span>` : ""}${(t.syms || []).filter(s => s !== skip).map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-trsym="${s}" role="button">${s}</span>`).join("")}<span>${hkDate(t.ts)}</span>${t.zm ? `<span class="zm">譯：${esc(String(t.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`;
+// 2026-10-21 用戶批合併重複：底部 Serenity、Trump 兩格合成「人物」一格（入面用掣揀）；內部照用 TAB "ser"／"trump"，舊連結（撳股票睇 Serenity／Trump）照用得
+const PPL = ["ser", "trump"];
+const pplTab = () => { try { const t = localStorage.getItem(KEY + "-ppl"); return PPL.includes(t) ? t : "ser"; } catch(e){ return "ser"; } };
+const navOf = t => PPL.includes(t) ? "ppl" : t;
+const pplSwitch = () => `<div class="chips">${[["ser", "Serenity"], ["trump", "Trump"]].map(([k, l]) => `<button data-ppl="${k}" aria-pressed="${TAB === k}">${l}</button>`).join("")}</div>`;
 function viewSer(){
-  return topbar() + `<div class="row spread"><h2>Serenity · X @aleabitoreddit</h2><button id="serReload" class="small">重新整理</button></div>` + viewSerList();
+  return topbar() + pplSwitch() + `<div class="row spread"><h2>Serenity · X @aleabitoreddit</h2><button id="serReload" class="small">重新整理</button></div>` + viewSerList();
 }
 function viewTrump(){
   const errs = (TR && TR.errs) || [];
-  return topbar() + `<div class="row spread"><h2>Trump · Truth Social</h2><button id="trReload" class="small">重新整理</button></div>`
+  return topbar() + pplSwitch() + `<div class="row spread"><h2>Trump · Truth Social</h2><button id="trReload" class="small">重新整理</button></div>`
     + (errs.length ? `<p class="small muted">部分來源出錯，已用後備：${esc(errs.join("；"))}</p>` : "") + viewTrList();
 }
 function viewTrList(){
@@ -2021,7 +2025,7 @@ function fedDoc(f, open){
     <span class="small muted">· ${esc(parts(HK, new Date(f.t)).date)}</span></summary>
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${f.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
     ${f.change ? `<p class="small"><b>同上次比：</b>${esc(f.change)}</p>` : ""}${f.impact ? `<p class="small"><b>對市場：</b>${esc(f.impact)}</p>` : ""}
-    <p class="small muted"><a href="${esc(f.link)}" target="_blank" rel="noopener">聯儲局原文</a> · AI 總結（${esc(f.model || "AI")}），可能有錯漏</p></details>`;
+    <p class="small muted"><a href="${esc(safeUrl(f.link))}" target="_blank" rel="noopener">聯儲局原文</a> · AI 總結（${esc(f.model || "AI")}），可能有錯漏</p></details>`;
 }
 function fedCard(){
   const F = (FEED.news && FEED.news.fed) || [];
@@ -2087,7 +2091,7 @@ function viewNewsList(){
   let h = `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>`;
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (list.length ? list.map(x => {
     const syms = NCAT === "買入訊號股" ? N.filter(y => y.title === x.title && y.sym && mine.has(y.sym)).map(y => y.sym) : [];
-    return `<div class="news"><a href="${esc(x.link)}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
+    return `<div class="news"><a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
       <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}${x.imp >= 3 ? `<span class="tag t-stop">高影響</span>` : x.imp === 2 ? `<span class="tag t-warn">中影響</span>` : ""}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`;
   }).join("") : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
   return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。快訊來自 ForexFactory（影響評級係 FF 嘅）。</p>`;
@@ -2155,12 +2159,25 @@ function viewNews(){
 // ───────────────────────── 個股研究（2026-10-20 用戶：想個 app 好似影片嗰個 AI 研究 app、「想複製佢個界面」）
 // scanner/research.py → docs/research/index.json（清單）+ docs/research/<SYM>.json（報告）。數字（公允價值、情境、星級）程式計，
 // 評級同文字 AI 寫（預設 Claude Opus 5.5 high）；成本、倉位只存呢部手機（localStorage "res-pos"），唔會上傳
-let RS = {index: null, err: null, cache: {}, sym: null, msg: "", r: null};
+let RS = {index: null, err: null, loaded: false, busy: false, cache: {}, sym: null, msg: "", r: null};
 const resUrl = f => S.dataUrl.replace(/scan\.json(\?.*)?$/, "research/" + f);
+// 2026-10-21 Codex 改卷：之前 404 時 index 同 err 都係空，viewRes 每次畫都再讀 → 讀完又畫 → 無限循環（測到 201 次請求）。
+// 而家：404 = 冇報告（空清單）；讀緊就唔再讀；讀過一次（成唔成功）就唔會自動再讀，要撳「重新整理」
 async function fetchResIndex(){
-  try { const r = await fetch(resUrl("index.json") + "?t=" + Date.now(), {cache: "no-store"});
-    if (r.ok){ RS.index = await r.json(); RS.err = null; } else RS.err = r.status === 404 ? null : "HTTP " + r.status; }
-  catch(e){ RS.err = e.message; }
+  if (RS.busy) return;
+  RS.busy = true;
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const r = await fetch(resUrl("index.json") + "?t=" + Date.now(), {cache: "no-store", signal: ctl.signal});
+    if (r.status === 404){ if (!RS.index) RS.index = {items: []}; RS.err = null; }
+    else {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      if (!d || !Array.isArray(d.items)) throw new Error("研究清單格式錯誤");
+      RS.index = d; RS.err = null;
+    }
+  } catch(e){ RS.err = e.name === "AbortError" ? "讀取逾時，請撳重新整理" : e.message; }
+  finally { clearTimeout(timer); RS.loaded = true; RS.busy = false; }
   if (["res", "rank", "model"].includes(TAB)) render();
 }
 const resItem = sym => RS.index && (RS.index.items || []).find(x => x.sym === sym && !x.dry);
@@ -2341,7 +2358,7 @@ function rsSum(r){
       <div><span>資本配置</span><b>${esc(R0.capital || "—")}</b></div>
     </div>
     ${th ? `<div class="rs-th"><span class="l">題材</span>${th}<button class="rs-chipbtn" data-sheet="themes">相關性說明 ›</button></div>` : ""}
-    <p class="rs-meta">第 ${r.n || 1} 次研究${r.prev_date ? ` · 上次研究 ${zhDate(r.prev_date)}` : ""}${r.next_check && (r.next_check.text || r.next_check.date) ? ` · 下次檢查：${esc(r.next_check.text || "業績")}${r.next_check.date ? `（預計 ${esc(r.next_check.date)}）` : ""}` : ""}</p>
+    <p class="rs-meta">第 ${r.n || 1} 次研究${r.prev_date ? ` · 上次研究 ${zhDate(r.prev_date)}` : ""}${r.next_check && (r.next_check.text || r.next_check.date) ? ` · 下次檢查：${esc(r.next_check.text || "業績")}${rsNextEarn(r) ? `（預計 ${esc(rsNextEarn(r))}）` : ""}` : ""}</p>
     ${W.verdict_plain ? `<h3 class="rs-h" style="margin-top:26px">30 秒判讀</h3><p class="rs-by">撰寫：${esc(rsWho((r.models || {}).writing))} · ${esc(r.research_date)} ${/後備/.test((r.models || {}).writing || "") ? mdl(r.models.writing) : ""}</p>
     <div class="rs-card rs-plain"><span class="bh">白話</span>${rsT(W.verdict_plain)}${W.verdict_detail ? `<details class="rs-more"><summary>看懂呢一節</summary><p>${rsT(W.verdict_detail)}</p></details>` : ""}</div>
     <div class="rs-row2"><button class="rs-pillbtn" id="rsAllPlain">展開全部白話</button>${(r.glossary || []).length ? `<button class="rs-pillbtn" data-sheet="gloss">名詞表（${r.glossary.length}）</button>` : ""}</div>` : ""}
@@ -2431,12 +2448,21 @@ function rsBiz(r){
   </section>`;
 }
 
+// 2026-10-21 合併重複：app 每日估值（scanner/valuation.py：Yahoo 預期市盈率 + PEG → 偏平／偏貴，排名、持倉頁都係用佢）同研究嘅公允價值並排。
+// 今日有每日估值就用今日（同排名頁一樣），冇就用報告嗰日即場計嘅（research.py 用同一條公式）
+// 下次業績：「業績」分頁有呢隻股就用佢（最新、同一個來源），冇先用報告嗰日查到嘅
+const rsNextEarn = r => { const u = earnNext(r.sym); return u ? `${u.date} ${u.when || ""}`.trim() : (r.next_check && r.next_check.date) || ""; };
+const rsAppVal = r => { const v = valOf(r.sym) || r.app_val; if (!v) return "";
+  return `<tr><td>每日估值（同排名、持倉頁一樣）</td><td class="n">${v.fpe > 0 ? `預期市盈率 ${v.fpe} 倍（Yahoo）` : "冇正數預期盈利"}${v.peg ? ` · PEG ${v.peg}` : ""} →
+    <b class="${VALC[v.label] || ""}">${esc(v.label || "—")}</b>${v.why ? `<br><small class="muted">${esc(v.why)}</small>` : ""}</td></tr>
+    <tr><td colspan="2"><small class="muted">兩個估值唔同計法：每日估值淨係用市盈率／PEG 睇貴唔貴；公允價值係按三個盈利情境計 10 年後價值再折返今日。結論可以唔一樣。</small></td></tr>`; };
 function rsVal(r){
   const V = r.valuation || {}, W = r.writing || {}, K = r.key || {}, PH = r.pe_hist, st = r.street || {};
-  if (!V.ok) return `<section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3><div class="rs-card"><b>未能估值</b><p class="rs-meta">${esc(V.why || "")}</p></div></section>`;
+  if (!V.ok) return `<section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3><div class="rs-card"><b>未能估值</b><p class="rs-meta">${esc(V.why || "")}</p></div>
+    ${rsAppVal(r) ? `<div class="rs-card"><div class="rs-tw"><table class="rs-tbl">${rsAppVal(r)}</table></div></div>` : ""}</section>`;
   const nm = {bear: "悲觀", base: "基本", bull: "樂觀"};
   return `<section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3><p class="rs-by">數字由程式按公式計；AI 只俾情境假設</p>
-    <div class="rs-card"><div class="rs-hrow"><span class="rs-by">Claude 公允價值</span><span class="rs-by">不確定性：${esc(V.uncertainty)}</span></div>
+    <div class="rs-card"><div class="rs-hrow"><span class="rs-by">Claude 公允價值（盈利／股息情境估值）</span><span class="rs-by">不確定性：${esc(V.uncertainty)}</span></div>
       <p style="font-family:var(--mono);font-size:32px;font-weight:800;color:var(--rteal);line-height:1.2">${f2(V.fv)} <span style="font-size:15px;color:var(--rt)">${stars5(V.stars)}</span></p>
       <p class="rs-meta" style="margin-top:2px">現價 ${f2(r.price)} 係公允價值嘅 ${pc0(V.p_fv)}；10 年後（機率加權）${f2(V.p10w)}，每年約 ${pc1(V.cagr10)}（未計股息）</p></div>
     ${W.valuation_plain ? `<div class="rs-card rs-plain"><span class="bh">白話</span>${rsT(W.valuation_plain)}</div>` : ""}
@@ -2451,7 +2477,8 @@ function rsVal(r){
       <p>星級（${esc(V.uncertainty)}不確定性）：${V.bands.map(b => b.max == null ? `${b.stars} 星 > ${f2(V.bands[3].max)}` : `${b.stars} 星 ≤ ${f2(b.max)}`).join("、")}。不確定性越高，要越大安全邊際（參考晨星公開方法，唔係晨星評級）。</p></details>
     <h4 class="rs-h3">對照</h4><div class="rs-card"><div class="rs-tw"><table class="rs-tbl">
       <tr><td>華爾街目標價 ${rsSrcs(["S2"])}</td><td class="n">平均 ${f2(st.mean)}（${f2(st.low)}–${f2(st.high)}，${st.n || "—"} 位）</td></tr>
-      <tr><td>市盈率（未來 12 個月）</td><td class="n">${K.fpe ?? "—"} 倍；Nasdaq 100 ${K.ndx_pe ?? "—"} 倍 ${rsSrcs(["S4"])}</td></tr>
+      <tr><td>市盈率（研究計：現價 ÷ 未來 12 個月 EPS）</td><td class="n">${K.fpe ?? "—"} 倍；Nasdaq 100 ${K.ndx_pe ?? "—"} 倍 ${rsSrcs(["S4"])}</td></tr>
+      ${rsAppVal(r)}
       ${PH ? `<tr><td>過去 5 年市盈率 ${rsSrcs(["S1", "S3"])}</td><td class="n">中位數 ${PH.med}（${PH.lo}–${PH.hi}）；而家 ${PH.now}</td></tr>` : ""}
       <tr><td>PEG／市銷率</td><td class="n">${K.peg ?? "—"}／${K.ps ?? "—"} 倍</td></tr></table></div></div>
   </section>`;
@@ -2491,7 +2518,7 @@ function rsPeer(r){
 function rsSrc(r){
   const host = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return ""; } };
   return `<section class="rs-sec" id="rs-src" data-sec="src"><h3 class="rs-h">來源</h3><p class="rs-by">S1–S4 係程式攞嘅數據；S5 起係 AI 上網搜尋搵到、真係有引用嘅網頁</p>
-    <div class="rs-card" style="padding-top:4px;padding-bottom:4px">${(r.sources || []).map(s => `<div class="rs-src" id="rs-${esc(s.id)}"><b>${esc(s.id)}</b><span><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a><br><small>${esc(host(s.url))}${s.age ? " · " + esc(s.age) : ""}</small></span></div>`).join("")}</div>
+    <div class="rs-card" style="padding-top:4px;padding-bottom:4px">${(r.sources || []).map(s => `<div class="rs-src" id="rs-${esc(s.id)}"><b>${esc(s.id)}</b><span><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.title || s.url)}</a><br><small>${esc(host(s.url))}${s.age ? " · " + esc(s.age) : ""}</small></span></div>`).join("")}</div>
     <p class="rs-foot">${esc(r.disclaimer || "")}</p>
     <p class="rs-foot">搜尋：${esc((r.models || {}).gather || "—")}；分析：${esc((r.models || {}).analysis || "—")}；寫作：${esc((r.models || {}).writing || "—")}${Object.values(r.models || {}).some(m => /後備/.test(m)) ? ` <span class="rs-flag">⚠ 有部分用咗後備 AI</span>` : ""}</p>
     <p class="rs-foot">生成：${esc(r.generated || "")}${r.cost_usd ? ` · AI 用量約 US$${Number(r.cost_usd).toFixed(2)}` : ""}</p>
@@ -2557,7 +2584,7 @@ function resBind(r){
     const t = e.target;
     const go = t.closest("[data-go]"); if (go){ rsGo(go.dataset.go); return; }
     const c = t.closest(".rs-cite"); if (c){ const s = RS.src.find(x => x.id === c.dataset.src);
-      rsSheet(s ? `<h4>${esc(s.id)}</h4><p>${esc(s.title)}</p><p><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a></p>${s.age ? `<p style="color:var(--muted)">${esc(s.age)}</p>` : ""}` : `<p>搵唔到來源 ${esc(c.dataset.src)}</p>`); return; }
+      rsSheet(s ? `<h4>${esc(s.id)}</h4><p>${esc(s.title)}</p><p><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.url)}</a></p>${s.age ? `<p style="color:var(--muted)">${esc(s.age)}</p>` : ""}` : `<p>搵唔到來源 ${esc(c.dataset.src)}</p>`); return; }
     const g = t.closest(".rs-gl"); if (g){ const x = RS.gl[+g.dataset.gl]; if (x) rsSheet(`<h4>${esc(x.term)}</h4><p>${esc(x.define)}</p><button data-close>知道</button>`); return; }
     const sh = t.closest("[data-sheet]"); if (sh){ rsSheet(rsSheetFor(sh.dataset.sheet, r)); return; }
     const ev = t.closest("[data-ev]"); if (ev){ const x = ((r.chart || {}).events || [])[+ev.dataset.ev];
@@ -2578,13 +2605,13 @@ function rsGo(k){ const el = $("#rs"), s = el.querySelector("#rs-" + k); if (s) 
 
 // 研究分頁：報告清單 + 叫雲端生成
 function viewRes(){
-  if (!RS.index && !RS.err) fetchResIndex();
+  if (!RS.loaded && !RS.busy) fetchResIndex();
   const items = ((RS.index && RS.index.items) || []).filter(x => !x.dry);
   const u = RS.index && RS.index.usage, mon = new Date().toISOString().slice(0, 7), spent = u ? (u[mon] || 0) : 0;
   let h = topbar() + `<div class="row spread"><h2>AI 個股研究</h2><button id="resReload" class="small">重新整理</button></div>
-    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ Claude Opus 5.5 上網搜尋 → 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
+    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ Claude Opus 5.5 上網搜尋 → 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
   if (RS.err) h += `<div class="alert small">讀唔到研究清單：${esc(RS.err)}</div>`;
-  if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
+  if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : RS.err ? "暫時讀唔到清單，請撳重新整理。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
   h += items.map(it => `<div class="card rsl" data-ressym="${esc(it.sym)}" role="button">${rsLogo(it.sym, 44)}
       <div class="m"><b class="mono">${esc(it.sym)}</b><span class="z">${esc(it.name_zh || it.name || "")}</span>${it.sample ? ` <span class="tag t-warn">樣本</span>` : ""}
         <p>${esc(it.one_liner || "")}</p><p>研究日 ${esc(it.date || "")}${it.moat ? ` · 護城河 ${esc(it.moat)}` : ""}${it.uncertainty ? ` · 不確定性 ${esc(it.uncertainty)}` : ""}</p></div>
@@ -2595,13 +2622,14 @@ function viewRes(){
   return h;
 }
 
-const ORDER = ["today", "model", "rank", "res", "news", "crypto", "radar", "ser", "trump"];     // 設定唔喺底部導航（頂部齒輪）
+const ORDER = ["today", "model", "rank", "res", "news", "crypto", "radar", "ppl"];     // 設定唔喺底部導航（頂部齒輪）；"ppl" = 人物（Serenity／Trump）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
   app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
-  document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === TAB ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
-  const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(TAB); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
+  if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
+  document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === navOf(TAB) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
+  const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(navOf(TAB)); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
     [...app.children].slice(0, 12).forEach((el, i) => { el.style.setProperty("--i", i); el.style.setProperty("--dx", anim === "r" ? "26px" : "-26px"); el.classList.add("rise"); });
   } else if (anim === "f"){
@@ -2626,6 +2654,7 @@ function bind(){
   document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
+  document.querySelectorAll("[data-ppl]").forEach(b => b.onclick = () => { if (b.dataset.ppl === TAB) return; TAB = b.dataset.ppl; try { localStorage.setItem(KEY + "-tab", TAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   on("#radarRun", () => radarRun());
   on("#janDone", () => { try { localStorage.setItem("jan-done", String(new Date().getFullYear())); } catch(e){} render(); });
   on("#radarReload", () => { RADAR_MSG = ""; fetchRadarAll(); });
@@ -2665,9 +2694,10 @@ function bind(){
 
 let LASTTAB = null;
 function go(tab){
+  if (tab === "ppl") tab = PPL.includes(TAB) ? TAB : pplTab();      // 撳「人物」：返去上次睇嘅 Serenity 或者 Trump
   if (tab === TAB){ window.scrollTo({top:0, behavior:"smooth"}); return; }
   if (tab === "set") LASTTAB = TAB;
-  const dir = tab === "set" ? "r" : (TAB === "set" ? "l" : (ORDER.indexOf(tab) > ORDER.indexOf(TAB) ? "r" : "l"));
+  const dir = tab === "set" ? "r" : (TAB === "set" ? "l" : (ORDER.indexOf(navOf(tab)) > ORDER.indexOf(navOf(TAB)) ? "r" : "l"));
   TAB = tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){}
   if (tab === "news") FEED.scrolled = true;           // 2026-10-02 用戶：入新聞唔自動跳去今日
   try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch(e){}
@@ -2686,7 +2716,7 @@ document.addEventListener("touchend", e => {
   if (!SWP) return;
   const c = e.changedTouches[0], dx = c.clientX - SWP.x, dy = c.clientY - SWP.y, dt = Date.now() - SWP.t; SWP = null;
   if (Math.abs(dx) > 70 && Math.abs(dy) < Math.abs(dx) * 0.5 && dt < 600){
-    const i = ORDER.indexOf(TAB) + (dx < 0 ? 1 : -1);
+    const i = ORDER.indexOf(navOf(TAB)) + (dx < 0 ? 1 : -1);
     if (i >= 0 && i < ORDER.length) go(ORDER[i]);
   }
 }, {passive:true});
