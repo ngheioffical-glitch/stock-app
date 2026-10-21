@@ -519,7 +519,8 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
     return ({"generated": now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"),
              "model": model, "points": pts, "econ": ec, "sig": sig, "hi": hi_titles(N, now),
              "econ_done": [r["name"] for r in fresh_econ(E, now)], "snap": sn, "checked": True, "warn": bad, "tries": tries,
-             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca, "fut_alert": fa, "move": mv, "pre": pm["day"] if pm else None},
+             "light_change": lc, "tq_alert": ta, "rates_alert": ra, "commod_alert": ca, "fut_alert": fa, "move": mv,
+             "pre": pm["day"] if pm else (P.get("digest") or {}).get("pre")},   # 2026-10-21：開市後重寫都保留今日開市前記號（之前變 None，app 健康誤報「開市前冇更新」）
             f"今日重點 {len(pts)} 點（{model}，核對{'有 ' + str(len(bad)) + ' 處唔符' if bad else '通過'}，寫咗 {tries} 次）")
 
 
