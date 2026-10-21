@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-HK">
+<html lang="zh-HK" class="vs">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -438,8 +438,8 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rsl .r{text-align:right;flex:none}
 .rsl .r b{font-family:var(--mono);font-size:16px;display:block} .rsl .r span{font-size:12px;letter-spacing:1px}
 @media (max-width:380px){.rs-name{font-size:27px}.rs-big{font-size:33px}.rs-m b{font-size:25px}.rs-pc .p b{font-size:31px}.rs-s b{font-size:14px}}
-/* ───────── 影片風格（2026-10-21 用戶：「改成影片風格，先改一頁俾我睇」）：同研究頁一樣嘅近黑底、灰黑扁平卡、白色粗字、柔和青色、
-   白色膠囊掣；冇網格、冇霓虹發光。<html class="vs"> 先生效；VS_PAGES 揀邊啲頁用（試睇期間只有「訊號」） */
+/* ───────── 影片風格（2026-10-21 用戶：「改成影片風格」→ 試睇訊號頁之後「成個 app 改晒」）：同研究頁一樣嘅近黑底、灰黑扁平卡、白色粗字、柔和青色、
+   白色膠囊掣；冇網格、冇霓虹發光。<html class="vs">（寫死喺 HTML，開 app 第一刻就生效）；拎走個 class 就變返之前嘅「未來科技感」 */
 :root.vs{--bg:#0a0a0d;--bg2:#111115;--panel:#16161b;--panel2:#1f1f25;--ink:#ececf1;--muted:#8f8f9a;--dim:#5f5f69;
   --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--cyan:#7dd3e8;--cyan-soft:rgba(125,211,232,.12);
   --buy:#8be0b4;--buy-soft:rgba(139,224,180,.12);--stop:#ff8a8a;--stop-soft:rgba(255,138,138,.12);--warn:#f3c26d;--warn-soft:rgba(243,194,109,.12);
@@ -477,6 +477,14 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .vs details{border-top-color:var(--line)}
 .vs .skel{background:linear-gradient(100deg,var(--panel) 30%,rgba(255,255,255,.05) 50%,var(--panel) 70%);background-size:220% 100%}
 .vs .lbl{letter-spacing:.04em}
+.vs .t-cyan{border-color:rgba(125,211,232,.3)} .vs .t-buy{border-color:rgba(139,224,180,.3)}
+.vs #splash{background:var(--bg)}
+.vs .sp-floor,.vs .sp-scan{display:none}
+.vs .sp-logo{font-family:var(--sans);font-weight:900;letter-spacing:.04em;color:var(--ink)}
+.vs .sp-logo b{text-shadow:none}
+.vs .sp-bar i{background:var(--cyan);box-shadow:none}
+.vs .sp-sub::after{color:var(--muted)}
+.vs details b{font-family:inherit}
 </style>
 </head>
 <body>
@@ -2643,6 +2651,7 @@ function resBind(r){
 function rsGo(k){ const el = $("#rs"), s = el.querySelector("#rs-" + k); if (s) el.scrollTo({top: s.offsetTop - 112, behavior: "smooth"}); }
 
 // 研究分頁：報告清單 + 叫雲端生成
+const RES_GEN = false;     // 2026-10-21 用戶「暫時唔用 opus 5.5」：生成要 Claude key，未開之前收埋個掣（撳咗雲端都只會失敗）；開返 Claude 就改 true
 function viewRes(){
   if (!RS.loaded && !RS.busy) fetchResIndex();
   const items = ((RS.index && RS.index.items) || []).filter(x => !x.dry);
@@ -2655,20 +2664,19 @@ function viewRes(){
       <div class="m"><b class="mono">${esc(it.sym)}</b><span class="z">${esc(it.name_zh || it.name || "")}</span>${it.sample ? ` <span class="tag t-warn">樣本</span>` : ""}
         <p>${esc(it.one_liner || "")}</p><p>研究日 ${esc(it.date || "")}${it.moat ? ` · 護城河 ${esc(it.moat)}` : ""}${it.uncertainty ? ` · 不確定性 ${esc(it.uncertainty)}` : ""}</p></div>
       <div class="r"><b>${f2(it.price)}</b><span>${it.stars ? stars(it.stars) : "未能估值"}</span>${it.p_fv ? `<p class="small ${it.p_fv <= 1 ? "up" : "dn"}" style="margin:0">${it.p_fv <= 1 ? "低" : "高"}過公允 ${pc0(Math.abs(1 - it.p_fv))}</p>` : ""}</div></div>`).join("");
-  h += `<div class="card"><b>生成新報告</b>${S.ghToken ? `<div class="row" style="flex-wrap:nowrap"><input id="resSym" placeholder="美股代號，例如 NVDA" autocapitalize="characters" style="flex:1"><button id="resGo" class="primary">生成</button></div>
+  h += `<div class="card"><b>生成新報告</b>${!RES_GEN ? `<p class="small muted">暫時停用：研究報告要用 Claude（Opus 5.5），而家 app 用緊 Gemini（2026-10-21 決定暫時唔用 Opus）。開返 Claude 之後先可以生成；上面嘅報告照睇得。</p>`
+      : S.ghToken ? `<div class="row" style="flex-wrap:nowrap"><input id="resSym" placeholder="美股代號，例如 NVDA" autocapitalize="characters" style="flex:1"><button id="resGo" class="primary">生成</button></div>
       <p class="small muted">雲端 Claude 大約 10 分鐘寫好一份，約 US$1–1.5；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。清單入面嘅股票每星期同業績後自動更新。</p>`
       : `<p class="small muted">喺「設定」填 GitHub token 先可以喺度叫雲端生成。</p>`}${RS.msg ? `<p class="small" style="color:var(--cyan)">${esc(RS.msg)}</p>` : ""}</div>`;
   return h;
 }
 
-const VS_PAGES = ["today"];    // 2026-10-21 影片風格試睇：暫時只有「訊號」頁；老師批咗就加晒其他頁
 const ORDER = ["today", "model", "rank", "res", "news", "crypto", "radar", "ppl"];     // 設定唔喺底部導航（頂部齒輪）；"ppl" = 人物（Serenity／Trump）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
   app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
-  document.documentElement.classList.toggle("vs", VS_PAGES.includes(TAB));
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === navOf(TAB) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(navOf(TAB)); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
