@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -94,7 +95,27 @@ def download(syms, end=None):
                   end=(pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
     else:
         kw.update(period="2y")
-    raw = yf.download(syms + ["^NDX"] + CASH_SYMS, **kw)
+    want = syms + ["^NDX"] + CASH_SYMS
+    raw = yf.download(want, **kw)
+    # 2026-10-21：Yahoo 大批下載間中成批甩（「possibly delisted」，連 KO、DELL 持倉都甩）：甩咗嘅等 20 秒分細批再攞，最多兩輪
+    for _ in range(2):
+        c = raw.xs("Close", axis=1, level=1)
+        miss = [s for s in want if s not in c.columns or c[s].dropna().empty]
+        if not miss:
+            break
+        print(f"Yahoo 甩咗 {len(miss)} 隻，分細批再攞：{miss[:12]}{' …' if len(miss) > 12 else ''}")
+        time.sleep(20)
+        got = []
+        for i in range(0, len(miss), 40):
+            more = yf.download(miss[i:i + 40], **dict(kw, threads=False))
+            mc = more.xs("Close", axis=1, level=1) if len(more.columns) else pd.DataFrame()
+            ok = [s for s in miss[i:i + 40] if s in mc.columns and not mc[s].dropna().empty]
+            if ok:
+                raw = pd.concat([raw.drop(columns=ok, level=0, errors="ignore"), more[ok]], axis=1)
+                got += ok
+        print(f"再攞到 {len(got)} 隻")
+        if not got:
+            break
     f = {k: raw.xs(k, axis=1, level=1) for k in ["Open", "High", "Low", "Close", "Adj Close", "Volume"]}
     return {k: v.dropna(how="all") for k, v in f.items()}
 
