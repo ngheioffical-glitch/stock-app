@@ -438,6 +438,45 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rsl .r{text-align:right;flex:none}
 .rsl .r b{font-family:var(--mono);font-size:16px;display:block} .rsl .r span{font-size:12px;letter-spacing:1px}
 @media (max-width:380px){.rs-name{font-size:27px}.rs-big{font-size:33px}.rs-m b{font-size:25px}.rs-pc .p b{font-size:31px}.rs-s b{font-size:14px}}
+/* ───────── 影片風格（2026-10-21 用戶：「改成影片風格，先改一頁俾我睇」）：同研究頁一樣嘅近黑底、灰黑扁平卡、白色粗字、柔和青色、
+   白色膠囊掣；冇網格、冇霓虹發光。<html class="vs"> 先生效；VS_PAGES 揀邊啲頁用（試睇期間只有「訊號」） */
+:root.vs{--bg:#0a0a0d;--bg2:#111115;--panel:#16161b;--panel2:#1f1f25;--ink:#ececf1;--muted:#8f8f9a;--dim:#5f5f69;
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--cyan:#7dd3e8;--cyan-soft:rgba(125,211,232,.12);
+  --buy:#8be0b4;--buy-soft:rgba(139,224,180,.12);--stop:#ff8a8a;--stop-soft:rgba(255,138,138,.12);--warn:#f3c26d;--warn-soft:rgba(243,194,109,.12);
+  --glow:none;--brand:var(--sans)}
+.vs body{background:var(--bg);background-image:none}
+.vs .card{background:var(--panel);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;border-radius:18px;padding:16px 18px}
+.vs .card::before{content:none}
+.vs h2{font-size:22px;font-weight:900;letter-spacing:0;text-transform:none;color:var(--ink)}
+.vs .brand{font-family:var(--sans);font-weight:900;font-size:17px;letter-spacing:0;color:var(--ink);text-shadow:none}
+.vs .brand span{opacity:.5}
+.vs .chip{background:var(--panel2);border-color:transparent;font-family:var(--sans);font-weight:600}
+.vs .status{font-family:var(--sans);font-weight:900;letter-spacing:.02em;font-size:22px}
+.vs .orb.g,.vs .orb.r{box-shadow:none}
+.vs .gauge,.vs .kv div,.vs .snap{background:var(--panel2);border-color:transparent;border-radius:12px}
+.vs .bar{background:rgba(255,255,255,.08)}
+.vs .bar i{background:var(--cyan);box-shadow:none}
+.vs .price{color:var(--cyan);text-shadow:none}
+.vs .tablewrap{box-shadow:none;background:var(--panel);border-radius:16px}
+.vs th{background:rgba(255,255,255,.03)}
+.vs button{border-color:transparent;background:var(--panel2)}
+.vs button.primary{background:#f3f3f5;color:#101014;border-color:#f3f3f5}
+.vs .chips button{background:transparent;color:#a5a5af;font-weight:600}
+.vs .chips button[aria-pressed="true"]{background:#f3f3f5;color:#101014;border-color:#f3f3f5;box-shadow:none;font-weight:800}
+.vs nav{background:rgba(22,22,27,.94);box-shadow:0 0 0 1px var(--line),0 10px 30px rgba(0,0,0,.55)}
+.vs nav button[aria-current="page"]{color:var(--ink);text-shadow:none}
+.vs nav button[aria-current="page"] svg{filter:none}
+.vs nav .pill::before{background:var(--panel2);box-shadow:none}
+.vs .gear.on svg{stroke:var(--ink);filter:none}
+.vs .tag{font-family:var(--sans);border-radius:999px}
+.vs .t-dim{background:rgba(255,255,255,.05)}
+.vs .ev.done .vals b.act{text-shadow:none}
+.vs .imp.i3 i,.vs .fngbar i{box-shadow:none}
+.vs .todayfab{background:#f3f3f5;color:#101014;border-color:#f3f3f5;box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.vs .alert,.vs .info,.vs .ok{border-color:transparent}
+.vs details{border-top-color:var(--line)}
+.vs .skel{background:linear-gradient(100deg,var(--panel) 30%,rgba(255,255,255,.05) 50%,var(--panel) 70%);background-size:220% 100%}
+.vs .lbl{letter-spacing:.04em}
 </style>
 </head>
 <body>
@@ -2622,12 +2661,14 @@ function viewRes(){
   return h;
 }
 
+const VS_PAGES = ["today"];    // 2026-10-21 影片風格試睇：暫時只有「訊號」頁；老師批咗就加晒其他頁
 const ORDER = ["today", "model", "rank", "res", "news", "crypto", "radar", "ppl"];     // 設定唔喺底部導航（頂部齒輪）；"ppl" = 人物（Serenity／Trump）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
   app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
+  document.documentElement.classList.toggle("vs", VS_PAGES.includes(TAB));
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === navOf(TAB) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(navOf(TAB)); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
