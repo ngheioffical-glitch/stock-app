@@ -485,6 +485,16 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .vs .sp-bar i{background:var(--cyan);box-shadow:none}
 .vs .sp-sub::after{color:var(--muted)}
 .vs details b{font-family:inherit}
+/* 事件股價線（2026-10-21） */
+.ev-mini{height:230px;margin:0 -18px}
+.evleg{margin:2px 0 0;line-height:1.7} .evleg i{font-style:normal}
+.evl{display:flex;flex-direction:column}
+.evr{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.evr:last-child{border-bottom:0}
+.evr .mono{font-size:12px;color:var(--muted)}
+.evr b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-evl{color:#b9a2ff;background:rgba(185,162,255,.12);border-color:rgba(185,162,255,.35);cursor:pointer}
+#rs .evl .evr{border-bottom-color:var(--rl)}
 </style>
 </head>
 <body>
@@ -1146,7 +1156,7 @@ function bounceCard(){
   const rows = L.map(r => {
     const piv = r.above_piv ? `<span class="small muted">已過前高</span>` : f2(r.pivot);
     const risk = (!r.above_piv && r.pivot && r.stop) ? pct(r.stop / r.pivot - 1) : "—";
-    return `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}${r.rank ? ` <span class="tag t-cyan">#${r.rank}</span>` : ""}<span class="ind">${esc(r.industry || "")}</span></td>
+    return `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}${r.rank ? ` <span class="tag t-cyan">#${r.rank}</span>` : ""}<span class="ind">${esc(r.industry || "")}</span></td>
       <td class="r mono">${Math.round(r.rs_pct * 100)}</td><td class="r mono ${r.dd > b.ndx_dd ? "up" : ""}">${pct(r.dd)}</td><td class="r mono">${pct(r.off_hi)}</td>
       <td class="r mono hl">${piv}</td><td class="r mono dn">${f2(r.stop)}</td><td class="r mono dn hide-sm">${risk}</td></tr>`;
   }).join("");
@@ -1197,18 +1207,18 @@ function janCard(){
 }
 function viewToday(){
   const o = signals();
-  let h = topbar() + janCard() + header() + v24Today();
+  let h = topbar() + janCard() + header() + evMarketCard() + v24Today();
   h += `<div class="row spread"><h2>揀股參考（V2.2）· ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅 buy-stop 喺上面「V2.7 要做」。</p>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
-    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
+    ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
       <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
     <p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺上面「V2.7 要做」；下面「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
     + liveStatus();
   h += o.list.map(r => {
     const gap = r.pivot / r.close - 1, fill = Math.max(3, Math.min(100, (1 - gap / 0.15) * 100));
     return `<div class="card sig">
-      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
+      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
         ${liveTag(r.sym)}</div>
       <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
@@ -1640,7 +1650,7 @@ function followCard(M){
   if (!FEED.news && !FEED.err) fetchFeeds();
   // 2026-10-03 用戶：冇寫幾時幾錢買入、「佔 13% · 729」唔知咩嚟 → 寫明模型買入日同價，金額標明係市值
   const late = p => p.date && fs.start > p.date;
-  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${resTag(p.sym)}${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
+  const rows = v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${resTag(p.sym)}${evTag(p.sym)}${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${p.date ? `${esc(p.date.slice(2))} 買入 @ ${f2(p.entry)}${late(p) ? `（你 ${esc(fs.start.slice(5))} 照抄）` : ""} · ` : ""}佔 ${Math.round(p.weight * 100)}%，市值 ${f0(fs.val * p.weight)}</span></td>
       <td class="r mono">${p.close ? f0(Math.floor(fs.val * p.weight / p.close)) : "—"}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("");
   const tot = {}; v.holdings.forEach(p => { if (p.close) tot[p.sym] = (tot[p.sym] || 0) + Math.floor(fs.val * p.weight / p.close); });
   const multi = Object.keys(tot).filter(s => v.holdings.filter(p => p.sym === s).length > 1);
@@ -1744,7 +1754,7 @@ function viewModel(){
     h += followCard(M);
     for (const w of (A.warn || [])) h += `<div class="info small">${esc(w)}</div>`;
     if (!fs) h += `<h2>模型而家揸</h2>` + (v.holdings.length ? `<div class="tablewrap"><table><tr><th>持倉</th><th class="r">買入</th><th class="r">回報</th><th>幾時賣</th></tr>
-      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${resTag(p.sym)}${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
+      ${v.holdings.map(p => `<tr><td class="mono"><b>${p.sym}</b> <span class="tag t-dim">${esc(p.leg || "")}</span>${resTag(p.sym)}${evTag(p.sym)}${valOf(p.sym) ? `<span class="ind">${valTxt(p.sym)}</span>` : ""}${rsiOf(p.sym) != null ? `<span class="ind">${rsiTxt(rsiOf(p.sym))}</span>` : ""}<span class="ind">${esc((p.date || "").slice(2))} · 佔 ${Math.round(p.weight * 100)}%</span></td>
         <td class="r mono">${f2(p.entry)}</td><td class="r mono">${chg(p.ret)}</td><td class="small">${esc(p.rule || "")}</td></tr>`).join("")}</table></div>` : `<div class="card"><p class="muted">全現金</p></div>`);
     h += v24Todo(base);
     const Y = tqYellow(v.tq);
@@ -1776,7 +1786,7 @@ function viewRank(){
     ${top.some(r => r.sector) ? `<div class="card"><span class="small muted">頭 ${top.length} 名板塊分佈</span><div class="row">${secs.map(([k,n],i)=>`<span class="tag ${i ? "t-dim" : "t-cyan"}">${esc(k)} ${n}</span>`).join("")}</div></div>` : ""}
     <p class="small muted">①收市 &gt; 200 日線 ②50 &gt; 200 日線 ③收市 ≥ 52 週高 × 0.75。「持有要賣」照規則：跌穿 200 日線、${SCAN.week_end ? "今日係週尾，排名跌出頭 15" : "（排名只喺星期五檢查）"}、大市紅燈。<span class="tag t-ser">S·N</span> = Serenity 近 30 日提過 N 次（只供參考，唔改規則）。</p>
     <div class="tablewrap"><table><tr><th class="r">#</th><th>股票</th><th class="r hide-sm">收市</th><th class="hide-sm">①②③</th><th class="r">買入價</th><th class="r">仲差</th><th class="r hide-sm">止蝕</th><th class="st">狀態</th></tr>
-    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}${rsiOf(r.sym) != null ? " · " + rsiTxt(rsiOf(r.sym)) : ""}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
+    ${SCAN.ranking.map(r => { const ex = exitNote(r); return `<tr><td class="r mono">${r.rank}</td><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}${rsiOf(r.sym) != null ? " · " + rsiTxt(rsiOf(r.sym)) : ""}</span><span class="ind">${esc(indOf(r))}</span>${valOf(r.sym) ? `<span class="ind">${valTxt(r.sym)}</span>` : ""}</td><td class="r mono hide-sm">${f2(r.close)}</td>
       <td class="mono hide-sm">${[r.c1,r.c2,r.c3].map(x => x ? `<span class="up">●</span>` : `<span class="dn">○</span>`).join("")}</td><td class="r mono hl">${f2(r.pivot)}</td>
       <td class="r mono">${pct(r.pivot/r.close-1)}</td><td class="r mono hide-sm">${f2(r.stop)}</td>
       <td class="st">${tag(r)}${ex.length ? `<br><span class="tag t-stop" style="margin-top:3px">持有要賣：${esc(ex.join("、"))}</span>` : ""}</td></tr>`; }).join("")}
@@ -2286,6 +2296,7 @@ async function openRes(sym){
     let r = RS.cache[sym];
     if (!r){ const x = await fetch(resUrl(sym + ".json") + "?t=" + Date.now(), {cache: "no-store"});
       if (!x.ok) throw new Error(x.status === 404 ? "未有呢隻股票嘅研究報告" : "HTTP " + x.status); r = RS.cache[sym] = await x.json(); }
+    await evMergeRes(r);                                // 數據事件補入研究條線（AI 研究事件優先）
     if (RS.sym !== sym) return;
     RS.r = r; el.innerHTML = resPage(r); el.scrollTop = 0; resBind(r);
   } catch(e){ const p = el.querySelector(".rs-sec"); if (p) p.textContent = "讀唔到報告：" + e.message; }
@@ -2302,17 +2313,22 @@ window.addEventListener("popstate", () => { const sh = $("#rsSheet"); if (sh && 
 const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsBack" aria-label="返回"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
   <h1>${esc(title || sym)}</h1><button class="rs-ib" id="rsMenu" aria-label="更多"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button></div>`;
 
-// 股價圖（對數刻度）+ 事件：按實際闊度畫（字唔會跟住放大）
-function rsChart(r){
-  const box = $("#rsHero"); if (!box) return;
-  const C = r.chart || {}, d = C.d || [], c = C.c || [];
+// 股價圖（對數刻度）+ 事件：按實際闊度畫（字唔會跟住放大）。2026-10-21：研究頁同事件線共用（evDraw）；
+// cap = 最多幾個事件寫標籤（揀 w 最高；研究頁 AI 事件冇 w 當最重要），其餘按類別畫細點，一樣撳得
+const EV_DOT = {earn: "#f3c26d", model: "#b9a2ff", light: "#8be0b4", dd: "#ff8a8a", big: "#8fdcf0"};
+function rsChart(r){ const C = r.chart || {}; evDraw($("#rsHero"), C, (C.events || []).filter(e => (e.w ?? 99) >= 99).length + 2); }   // 研究 AI 事件全部寫標籤 + 數據事件頭 2 個
+function evDraw(box, C, cap){
+  if (!box) return;
+  const d = C.d || [], c = C.c || [];
   if (c.length < 2){ box.innerHTML = ""; return; }
   const W = box.clientWidth || 360, H = box.clientHeight || 250, pl = 14, pr = 22, pb = 18, top0 = 26;
   // 事件標籤排喺圖上面幾行（同一行唔重疊），虛線連去當日收市點
   const xi = i => pl + i / (c.length - 1) * (W - pl - pr);
-  const evs = (C.events || []).filter(e => e.i >= 0 && e.i < c.length).map((e, k) => ({...e, k})).sort((a, b) => a.i - b.i), rows = [];
+  const all = (C.events || []).map((e, k) => ({...e, k})).filter(e => e.i >= 0 && e.i < c.length);
+  const lab = new Set(all.slice().sort((a, b) => (b.w ?? 99) - (a.w ?? 99) || b.i - a.i).slice(0, cap).map(e => e.k));
+  const evs = all.filter(e => lab.has(e.k)).sort((a, b) => a.i - b.i), dots = all.filter(e => !lab.has(e.k)), rows = [];
   evs.forEach(e => {
-    e.w = Math.min(150, 14 + [...e.label].reduce((s, ch) => s + (ch.charCodeAt(0) > 255 ? 11.5 : 7.2), 0));
+    e.w = Math.min(150, 14 + [...e.label].reduce((s, ch) => s + (ch.charCodeAt(0) > 255 ? 11.5 : 7.8), 0));
     e.tx = Math.min(W - e.w - 4, Math.max(4, xi(e.i) - e.w / 2));
     let r = rows.findIndex(end => end < e.tx - 4); if (r < 0){ r = rows.length; rows.push(0); }
     rows[r] = e.tx + e.w; e.row = r;
@@ -2322,7 +2338,8 @@ function rsChart(r){
   const X = xi, Y = v => pt + (1 - (Math.log(v) - lo) / ((hi - lo) || 1)) * (H - pt - pb);
   const line = c.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
   const area = `${line}L${X(c.length - 1).toFixed(1)},${H}L${X(0).toFixed(1)},${H}Z`;
-  let tags = "";
+  let tags = dots.map(e => { const x = X(e.i), y = Y(c[e.i]);
+    return `<g class="rs-ev" data-ev="${e.k}"><circle cx="${x}" cy="${y}" r="3.4" fill="${EV_DOT[e.kind] || "#8fdcf0"}" stroke="#0a0a0d" stroke-width="1"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`; }).join("");
   evs.forEach(e => {
     const x = X(e.i), y = Y(c[e.i]), ty = top0 + e.row * 22;
     tags += `<g class="rs-ev" data-ev="${e.k}"><line x1="${x}" y1="${ty + 18}" x2="${x}" y2="${y - 6}" stroke="rgba(255,255,255,.3)" stroke-dasharray="2 3"/>
@@ -2330,7 +2347,7 @@ function rsChart(r){
       <circle cx="${x}" cy="${y}" r="5.5" fill="#0a0a0d" stroke="#8fdcf0" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="13" fill="transparent"/></g>`;
   });
   const lx = X(c.length - 1), ly = Y(c[c.length - 1]);
-  box.innerHTML = `<p class="rs-cap">${esc(d[0].slice(0, 4))} 年起股價（對數刻度）· 撳事件睇說明</p>
+  box.innerHTML = `<p class="rs-cap">${esc(d[0].slice(0, 4))} 年起走勢（對數刻度）· 撳事件睇說明</p>
   <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="股價走勢">
     <defs><pattern id="rsDots" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(143,220,240,.55)"/></pattern>
       <linearGradient id="rsFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
@@ -2344,6 +2361,94 @@ function rsChart(r){
 }
 let RS_RZ = 0;
 function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) rsChart(RS.r); }, 150); }
+
+// ───────── 事件股價線（2026-10-21 用戶：「影片條 curve 會標邊個時間發生咩大事」「優先要 AI 先，歷史就用翻歷史數據加翻落去」
+// 「唔只係個股，直頭成個大市都可以有」）：scanner/events.py → docs/events/index.json + <MARKET|代號>.json。
+// AI（而家 Gemini，有上網來源先用）解釋咗嘅事件最優先寫標籤；其他係數據事件（業績、大升大跌、模型買賣、轉燈、回撤），畫做細點
+let EVX = null, EVC = {}, EV_RZ = 0;
+const evUrl = f => S.dataUrl.replace(/scan\.json(\?.*)?$/, "events/" + f);
+const EVK = {big: "大升跌", earn: "業績", model: "模型", light: "燈號", dd: "回撤"};
+async function fetchEvIndex(){
+  try { const r = await fetch(evUrl("index.json") + "?t=" + Date.now(), {cache: "no-store"});
+    if (r.ok){ EVX = await r.json(); if (["today", "rank", "model"].includes(TAB)) render(); } } catch(e){}
+}
+async function evGet(key){
+  if (EVC[key]) return EVC[key];
+  const r = await fetch(evUrl(key + ".json") + "?t=" + Math.floor(Date.now() / 600e3), {cache: "no-store"});
+  if (!r.ok) throw new Error(r.status === 404 ? "未有呢條事件線" : "HTTP " + r.status);
+  return EVC[key] = await r.json();
+}
+const evHas = key => !!(EVX && EVX.items && EVX.items[key]);
+const evTag = sym => evHas(sym) ? ` <span class="tag t-evl" data-evsym="${esc(sym)}" role="button" title="撳落去睇股價走勢同大事">走勢</span>` : "";
+const evC = M => ({d: M.chart.d, c: M.chart.c, events: M.events});
+const evHost = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return ""; } };
+const evSheetHtml = (e, C) => `<h4>${esc(e.label)}</h4>
+  <p style="color:var(--muted)">${esc((C.d || [])[e.i] || e.d || "")} · 收市 ${f2((C.c || [])[e.i])}${e.chg != null ? ` · 當日 ${pct(e.chg)}` : ""}
+    · <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI 解釋" : EVK[e.kind] || "數據"}</span></p>
+  <p>${esc(e.detail || "")}</p>
+  ${(e.src || []).length ? `<p class="small">來源：${e.src.map(s => `<a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.title || evHost(s.url))}</a>`).join("、")}</p>` : ""}
+  ${e.model ? `<p class="small muted">${esc(e.model)}</p>` : ""}<button data-close>知道</button>`;
+const evLegend = () => `<p class="small muted evleg">標籤 = 最重要嘅事件（AI 解釋優先）· 細點：${Object.entries({earn: "業績", model: "模型買賣", light: "轉燈", dd: "回撤", big: "大升跌"})
+  .map(([k, l]) => `<i style="color:${EV_DOT[k]}">●</i> ${l}`).join("　")}</p>`;
+const evRows = (M, key, n) => M.events.map((e, k) => ({...e, k})).sort((a, b) => b.i - a.i).slice(0, n).map(e =>
+  `<div class="evr" role="button" data-evk="${esc(key)}" data-evi="${e.k}"><span class="mono">${esc(M.chart.d[e.i].slice(2))}</span>
+    <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI" : EVK[e.kind] || ""}</span><b>${esc(e.label)}</b></div>`).join("");
+// 訊號頁：大市事件線（納指 100）
+function evMarketCard(){
+  if (!evHas("MARKET")) return "";
+  const M = EVC.MARKET;
+  if (!M){ evGet("MARKET").then(() => { if (TAB === "today") render(); }).catch(() => {}); return ""; }
+  const I = EVX.items.MARKET;
+  return `<div class="card"><div class="row spread"><b>大市事件線 · 納指 100</b><span class="small muted">${I.n} 個事件 · AI 解釋 ${I.ai}</span></div>
+    <div class="rs-hero ev-mini" id="evMkt" data-evkey="MARKET"></div>${evLegend()}
+    <div class="evl">${evRows(M, "MARKET", 4)}</div>
+    <button class="small" data-evsym="MARKET">睇晒全部事件</button></div>`;
+}
+function evDrawPage(){
+  if (TAB === "today" && EVC.MARKET) evDraw($("#evMkt"), evC(EVC.MARKET), 6);
+  const h = $("#evHero"); if (h && EVC[h.dataset.evkey]) evDraw(h, evC(EVC[h.dataset.evkey]), 7);
+}
+window.addEventListener("resize", () => { clearTimeout(EV_RZ); EV_RZ = setTimeout(evDrawPage, 150); });
+// 撳事件（圖上標籤／點、事件列表）→ 說明
+document.addEventListener("click", ev => {
+  const g = ev.target.closest("[data-evkey] [data-ev], [data-evk]"); if (!g) return;
+  const key = g.dataset.evk || g.closest("[data-evkey]").dataset.evkey, M = EVC[key]; if (!M) return;
+  const e = M.events[+(g.dataset.evi ?? g.dataset.ev)]; if (e) rsSheet(evSheetHtml(e, M.chart));
+});
+// 個股（或者大市）事件頁：同研究頁同一個外框
+async function openEv(key){
+  key = String(key || "").trim().toUpperCase(); if (!key) return;
+  const el = $("#rs"), title = key === "MARKET" ? "納指 100 · 大市事件" : `${key} · 走勢同大事`;
+  el.hidden = false; document.body.style.overflow = "hidden"; el.onscroll = null; RS.sym = "EV:" + key; RS.r = null;
+  if (!(history.state && history.state.rs)) history.pushState({rs: key}, "");
+  el.innerHTML = `<div class="rs-in">${rsTop(key, title)}<p class="rs-sec" style="color:var(--rm)">載入緊…</p></div>`;
+  $("#rsBack").onclick = () => closeRes();
+  el.onclick = e => { if (e.target.closest("#rsMenu")) rsSheet(`<p>資料：Yahoo 收市、業績日期、模型帳戶；AI 解釋用 Gemini 上網搵（有來源先用）。只係資訊，唔係買賣訊號。</p><button data-close>知道</button>`);
+    const r = e.target.closest("[data-openres]"); if (r){ closeRes(); setTimeout(() => openRes(r.dataset.openres), 50); } };
+  try {
+    const M = await evGet(key);
+    if (RS.sym !== "EV:" + key) return;
+    const c = M.chart.c, last = c[c.length - 1], prev = c[c.length - 2];
+    el.innerHTML = `<div class="rs-in">${rsTop(key, title)}
+      <div class="rs-bar"><div class="rs-tick"><b>${esc(key === "MARKET" ? "納指 100" : key)}</b><span class="px">${f2(last)}</span><span class="st">${pct(last / prev - 1)} · ${esc(M.chart.d[c.length - 1])} 收市</span></div></div>
+      <div class="rs-hero" id="evHero" data-evkey="${esc(key)}"></div>
+      <section class="rs-sec">${evLegend()}<h3 class="rs-h">大事（新到舊）</h3><div class="evl">${evRows(M, key, 999)}</div>
+        ${key !== "MARKET" && resItem(key) ? `<p style="margin-top:14px"><button class="primary" data-openres="${esc(key)}">睇 AI 個股研究報告</button></p>` : ""}
+        <p class="rs-meta">AI 解釋 ${M.events.filter(e => e.ai).length} 個（Gemini 上網搵，有來源先用；每日補多啲）· 更新 ${esc(M.gen || "")}</p></section></div>`;
+    el.scrollTop = 0; evDraw($("#evHero"), evC(M), 7);
+  } catch(e){ const p = el.querySelector(".rs-sec"); if (p) p.textContent = "讀唔到：" + e.message; }
+}
+// 研究報告：AI 研究事件優先；同一段時間冇嘅，用事件線嘅數據事件補返（2026-10-21 用戶：「歷史就用翻歷史數據加翻落去」）
+async function evMergeRes(r){
+  if (!r || r._ev || !evHas(r.sym)) return;
+  try {
+    const M = await evGet(r.sym), C = r.chart || {}, pos = new Map((C.d || []).map((d, i) => [d, i]));
+    const ai = (C.events || []).map(e => e.i);
+    const add = M.events.filter(e => pos.has(M.chart.d[e.i])).map(e => ({...e, i: pos.get(M.chart.d[e.i]), w: Math.min(e.w || 1, 9)}))
+      .filter(e => !ai.some(i => Math.abs(i - e.i) <= 3));
+    C.events = (C.events || []).map(e => ({...e, w: 99})).concat(add); r._ev = true;
+  } catch(e){}
+}
 
 // 現價、成本、公允價值嘅位置（底色 = 星級區：藍 5 星 → 橙 1 星）
 function rsSlider(r, cost){
@@ -2635,7 +2740,7 @@ function resBind(r){
     const g = t.closest(".rs-gl"); if (g){ const x = RS.gl[+g.dataset.gl]; if (x) rsSheet(`<h4>${esc(x.term)}</h4><p>${esc(x.define)}</p><button data-close>知道</button>`); return; }
     const sh = t.closest("[data-sheet]"); if (sh){ rsSheet(rsSheetFor(sh.dataset.sheet, r)); return; }
     const ev = t.closest("[data-ev]"); if (ev){ const x = ((r.chart || {}).events || [])[+ev.dataset.ev];
-      if (x) rsSheet(`<h4>${esc(x.label)}</h4><p style="color:var(--muted)">${esc(x.date)} · 收市 ${f2((r.chart.c || [])[x.i])}</p><p>${rsTS(x.detail, x.src)}</p>`); return; }
+      if (x) rsSheet(x.kind ? evSheetHtml(x, r.chart) : `<h4>${esc(x.label)}</h4><p style="color:var(--muted)">${esc(x.date)} · 收市 ${f2((r.chart.c || [])[x.i])}</p><p>${rsTS(x.detail, x.src)}</p>`); return; }
     if (t.id === "rsAllPlain"){ const ds = [...el.querySelectorAll("details.rs-more:not(.rs-card)")], open = !ds.every(d => d.open);
       ds.forEach(d => d.open = open); t.textContent = open ? "收埋全部白話" : "展開全部白話"; }
   };
@@ -2735,6 +2840,8 @@ function bind(){
   const q = $("#serq"); if (q) q.onkeydown = e => { if (e.key === "Enter") openSer(q.value); };
   document.querySelectorAll("[data-eall]").forEach(b => b.onclick = () => { EALL = b.dataset.eall === "1"; render("f"); });
   document.querySelectorAll("[data-ressym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openRes(b.dataset.ressym); });
+  document.querySelectorAll("#app [data-evsym]").forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openEv(b.dataset.evsym); });
+  evDrawPage();                                        // 事件線要等 HTML 出咗先知闊度
   on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
   const rgo = () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ alert("請輸入美股代號，例如 NVDA"); return; }
     if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端 Claude 生成 ${v} 嘅研究報告？大約 10 分鐘、約 US$1–1.5。`)) resGenerate(v); };
@@ -2803,6 +2910,7 @@ fetchScan();
 fetchModel();
 fetchVal();
 fetchResIndex();
+fetchEvIndex();
 fetchLive();
 fetchSer();
 fetchTrump();
