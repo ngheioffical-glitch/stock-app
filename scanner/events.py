@@ -12,8 +12,8 @@
     light 大市紅綠燈轉燈（V2.2：NDX > 200 日線，或者 > 21 EMA 而且 21 EMA > 50 日線）
     dd    大市由高位跌 10%／20%（每次跌浪第一次）
   AI（優先；2026-10-21 用 Gemini，免費）：大升大跌同股價郁 ≥ 5% 嘅業績用 llm.search 上網搵原因，有來源先用（冇來源唔當真），
-    結果存 docs/events/ai_cache.json（每個事件問一次，失敗最多再試 2 次）；每次最多 EVENTS_MAX_AI 個、總共最多 EVENTS_AI_SECS 秒：
-    大市先，再持倉、排名、研究；新嘅先。
+    結果存 docs/events/ai_cache.json（每個事件問一次，搵唔到最多再試 2 次）；2026-10-22 起同一條線 EVENTS_BATCH 個日子一次問、
+    每次之間停 EVENTS_PAUSE 秒、最多 EVENTS_MAX_CALLS 次；Gemini 429／額度用晒就停（唔當失敗，聽日再問）。大市先，再持倉、排名、研究；新嘅先。
 股票：模型持倉（唔計 ETF）+ RS 排名頭 15 + 研究清單。
 用法：python scanner/events.py（每日掃描之後；冇 AI key 就淨係數據事件）
 """
@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta
@@ -35,8 +36,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get("EVENTS_OUT") or ROOT / "docs" / "events")
 HKT, NYT = ZoneInfo("Asia/Hong_Kong"), ZoneInfo("America/New_York")
-MAX_AI = int(os.environ.get("EVENTS_MAX_AI", "20"))
+MAX_CALLS = int(os.environ.get("EVENTS_MAX_CALLS", "6"))    # 每次最多問 AI 幾次（每次一批日子）
+BATCH = int(os.environ.get("EVENTS_BATCH", "6"))             # 一次問同一條線最多幾個日子
+PAUSE = float(os.environ.get("EVENTS_PAUSE", "15"))          # 每次之間停幾秒（Gemini 免費版每分鐘有上限）
 AI_SECS = int(os.environ.get("EVENTS_AI_SECS", "900"))
+QUOTA = re.compile(r"429|Too Many|RESOURCE_EXHAUSTED|額度|quota", re.I)
 EARN_AI = 0.05                    # 業績股價郁 ≥ 5% 先問 AI（細郁嘅業績，數據標籤 EPS 實際對預測已經夠）
 MAX_FAIL = 3
 ETF = {"TQQQ", "IEF", "TMF", "UGL", "SGOV", "BIL", "QQQ", "SPY", "QLD", "SQQQ", "GLD"}
@@ -203,44 +207,62 @@ def merge(evs):
     return out
 
 
-def ai_prompt(key, name, e):
+def ai_prompt(key, name, evs):
+    """一次問一條線嘅幾個日子（2026-10-22：之前一日一個請求，Gemini 免費額度 20 次全部 429）。"""
     who = f"美股指數 {name}" if key == MKT_KEY else f"美股 {name}"
-    extra = f"嗰次係公佈業績之後（{e.get('detail', '')}）" if e["kind"] == "earn" else ""
-    return (f"{who} 喺 {e['d']}（美國時間）收市 {pct(e['chg'])}。{extra}"
-            "請上網搜尋當日（或者前一晚）令佢大升或者大跌嘅主要原因（新聞、公司公告、經濟數據、政策）。"
-            "回覆 JSON：{\"label\": \"最多 8 個中文字嘅事件名（例如：DeepSeek 衝擊、關稅升級、業績勁過預期）\", "
-            "\"detail\": \"一至兩句香港廣東話：發生咩事、點解影響股價，要有具體數字或者名\"}。"
-            "搵唔到可靠原因就 label 寫 unknown。")
+    rows = "\n".join(f"{k + 1}. {e['d']} 收市 {pct(e['chg'])}" + ("（公佈業績之後）" if e["kind"] == "earn" else "") for k, e in enumerate(evs))
+    return (f"{who} 喺以下日子（美國時間）大升或者大跌：\n{rows}\n"
+            "請上網搜尋每一日（或者前一晚）令佢大升或者大跌嘅主要原因（新聞、公司公告、經濟數據、政策）。"
+            "回覆 JSON：{\"items\": [{\"date\": \"YYYY-MM-DD\", \"label\": \"最多 8 個中文字嘅事件名（例如：DeepSeek 衝擊、關稅升級、業績勁過預期）\", "
+            "\"detail\": \"一至兩句香港廣東話：發生咩事、點解影響股價，要有具體數字或者名\"}]}，每個日子一項。"
+            "搵唔到可靠原因嘅 label 寫 unknown，唔好估。")
 
 
 def ai_fill(jobs, cache):
-    """jobs：[(優先次序, key, name, event)]。返今次問咗幾多個。"""
+    """jobs：[(優先次序, key, name, event)]。按優先次序將同一條線嘅事件 BATCH 個一組問一次；每次之間停 PAUSE 秒；
+    Gemini 答 429／額度用晒就即刻停（唔當事件失敗，聽日再問）。返今次問咗幾多個事件。"""
     import llm
     if not llm.available():
         print("[events] 冇 AI key：淨係數據事件")
         return 0
     llm.start()
-    t0, n = time.time(), 0
-    for _, key, name, e in sorted(jobs, key=lambda j: j[0]):
-        if n >= MAX_AI or time.time() - t0 > AI_SECS:
-            break
-        ck = f"{key}|{e['d']}"
-        n += 1
-        try:
-            res, lab, grounded, src = llm.search(ai_prompt(key, name, e), timeout=150)
-        except Exception as ex:  # noqa: BLE001
-            res, lab, grounded, src = None, str(ex), False, []
-        label = str((res or {}).get("label") or "").strip()
-        if res and grounded and label and label.lower() != "unknown":
-            cache[ck] = dict(label=label[:16], detail=str(res.get("detail") or "")[:320],
-                             src=[dict(title=s.get("title") or s.get("url"), url=s.get("url")) for s in src[:3] if s.get("url")],
-                             model=lab.split("（上網搜尋")[0][:60], at=datetime.now(HKT).strftime("%Y-%m-%d"))
-            print(f"[events] AI {ck}：{label}")
-        else:
-            old = cache.get(ck) or {}
-            cache[ck] = dict(fail=int(old.get("fail", 0)) + 1, at=datetime.now(HKT).strftime("%Y-%m-%d"),
-                             why=("冇搜尋來源" if res and not grounded else str(lab))[:120])
-            print(f"[events] AI {ck} 搵唔到：{cache[ck]['why']}")
+    groups, order = {}, []
+    for pri, key, name, e in sorted(jobs, key=lambda j: j[0]):
+        if key not in groups:
+            groups[key] = (name, [])
+            order.append(key)
+        groups[key][1].append(e)
+    t0, calls, n = time.time(), 0, 0
+    for key in order:
+        name, evs = groups[key]
+        for b in range(0, len(evs), BATCH):
+            if calls >= MAX_CALLS or time.time() - t0 > AI_SECS:
+                return n
+            if calls:
+                time.sleep(PAUSE)
+            batch = evs[b:b + BATCH]
+            calls += 1
+            n += len(batch)
+            try:
+                res, lab, grounded, src = llm.search(ai_prompt(key, name, batch), timeout=180)
+            except Exception as ex:  # noqa: BLE001
+                res, lab, grounded, src = None, str(ex), False, []
+            if res is None and QUOTA.search(str(lab)):
+                print(f"[events] AI 額度／速度上限（{str(lab)[:120]}），今次停，聽日再問")
+                return n - len(batch)
+            items = {str(x.get("date")): x for x in (res or {}).get("items") or [] if isinstance(x, dict)}
+            srcs = [dict(title=s.get("title") or s.get("url"), url=s.get("url")) for s in src[:3] if s.get("url")]
+            for e in batch:
+                ck, x = f"{key}|{e['d']}", items.get(e["d"]) or {}
+                label = str(x.get("label") or "").strip()
+                if grounded and label and label.lower() != "unknown":
+                    cache[ck] = dict(label=label[:16], detail=str(x.get("detail") or "")[:320], src=srcs,
+                                     model=lab.split("（")[0][:60], at=datetime.now(HKT).strftime("%Y-%m-%d"))
+                    print(f"[events] AI {ck}：{label}")
+                else:
+                    old = cache.get(ck) or {}
+                    cache[ck] = dict(fail=int(old.get("fail", 0)) + 1, at=datetime.now(HKT).strftime("%Y-%m-%d"),
+                                     why=("冇搜尋來源" if res and not grounded else "搵唔到原因" if res else str(lab))[:120])
     return n
 
 
@@ -282,6 +304,7 @@ def main():
     C = download(syms, (start - timedelta(days=420)).strftime("%Y-%m-%d"))
     C.index = pd.to_datetime(C.index).tz_localize(None)
     cache = load(OUT / "ai_cache.json", {})
+    cache = {k: v for k, v in cache.items() if not (v.get("fail") and QUOTA.search(v.get("why", "")))}   # 額度問題唔係事件問題：清走再問
     series, jobs = {}, []
     full = C[MKT].dropna()
     mk = merge([e for e in big_moves(full, True) if e["d"] >= str(start.date())] + market_events(full, start) + model_events("", md, market=True))

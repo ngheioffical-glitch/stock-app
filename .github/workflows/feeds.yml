@@ -133,6 +133,7 @@ jobs:
           RELAY: ${{ github.event.inputs.relay }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 宏觀來源（X 知名人士每 30 分鐘、Polymarket 每次；失敗就沿用上一份）
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/macro_src.json" -o out/macro_src.json || true
@@ -152,6 +153,7 @@ jobs:
           RELAY: ${{ github.event.inputs.relay }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
           FUT_ALERT: ${{ needs.guard.outputs.fut }}
           FUT_BUCKET: ${{ needs.guard.outputs.fut_b }}
           FUT_DAY: ${{ needs.guard.outputs.fut_d }}

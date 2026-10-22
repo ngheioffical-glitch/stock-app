@@ -3,7 +3,7 @@ name: 個股研究
 # 程式攞數據（Yahoo、SEC 財報）→ Claude Opus 5.5（effort high）上網搜尋 → 固定格式分析 → 程式按公式計估值 → 寫結論；輸出 docs/research/。
 # 排程：每個交易日美股收市後檢查一次，清單（docs/research/index.json + scanner/research_list.txt）入面冇正式報告、
 #   7 日未更新、或者業績公佈咗嘅先做；每次最多 2 隻（每份約 US$1–1.5），每月上限 RESEARCH_MONTH_USD。
-# 冇 ANTHROPIC_API_KEY 就唔做（唔會用 Gemini 由頭寫）；Claude 中途出事先退 Gemini，報告會標明後備。
+# 2026-10-22：冇 Claude key 就用免費 AI（Gemini 上網搵資料、Mistral 寫分析），報告標明；自動加模型持倉 + 排名頭 5；排程失敗唔當 workflow 失敗。
 # app「研究」分頁可以用 GitHub token 觸發（workflow_dispatch，輸入代號）。
 on:
   schedule:
@@ -42,6 +42,7 @@ jobs:
           RESEARCH_MONTH_USD: "40"
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 提交報告
         run: |
           git config user.name "github-actions[bot]"

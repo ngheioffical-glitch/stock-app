@@ -495,6 +495,11 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .evr b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .t-evl{color:#b9a2ff;background:rgba(185,162,255,.12);border-color:rgba(185,162,255,.35);cursor:pointer}
 #rs .evl .evr{border-bottom-color:var(--rl)}
+.rs-hero{touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.ev-x{position:absolute;top:22px;bottom:14px;width:1px;background:rgba(255,255,255,.5);pointer-events:none}
+.ev-dot{position:absolute;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:#8fdcf0;box-shadow:0 0 0 3px rgba(10,10,13,.9);pointer-events:none}
+.ev-tip{position:absolute;top:2px;max-width:72%;padding:4px 10px;border-radius:9px;background:rgba(31,31,37,.97);border:1px solid rgba(255,255,255,.14);
+  font-size:12px;line-height:1.45;color:#ececf1;pointer-events:none;z-index:3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -2358,6 +2363,39 @@ function evDraw(box, C, cap){
     ${tags}
     <circle class="rs-pulse" cx="${lx}" cy="${ly}" r="7" fill="none" stroke="#8fdcf0" stroke-width="2"/><circle cx="${lx}" cy="${ly}" r="4.5" fill="#8fdcf0"/>
   </svg>`;
+  evScrub(box, {X, Y, c, d, evs: all, pl, pr, W});
+}
+// 撳住左右拖（2026-10-22 用戶：「冇得撳住拖左拖右」）：直線跟手指，顯示日期、收市、當日升跌同附近嘅事件；放手 2.5 秒收埋。
+// 上下拖照樣碌頁（touch-action: pan-y）；拖過之後唔會當撳事件
+function evScrub(box, g){
+  box._g = g;
+  box.insertAdjacentHTML("beforeend", `<div class="ev-x" hidden></div><div class="ev-dot" hidden></div><div class="ev-tip" hidden></div>`);
+  if (box._scrub) return;
+  box._scrub = true;
+  let down = false, moved = false, x0 = 0, tm = 0;
+  const show = cx => {
+    const G = box._g, n = G.c.length, x = cx - box.getBoundingClientRect().left;
+    const i = Math.max(0, Math.min(n - 1, Math.round((x - G.pl) / (G.W - G.pl - G.pr) * (n - 1))));
+    const near = G.evs.filter(e => Math.abs(e.i - i) <= Math.max(1, Math.round(n / 250))).sort((a, b) => Math.abs(a.i - i) - Math.abs(b.i - i))[0];
+    const chg = i ? G.c[i] / G.c[i - 1] - 1 : null, X = G.X(i), Y = G.Y(G.c[i]);
+    const [ln, dt, tp] = [".ev-x", ".ev-dot", ".ev-tip"].map(s => box.querySelector(s));
+    if (!tp) return;
+    ln.hidden = dt.hidden = tp.hidden = false;
+    ln.style.left = dt.style.left = X + "px"; dt.style.top = Y + "px";
+    tp.innerHTML = `<b>${esc(G.d[i])}</b> · ${f2(G.c[i])}${chg != null ? ` <span class="${chg >= 0 ? "up" : "dn"}">${pct(chg)}</span>` : ""}${near ? `<br>${esc(near.label)}` : ""}`;
+    tp.style.left = Math.min(G.W - tp.offsetWidth - 4, Math.max(4, X - tp.offsetWidth / 2)) + "px";
+  };
+  const hide = () => { clearTimeout(tm); tm = setTimeout(() => box.querySelectorAll(".ev-x,.ev-dot,.ev-tip").forEach(e => e.hidden = true), 2500); };
+  box.addEventListener("pointerdown", e => { down = true; moved = false; x0 = e.clientX; clearTimeout(tm); });
+  box.addEventListener("pointermove", e => {
+    if (e.pointerType === "mouse"){ show(e.clientX); return; }
+    if (!down) return;
+    if (Math.abs(e.clientX - x0) > 6) moved = true;
+    if (moved) show(e.clientX);
+  });
+  box.addEventListener("pointerup", () => { down = false; hide(); });
+  ["pointerleave", "pointercancel"].forEach(t => box.addEventListener(t, () => { down = false; hide(); }));
+  box.addEventListener("click", e => { if (moved){ moved = false; e.stopPropagation(); e.preventDefault(); } }, true);
 }
 let RS_RZ = 0;
 function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) rsChart(RS.r); }, 150); }
@@ -2683,7 +2721,8 @@ function resPage(r){
   return `<div class="rs-in">${rsTop(r.sym, `${r.sym}-${r.name}`)}
     <div class="rs-bar"><div class="rs-tick">${rsLogo(r.sym, 26)}<b>${esc(r.sym)}</b><span class="px">${f2(r.price)}</span><span class="st">Claude <i>${V.ok ? stars(V.stars) : "未能估值"}</i></span></div>
       <div class="rs-pills" id="rsPills">${RS_SECS.map(([k, l], i) => `<button data-go="${k}" class="${i ? "" : "on"}">${l}</button>`).join("")}</div></div>
-    ${r.sample ? `<div class="rs-sample"><b>樣本</b>：呢份係 Claude Code 喺對話入面人手代入 AI 回覆整嘅測試報告（數據同計法係真嘅），唔係雲端自動生成。</div>` : ""}
+    ${r.sample ? `<div class="rs-sample"><b>樣本</b>：呢份係 Claude Code 喺對話入面人手代入 AI 回覆整嘅測試報告（數據同計法係真嘅），唔係雲端自動生成。</div>`
+      : !/Claude/.test((r.models || {}).analysis || "") ? `<div class="rs-sample"><b>免費 AI 版</b>：呢份由免費 AI 寫（${esc(rsWho((r.models || {}).gather))} 上網搵資料、${esc(rsWho((r.models || {}).analysis))} 分析），數字照樣由程式計，但文字質素可能比 Claude 低，記得睇來源。</div>` : ""}
     ${r.dry ? `<div class="rs-sample"><b>未有 AI 分析</b>：呢份淨係程式數據（測試模式）。</div>` : ""}
     ${rsSum(r)}${rsPos(r)}${rsView(r)}${rsPrimer(r)}${rsBiz(r)}${rsVal(r)}${rsDir(r)}${rsHist(r)}${rsPeer(r)}${rsSrc(r)}</div>`;
 }
@@ -2710,7 +2749,7 @@ async function resGenerate(sym){
       headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
       body: JSON.stringify({ref: "main", inputs: {sym}})});
     if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : r.status === 404 ? "（雲端未有 research.yml）" : ""));
-    RS.msg = `已觸發：雲端 Claude 大約 10 分鐘寫好 ${sym}（約 US$1–1.5），之後撳「重新整理」。`;
+    RS.msg = `已觸發：雲端大約 10 分鐘寫好 ${sym}，之後撳「重新整理」。`;
   } catch(e){ RS.msg = "觸發唔到：" + e.message; }
   if (TAB === "res") render();
   return RS.msg;
@@ -2756,13 +2795,13 @@ function resBind(r){
 function rsGo(k){ const el = $("#rs"), s = el.querySelector("#rs-" + k); if (s) el.scrollTo({top: s.offsetTop - 112, behavior: "smooth"}); }
 
 // 研究分頁：報告清單 + 叫雲端生成
-const RES_GEN = false;     // 2026-10-21 用戶「暫時唔用 opus 5.5」：生成要 Claude key，未開之前收埋個掣（撳咗雲端都只會失敗）；開返 Claude 就改 true
+const RES_GEN = true;      // 2026-10-21 收埋（要 Claude）→ 2026-10-22 冇 Claude 都可以用免費 AI 生成，開返
 function viewRes(){
   if (!RS.loaded && !RS.busy) fetchResIndex();
   const items = ((RS.index && RS.index.items) || []).filter(x => !x.dry);
   const u = RS.index && RS.index.usage, mon = new Date().toISOString().slice(0, 7), spent = u ? (u[mon] || 0) : 0;
   let h = topbar() + `<div class="row spread"><h2>AI 個股研究</h2><button id="resReload" class="small">重新整理</button></div>
-    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ Claude Opus 5.5 上網搜尋 → 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
+    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ AI 上網搜尋（有 Claude 用 Claude；冇就免費 Gemini 搜尋 + Mistral 分析）→ 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
   if (RS.err) h += `<div class="alert small">讀唔到研究清單：${esc(RS.err)}</div>`;
   if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : RS.err ? "暫時讀唔到清單，請撳重新整理。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
   h += items.map(it => `<div class="card rsl" data-ressym="${esc(it.sym)}" role="button">${rsLogo(it.sym, 44)}
@@ -2771,7 +2810,7 @@ function viewRes(){
       <div class="r"><b>${f2(it.price)}</b><span>${it.stars ? stars(it.stars) : "未能估值"}</span>${it.p_fv ? `<p class="small ${it.p_fv <= 1 ? "up" : "dn"}" style="margin:0">${it.p_fv <= 1 ? "低" : "高"}過公允 ${pc0(Math.abs(1 - it.p_fv))}</p>` : ""}</div></div>`).join("");
   h += `<div class="card"><b>生成新報告</b>${!RES_GEN ? `<p class="small muted">暫時停用：研究報告要用 Claude（Opus 5.5），而家 app 用緊 Gemini（2026-10-21 決定暫時唔用 Opus）。開返 Claude 之後先可以生成；上面嘅報告照睇得。</p>`
       : S.ghToken ? `<div class="row" style="flex-wrap:nowrap"><input id="resSym" placeholder="美股代號，例如 NVDA" autocapitalize="characters" style="flex:1"><button id="resGo" class="primary">生成</button></div>
-      <p class="small muted">雲端 Claude 大約 10 分鐘寫好一份，約 US$1–1.5；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。清單入面嘅股票每星期同業績後自動更新。</p>`
+      <p class="small muted">雲端大約 10 分鐘寫好一份：而家冇開 Claude，用免費 AI（唔使錢；額度爆咗會失敗，遲啲再撳）。開咗 Claude 先會用錢（約 US$1–1.5 一份）；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。模型持倉、排名頭 5 同清單入面嘅股票每星期同業績後自動更新（每日最多 2 份）。</p>`
       : `<p class="small muted">喺「設定」填 GitHub token 先可以喺度叫雲端生成。</p>`}${RS.msg ? `<p class="small" style="color:var(--cyan)">${esc(RS.msg)}</p>` : ""}</div>`;
   return h;
 }
@@ -2844,7 +2883,7 @@ function bind(){
   evDrawPage();                                        // 事件線要等 HTML 出咗先知闊度
   on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
   const rgo = () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ alert("請輸入美股代號，例如 NVDA"); return; }
-    if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端 Claude 生成 ${v} 嘅研究報告？大約 10 分鐘、約 US$1–1.5。`)) resGenerate(v); };
+    if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（而家用免費 AI，唔使錢）。`)) resGenerate(v); };
   on("#resGo", rgo); const rsy = $("#resSym"); if (rsy) rsy.onkeydown = e => { if (e.key === "Enter") rgo(); };
 }
 

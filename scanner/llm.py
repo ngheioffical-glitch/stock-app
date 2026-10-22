@@ -12,7 +12,7 @@
   個別功能可以設 llm.ORDER（研究報告 = ["claude", "gemini"]）。用咗後備，標籤寫明「後備」同原因。timeout 係成個調用嘅總上限。
 Claude：key 只由環境變數 ANTHROPIC_API_KEY 讀（GitHub Secrets）；AI_MODEL 預設 claude-opus-5-5、AI_EFFORT 預設 high
   （Opus 5.5 預設係 medium，所以一定要寫明）；開 server-side fallback（拒答時 Anthropic 自己轉後備型號，標籤會照實際型號寫）；全部用串流。
-Gemini：GEMINI_API_KEY。GitHub Models 2026-07-30 停用，已經拎走。
+Gemini：GEMINI_API_KEY。Mistral（2026-10-22）：MISTRAL_API_KEY，有就自動做主力（ask），Gemini 後備；冇上網搜尋。Groq 封香港用唔到。GitHub Models 2026-07-30 停用，已經拎走。
 用量：每次 Claude 請求記 token、搜尋次數同估計美元（USAGE）；AI_DAILY_BUDGET_USD（預設 20，香港時間每日計）用晒就唔再叫 Claude，
   退後備並標明。跨運行嘅累計要由調用者用 load_usage()／usage_record() 讀寫（ai.py 放喺 feeds 分支 ai_usage.json）。
 """
@@ -30,8 +30,11 @@ from zoneinfo import ZoneInfo
 HKT = ZoneInfo("Asia/Hong_Kong")
 # 2026-10-21 用戶：「AI唔好轉住」→ 預設照用 Gemini、唔自動轉去其他供應商（唔會靜靜雞用錢）；轉 Claude 就設 AI_PROVIDER=claude。
 # GitHub Models 2026-07-30 已經停用，拎走咗。
-PROVIDER = os.environ.get("AI_PROVIDER", "gemini").strip().lower()
-FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "").split(",") if x.strip()]
+# 2026-10-22 用戶：「gemini 每次都爆哂」想用 Groq，但 Groq 封香港（開唔到帳戶）→ 改用 Mistral 免費模式（香港用得）：有 MISTRAL_API_KEY 就由
+# Mistral 做唔使上網嘅工作（翻譯、今日重點、雷達、研究分析），Gemini 做後備；要上網搜尋嘅（search／gather）照用 Gemini（Mistral 搜尋要錢）。
+_MIS_ON = bool(os.environ.get("MISTRAL_API_KEY", "").strip())
+PROVIDER = os.environ.get("AI_PROVIDER", "mistral" if _MIS_ON else "gemini").strip().lower()
+FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "gemini" if PROVIDER == "mistral" else "").split(",") if x.strip()]
 ORDER: list[str] | None = None   # 個別功能指定次序（例如研究報告要 Claude 起頭：research.py 設 ["claude", "gemini"]）
 MODEL = os.environ.get("AI_MODEL", "claude-opus-5-5").strip()
 EFFORT = os.environ.get("AI_EFFORT", "high").strip()
@@ -96,8 +99,11 @@ def spent_today():
 
 def available():
     """有冇任何一個供應商有 key（冇就成個 AI 步驟跳過）。"""
-    return any((p == "claude" and os.environ.get("ANTHROPIC_API_KEY", "").strip()) or
-               (p == "gemini" and os.environ.get("GEMINI_API_KEY", "").strip()) for p in _order())
+    return any(has_key(p) for p in _order())
+
+
+def has_key(p):
+    return bool(os.environ.get({"claude": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY", "mistral": "MISTRAL_API_KEY"}.get(p, "_"), "").strip())
 
 
 def _order():
@@ -109,13 +115,15 @@ def _order():
 def _why(err):
     """後備原因（俾 app 顯示）：寫明係邊個供應商出事（2026-10-21：之前一律寫 Claude）。"""
     e = str(err)
-    who = "Gemini" if e.startswith("gemini") else "Claude"
+    who = "Gemini" if e.startswith("gemini") else "Mistral" if e.startswith("mistral") else "Claude"
     if "預算" in e:
         return f"{who} 今日預算用晒"
     if "冇 ANTHROPIC_API_KEY" in e:
         return "未設定 Claude key"
     if "冇 GEMINI_API_KEY" in e:
         return "未設定 Gemini key"
+    if "冇 MISTRAL_API_KEY" in e:
+        return "未設定 Mistral key"
     if "拒答" in e:
         return f"{who} 拒答"
     if re.search(r"429|rate|overloaded|529|額度", e, re.I):
@@ -442,6 +450,44 @@ def _gemini_gather(prompt, timeout, first):
     raise RuntimeError(f"gemini：搜尋失敗（{last}）")
 
 
+# ---------------------------------------------------------------- Mistral（2026-10-22；免費模式，冇上網搜尋）
+MIS_API = "https://api.mistral.ai/v1/chat/completions"
+MIS_MODELS = [m for m in (os.environ.get("MISTRAL_MODEL"), "mistral-medium-latest", "mistral-small-latest") if m]
+MIS_GAP = float(os.environ.get("MISTRAL_GAP_SECS", "1.2"))   # 免費模式大約每秒 1 個請求
+_MIS_LAST = [0.0]
+
+
+def _mistral(prompt, timeout):
+    key = os.environ.get("MISTRAL_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("mistral：冇 MISTRAL_API_KEY")
+    deadline, errs = time.time() + timeout, []
+    for m in MIS_MODELS:
+        body = json.dumps({"model": m, "temperature": 0.3, "response_format": {"type": "json_object"},
+                           "messages": [{"role": "system", "content": JSON_SYS}, {"role": "user", "content": prompt}]}).encode()
+        for attempt in range(2):
+            wait = MIS_GAP - (time.time() - _MIS_LAST[0])
+            if wait > 0:
+                time.sleep(wait)
+            _MIS_LAST[0] = time.time()
+            req = urllib.request.Request(MIS_API, data=body, method="POST",
+                                         headers={"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {key}"})
+            try:
+                with urllib.request.urlopen(req, timeout=_left(deadline, 150)) as r:
+                    d = json.loads(r.read())
+                return _json(d["choices"][0]["message"]["content"]), "mistral:" + m
+            except urllib.error.HTTPError as e:
+                errs.append(f"{m} HTTP {e.code}")
+                if e.code == 429 and attempt == 0 and deadline - time.time() > 40:
+                    time.sleep(8)                 # 超咗每秒／每分鐘上限：等陣再試一次
+                    continue
+                break
+            except Exception as e:  # noqa: BLE001
+                errs.append(f"{m} {type(e).__name__}")
+                break
+    raise RuntimeError("mistral：" + "、".join(errs))
+
+
 # ---------------------------------------------------------------- 對外
 # 2026-10-21 Codex 改卷：timeout 係成個調用嘅總上限（之前每個供應商都由頭攞足，三個加埋可以超過 workflow 時限）
 MIN_LEFT = 15                    # 剩低少過呢個秒數就唔再試下一個供應商
@@ -472,6 +518,8 @@ def ask(prompt, gem_models=None, timeout=None, schema=None, system=None, max_tok
                 res, lab = _claude_ask(prompt, left, schema=schema, system=system, max_tokens=max_tokens, kind=kind)
             elif p == "gemini":
                 res, lab = _gemini_ask(other, gem_models, left)
+            elif p == "mistral":
+                res, lab = _mistral(other, left)
             else:
                 continue
             if errs:

@@ -51,6 +51,7 @@ R = float(os.environ.get("RESEARCH_DISCOUNT", "0.09"))           # 要求回報�
 MAX_SEARCH = int(os.environ.get("RESEARCH_MAX_SEARCH", "8"))
 MAX_AGE = int(os.environ.get("RESEARCH_MAX_AGE_DAYS", "7"))
 PER_RUN = int(os.environ.get("RESEARCH_MAX_PER_RUN", "2"))
+AUTO_TOP = int(os.environ.get("RESEARCH_AUTO_TOP", "5"))     # 2026-10-22 用戶「個股研究得一個，點搞？」：自動加模型持倉 + RS 排名頭幾隻
 MONTH_USD = float(os.environ.get("RESEARCH_MONTH_USD", "40"))          # 每月研究用量上限（美元）
 EST_USD = float(os.environ.get("RESEARCH_EST_USD", "1.5"))             # 每份估計費用：開始前「已用 + 估計 > 上限」就唔做（2026-10-21 Codex 改卷）
 MAX_TOKENS = int(os.environ.get("RESEARCH_MAX_TOKENS", "64000"))         # 分析 JSON 長、effort high 思考都計輸出；API 唔收就自動退返 32000
@@ -977,7 +978,8 @@ def _manual(dirp, name, prompt):
 
 def build(sym, dry=False, manual=None, fresh=False):
     sym = sym.upper().strip().lstrip("$")
-    llm.ORDER = ["claude", "gemini"]     # 研究要 Claude 起頭（全個 app 預設 Gemini 都係，2026-10-21）；Claude 中途失敗先退 Gemini，標明後備
+    # 有 Claude key 就 Claude 起頭（中途失敗先退後備，標明）；冇就用免費 AI（2026-10-22）：Gemini 上網搵資料、Mistral 寫分析（冇 Mistral 就全部 Gemini）
+    llm.ORDER = [p for p in ("claude", "mistral", "gemini") if llm.has_key(p)]
     t0, u0 = time.time(), len(llm.USAGE)
     old = None if fresh else load_report(sym)          # --fresh：當第一次研究（唔同上次比較、唔存舊檔）
     D = collect(sym)
@@ -1029,13 +1031,25 @@ def build(sym, dry=False, manual=None, fresh=False):
     return rep
 
 
+def auto_syms():
+    """模型持倉（唔計 ETF）+ RS 排名頭 AUTO_TOP 隻（2026-10-22）。"""
+    try:
+        md = json.loads((ROOT / "docs" / "model_cont.json").read_text(encoding="utf-8"))
+        sc = json.loads((ROOT / "docs" / "scan.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    etf = {"TQQQ", "IEF", "TMF", "UGL", "SGOV", "BIL", "QQQ", "SPY", "QLD", "SQQQ", "GLD"}
+    held = [p["sym"] for p in md.get("positions", []) if p["sym"] not in etf]
+    return list(dict.fromkeys(held + [r["sym"] for r in (sc.get("ranking") or [])[:AUTO_TOP]]))
+
+
 def due_list():
     idx = {}
     try:
         idx = {x["sym"]: x for x in json.loads((OUT / "index.json").read_text(encoding="utf-8")).get("items", [])}
     except Exception:  # noqa: BLE001
         pass
-    want = list(idx)
+    want = auto_syms() + list(idx)
     if LIST.exists():
         for ln in LIST.read_text(encoding="utf-8").splitlines():
             want += [s.upper() for s in ln.split("#", 1)[0].split() if re.fullmatch(r"[A-Za-z][A-Za-z0-9.\-]{0,9}", s)]
@@ -1066,8 +1080,12 @@ def main(argv):
     if not syms:
         return 0
     if not (dry or manual):
-        if not os.environ.get("ANTHROPIC_API_KEY", "").strip() and os.environ.get("RESEARCH_REQUIRE_CLAUDE", "1") == "1":
-            print("[research] 冇 ANTHROPIC_API_KEY：研究報告要用 Claude 起頭（唔會成份用 Gemini 寫），今次唔做")
+        # 2026-10-22：預設唔再一定要 Claude（老師暫時唔用 Opus）；設 RESEARCH_REQUIRE_CLAUDE=1 就變返舊做法
+        if not os.environ.get("ANTHROPIC_API_KEY", "").strip() and os.environ.get("RESEARCH_REQUIRE_CLAUDE", "0") == "1":
+            print("[research] 冇 ANTHROPIC_API_KEY：研究報告要用 Claude 起頭（RESEARCH_REQUIRE_CLAUDE=1），今次唔做")
+            return 0 if "--due" in argv else 1
+        if not (llm.has_key("claude") or llm.has_key("gemini")):
+            print("[research] 冇可以上網搜尋嘅 AI key（Claude 或者 Gemini），今次唔做")
             return 0 if "--due" in argv else 1
     bad, done = 0, 0
     for s in syms:
@@ -1086,7 +1104,8 @@ def main(argv):
             if lost > 0:
                 write_index(add_cost=lost)
             print(f"[research] {s} 失敗（舊報告保留；已用約 US${lost:.2f} 照記帳）：{str(e)[:400]}")
-    return 1 if bad == len(syms) else 0
+    # 自動排程（--due）失敗唔當 workflow 失敗（免費 AI 額度間中爆，聽日再試，唔好日日寄失敗 email）；app 手動叫嘅照返 1
+    return 1 if bad == len(syms) and "--due" not in argv else 0
 
 
 if __name__ == "__main__":
