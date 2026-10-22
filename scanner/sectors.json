@@ -323,6 +323,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "SHEL": {
+  "date": "2026-10-22",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "SMCI": {
   "date": "2026-10-15",
   "industry": "Computer Hardware",
