@@ -940,7 +940,7 @@ def write_index(add_cost=0.0):
     old = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
     items = []
     for p in sorted(OUT.glob("*.json")):
-        if p.name == "index.json":
+        if p.name in ("index.json", "ai_usage.json"):
             continue
         try:
             r = json.loads(p.read_text(encoding="utf-8"))
@@ -979,7 +979,7 @@ def _manual(dirp, name, prompt):
 def build(sym, dry=False, manual=None, fresh=False):
     sym = sym.upper().strip().lstrip("$")
     # 有 Claude key 就 Claude 起頭（中途失敗先退後備，標明）；冇就用免費 AI（2026-10-22）：Gemini 上網搵資料、Mistral 寫分析（冇 Mistral 就全部 Gemini）
-    llm.ORDER = [p for p in ("claude", "mistral", "gemini") if llm.has_key(p)]
+    llm.ORDER = [p for p in ("claude", "qwen", "mistral", "gemini") if llm.has_key(p)]   # 2026-10-22 加 Qwen（香港區，收錢；有上限）
     t0, u0 = time.time(), len(llm.USAGE)
     old = None if fresh else load_report(sym)          # --fresh：當第一次研究（唔同上次比較、唔存舊檔）
     D = collect(sym)
@@ -1087,6 +1087,8 @@ def main(argv):
         if not (llm.has_key("claude") or llm.has_key("gemini")):
             print("[research] 冇可以上網搜尋嘅 AI key（Claude 或者 Gemini），今次唔做")
             return 0 if "--due" in argv else 1
+    if not (dry or manual):
+        llm.start(OUT.parent, "ai_usage_research.json")  # 讀今日用量同各流程 Qwen 帳本（上限要跨流程計）
     bad, done = 0, 0
     for s in syms:
         # 2026-10-21 Codex 改卷：每份開始前都查上限（之前成批只查一次）；失敗嗰份已經用咗嘅錢都要記帳
@@ -1105,6 +1107,8 @@ def main(argv):
                 write_index(add_cost=lost)
             print(f"[research] {s} 失敗（舊報告保留；已用約 US${lost:.2f} 照記帳）：{str(e)[:400]}")
     # 自動排程（--due）失敗唔當 workflow 失敗（免費 AI 額度間中爆，聽日再試，唔好日日寄失敗 email）；app 手動叫嘅照返 1
+    if not (dry or manual):
+        llm.finish(OUT.parent, "ai_usage_research.json")  # 研究嘅 AI 用量帳本（唔放 docs/research，嗰度淨係報告）
     return 1 if bad == len(syms) and "--due" not in argv else 0
 
 

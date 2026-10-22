@@ -42,12 +42,15 @@ jobs:
           RESEARCH_MONTH_USD: "40"
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          AI_LEDGER: research                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 提交報告
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/research
+          if [ -f docs/ai_usage_research.json ]; then git add docs/ai_usage_research.json; fi
           if git diff --cached --quiet; then echo "冇新報告"; exit 0; fi
           git commit -m "研究報告 $(date -u +%F)"
           for i in 1 2 3; do git pull --rebase origin main && git push && exit 0; sleep 5; done; exit 1

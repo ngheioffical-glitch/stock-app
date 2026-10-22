@@ -189,4 +189,10 @@ if __name__ == "__main__":
     if not CONT.exists():
         print("[model] 冇 docs/model_cont.json（要先用 scanner/model_cont.py 建立），跳過")
     else:
-        run(CONT)
+        import llm
+        llm.start(ROOT / "docs", "ai_usage_scan.json")      # 2026-10-22：查證拆股／退市用嘅 AI 都記入每日掃描帳本（Qwen 上限跨流程計）
+        try:
+            run(CONT)
+        finally:
+            if llm.USAGE:
+                llm.finish(ROOT / "docs", "ai_usage_scan.json")

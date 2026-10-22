@@ -225,7 +225,6 @@ def ai_fill(jobs, cache):
     if not llm.available():
         print("[events] 冇 AI key：淨係數據事件")
         return 0
-    llm.start()
     groups, order = {}, []
     for pri, key, name, e in sorted(jobs, key=lambda j: j[0]):
         if key not in groups:
@@ -329,7 +328,11 @@ def main():
             if a.get("label") or int(a.get("fail", 0)) >= MAX_FAIL:
                 continue
             jobs.append(((tier, -int(e["d"].replace("-", ""))), key, name if key == MKT_KEY else f"{key}{'（' + ind[key] + '）' if ind.get(key) else ''}", e))
+    import llm
+    llm.start(ROOT / "docs", "ai_usage_scan.json")          # 每日掃描嘅 AI 帳本（同模型帳戶查證共用；daily-scan commit）
     asked = ai_fill(jobs, cache) if jobs else 0
+    if llm.USAGE:
+        llm.finish(ROOT / "docs", "ai_usage_scan.json")
     index = {}
     for key, (name, c, evs) in series.items():
         rep = pack(key, name, c, apply_ai(key, evs, cache))

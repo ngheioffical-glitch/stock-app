@@ -12,7 +12,8 @@
   個別功能可以設 llm.ORDER（研究報告 = ["claude", "gemini"]）。用咗後備，標籤寫明「後備」同原因。timeout 係成個調用嘅總上限。
 Claude：key 只由環境變數 ANTHROPIC_API_KEY 讀（GitHub Secrets）；AI_MODEL 預設 claude-opus-5-5、AI_EFFORT 預設 high
   （Opus 5.5 預設係 medium，所以一定要寫明）；開 server-side fallback（拒答時 Anthropic 自己轉後備型號，標籤會照實際型號寫）；全部用串流。
-Gemini：GEMINI_API_KEY。Mistral（2026-10-22）：MISTRAL_API_KEY，有就自動做主力（ask），Gemini 後備；冇上網搜尋。Groq 封香港用唔到。GitHub Models 2026-07-30 停用，已經拎走。
+Gemini：GEMINI_API_KEY。Qwen（2026-10-22，香港區，收錢）：QWEN_API_KEY，有就自動做主力（ask＝Chat Completions、search／gather＝Responses API + web_search），
+  每日 QWEN_DAILY_USD／試用 QWEN_TOTAL_USD 上限（跨流程帳本 AI_LEDGER），超咗退 Gemini。Mistral（2026-10-22）：MISTRAL_API_KEY，有就做主力（ask），冇上網搜尋。Groq 封香港用唔到。GitHub Models 2026-07-30 停用，已經拎走。
 用量：每次 Claude 請求記 token、搜尋次數同估計美元（USAGE）；AI_DAILY_BUDGET_USD（預設 20，香港時間每日計）用晒就唔再叫 Claude，
   退後備並標明。跨運行嘅累計要由調用者用 load_usage()／usage_record() 讀寫（ai.py 放喺 feeds 分支 ai_usage.json）。
 """
@@ -32,9 +33,12 @@ HKT = ZoneInfo("Asia/Hong_Kong")
 # GitHub Models 2026-07-30 已經停用，拎走咗。
 # 2026-10-22 用戶：「gemini 每次都爆哂」想用 Groq，但 Groq 封香港（開唔到帳戶）→ 改用 Mistral 免費模式（香港用得）：有 MISTRAL_API_KEY 就由
 # Mistral 做唔使上網嘅工作（翻譯、今日重點、雷達、研究分析），Gemini 做後備；要上網搜尋嘅（search／gather）照用 Gemini（Mistral 搜尋要錢）。
+# 2026-10-22 用戶：「試qwen」「唔搞新加坡，香港用」→ 有 QWEN_API_KEY（阿里雲 Model Studio 香港區）就由 Qwen 做晒（普通對答 + 上網搜尋 + 研究），
+# Gemini 做後備；收錢，所以有每日／試用總額上限（QWEN_DAILY_USD、QWEN_TOTAL_USD），超咗自動退 Gemini 並標明。
 _MIS_ON = bool(os.environ.get("MISTRAL_API_KEY", "").strip())
-PROVIDER = os.environ.get("AI_PROVIDER", "mistral" if _MIS_ON else "gemini").strip().lower()
-FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "gemini" if PROVIDER == "mistral" else "").split(",") if x.strip()]
+_QWEN_ON = bool(os.environ.get("QWEN_API_KEY", "").strip())
+PROVIDER = os.environ.get("AI_PROVIDER", "qwen" if _QWEN_ON else "mistral" if _MIS_ON else "gemini").strip().lower()
+FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "gemini" if PROVIDER != "gemini" else "").split(",") if x.strip()]
 ORDER: list[str] | None = None   # 個別功能指定次序（例如研究報告要 Claude 起頭：research.py 設 ["claude", "gemini"]）
 MODEL = os.environ.get("AI_MODEL", "claude-opus-5-5").strip()
 EFFORT = os.environ.get("AI_EFFORT", "high").strip()
@@ -53,7 +57,24 @@ SEARCH_ASK = "\n\n請先用網上搜尋查證同補充最新背景（最多 {n} 
 JSON_ASK = ("\n\n【網上搜尋結果（{day}）】\n{find}\n\n【來源】\n{src}\n\n只根據上面數據同搜尋結果答；唔肯定就答 unknown。"
             "最後只回覆一個 JSON object，唔好加其他文字。")
 
-USAGE: list[dict] = []           # 今次運行每個 Claude 請求
+# Qwen（香港區；2026-10-22 官方價目表，用標價唔計限時折扣，寧願高估）：每百萬 token（輸入上限, 輸入價, 輸出價），按每次請求嘅輸入 token 揀級距
+QWEN_BASE = os.environ.get("QWEN_BASE_URL", "https://cn-hongkong.dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+QWEN_FAST = os.environ.get("QWEN_MODEL", "qwen3.7-flash").strip()            # 翻譯、今日重點等普通對答
+QWEN_SMART = os.environ.get("QWEN_MODEL_SMART", "qwen3.7-plus").strip()      # 上網搜尋、研究分析
+QWEN_PRICE = {"qwen3.7-flash": [(32_000, 0.028, 0.110), (256_000, 0.083, 0.330), (10**12, 0.165, 0.660)],
+              "qwen3.7-plus": [(256_000, 0.276, 1.101), (10**12, 0.826, 3.301)],
+              "qwen3.8-flash": [(10**12, 0.113, 0.382)]}
+QWEN_SEARCH_USD = float(os.environ.get("QWEN_PRICE_SEARCH", "0.000574"))   # 每次成功搜尋（香港區 US$0.573411／千次）
+QWEN_MAX_TOOL_CALLS = int(os.environ.get("QWEN_MAX_TOOL_CALLS", "3"))      # 每個答案最多搜幾次（Responses API 會自己決定搜幾多次）
+QWEN_DAY_USD = float(os.environ.get("QWEN_DAILY_USD", "1"))                 # 2026-10-22 試用：每日（香港時間）上限
+QWEN_TOTAL_USD = float(os.environ.get("QWEN_TOTAL_USD", "10"))              # 試用總額上限（所有流程加埋）
+# 跨流程帳本：每個 workflow 寫自己嘅 ai_usage（qwen.today／total 只計自己），開始時讀晒其他流程嘅加埋，上限先準（2026-10-22 Codex 改卷）
+LEDGER = os.environ.get("AI_LEDGER", "feeds").strip()
+LEDGERS = {"feeds": "feeds/ai_usage.json", "radar": "radar/ai_usage.json", "scan": "main/docs/ai_usage_scan.json",
+           "research": "main/docs/ai_usage_research.json"}
+_QW = dict(own_today=0.0, own_total=0.0, other_today=0.0, other_total=0.0, loaded=False)
+
+USAGE: list[dict] = []           # 今次運行每個收錢 AI 請求（Claude、Qwen；prov 欄分）
 SPENT_BEFORE = 0.0                # 今日（香港時間）之前運行已用
 DAY = datetime.now(HKT).strftime("%Y-%m-%d")
 
@@ -103,7 +124,8 @@ def available():
 
 
 def has_key(p):
-    return bool(os.environ.get({"claude": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY", "mistral": "MISTRAL_API_KEY"}.get(p, "_"), "").strip())
+    return bool(os.environ.get({"claude": "ANTHROPIC_API_KEY", "gemini": "GEMINI_API_KEY", "mistral": "MISTRAL_API_KEY",
+                            "qwen": "QWEN_API_KEY"}.get(p, "_"), "").strip())
 
 
 def _order():
@@ -115,7 +137,9 @@ def _order():
 def _why(err):
     """後備原因（俾 app 顯示）：寫明係邊個供應商出事（2026-10-21：之前一律寫 Claude）。"""
     e = str(err)
-    who = "Gemini" if e.startswith("gemini") else "Mistral" if e.startswith("mistral") else "Claude"
+    who = {"gemini": "Gemini", "mistral": "Mistral", "qwen": "Qwen"}.get(e.split("：", 1)[0].strip().lower(), "Claude")
+    if "試用總預算" in e:
+        return f"{who} 試用預算用晒"
     if "預算" in e:
         return f"{who} 今日預算用晒"
     if "冇 ANTHROPIC_API_KEY" in e:
@@ -124,6 +148,8 @@ def _why(err):
         return "未設定 Gemini key"
     if "冇 MISTRAL_API_KEY" in e:
         return "未設定 Mistral key"
+    if "冇 QWEN_API_KEY" in e:
+        return "未設定 Qwen key"
     if "拒答" in e:
         return f"{who} 拒答"
     if re.search(r"429|rate|overloaded|529|額度", e, re.I):
@@ -139,42 +165,89 @@ def load_usage(d):
 
 
 def usage_record(prev=None):
-    """寫入 ai_usage.json 嘅內容：今日累計、今次運行、最近 40 個請求。"""
+    """寫入 ai_usage.json 嘅內容：今日累計、今次運行、最近 40 個請求；qwen = 呢個流程自己嘅 Qwen 用量（今日、試用至今）。"""
     calls = ((prev or {}).get("calls", []) if (prev or {}).get("day") == DAY else []) + USAGE
+    run = _qwen_run()
     return dict(day=DAY, spent=round(spent_today(), 4), budget=BUDGET, model=MODEL, effort=EFFORT,
                 provider=PROVIDER, fallback=FALLBACK, runs=int(((prev or {}).get("runs", 0) if (prev or {}).get("day") == DAY else 0)) + 1,
-                calls=calls[-40:])
+                calls=calls[-40:], qwen=dict(day=DAY, today=round(_QW["own_today"] + run, 5), total=round(_QW["own_total"] + run, 5),
+                                             cap_day=QWEN_DAY_USD, cap_total=QWEN_TOTAL_USD) if _QW["loaded"] else (prev or {}).get("qwen"))
+    # 冇讀 Qwen 帳本（冇 key）就抄返之前嗰份，唔好寫 0 洗走試用累計（抄錯咗只會令上限早啲到，唔會多用錢）
 
 
 _PREV = None
 
 
-def start(out=None):
-    """開始時讀今日用量：今次運行之前嘅步驟（out/ai_usage.json）→ 上一次 feeds 運行（feeds 分支）。讀唔到就由 0 計。"""
+def _raw(path):
+    repo = os.environ.get("GITHUB_REPOSITORY") or "ngheioffical-glitch/stock-app"
+    return json.loads(urllib.request.urlopen(f"https://raw.githubusercontent.com/{repo}/{path}", timeout=15).read())
+
+
+def start(out=None, fname="ai_usage.json"):
+    """開始時讀今日用量：今次運行之前嘅步驟（out/fname）→ 上一次 feeds 運行（feeds 分支）。讀唔到就由 0 計。
+    有 Qwen key 就順便讀晒各流程嘅 Qwen 帳本（_qwen_load）。"""
     global _PREV
     from pathlib import Path
-    f = Path(out) / "ai_usage.json" if out else None
+    f = Path(out) / fname if out else None
     try:
         if f and f.exists():
             _PREV = json.loads(f.read_text(encoding="utf-8"))
         elif os.environ.get("GITHUB_REPOSITORY"):
-            url = f"https://raw.githubusercontent.com/{os.environ['GITHUB_REPOSITORY']}/feeds/ai_usage.json"
-            _PREV = json.loads(urllib.request.urlopen(url, timeout=15).read())
+            _PREV = _raw("feeds/ai_usage.json")
     except Exception as e:  # noqa: BLE001
         print(f"[llm] 讀唔到之前用量（由 0 計）：{str(e)[:80]}")
         _PREV = None
     load_usage(_PREV)
+    if has_key("qwen"):
+        _qwen_load(out, fname)
 
 
-def finish(out):
-    """寫 out/ai_usage.json（feeds workflow 會推上 feeds 分支，俾下一次運行接住計）。"""
+def finish(out, fname="ai_usage.json"):
+    """寫 out/fname（feeds、radar 推上自己分支；每日掃描、研究 commit 落 main），俾下一次運行同其他流程接住計。"""
     from pathlib import Path
     Path(out).mkdir(parents=True, exist_ok=True)
-    (Path(out) / "ai_usage.json").write_text(json.dumps(usage_record(_PREV), ensure_ascii=False), encoding="utf-8")
+    (Path(out) / fname).write_text(json.dumps(usage_record(_PREV), ensure_ascii=False), encoding="utf-8")
+
+
+def _qwen_load(out=None, fname="ai_usage.json"):
+    """讀各流程帳本：自己（本機 out/fname 優先）同其他流程（GitHub 上面最新嗰份）今日同試用至今用咗幾多 Qwen。讀唔到當 0。"""
+    from pathlib import Path
+    own_t = own_all = oth_t = oth_all = 0.0
+    for name, path in LEDGERS.items():
+        d = None
+        try:
+            f = Path(out) / fname if out else None
+            if name == LEDGER and f and f.exists():
+                d = json.loads(f.read_text(encoding="utf-8"))
+            else:
+                d = _raw(path)
+        except Exception:  # noqa: BLE001
+            d = None
+        q = (d or {}).get("qwen") or {}
+        today = float(q.get("today") or 0) if q.get("day") == DAY else 0.0
+        total = float(q.get("total") or 0)
+        if name == LEDGER:
+            own_t, own_all = today, total
+        else:
+            oth_t, oth_all = oth_t + today, oth_all + total
+    _QW.update(own_today=own_t, own_total=own_all, other_today=oth_t, other_total=oth_all, loaded=True)
+
+
+def _qwen_run():
+    return sum(u["usd"] for u in USAGE if u.get("prov") == "qwen")
+
+
+def qwen_spent():
+    """(今日, 試用至今) 所有流程加埋嘅 Qwen 用量（美元）。"""
+    run = _qwen_run()
+    return _QW["own_today"] + _QW["other_today"] + run, _QW["own_total"] + _QW["other_total"] + run
 
 
 def status():
-    """俾 app 顯示嘅 AI 狀態。"""
+    """俾 app 顯示嘅 AI 狀態（Qwen 做主力就顯示 Qwen 今日用量同每日上限）。"""
+    if PROVIDER == "qwen":
+        return dict(provider="qwen", model=f"Qwen（{QWEN_FAST}／{QWEN_SMART}）", spent=round(qwen_spent()[0], 2), budget=QWEN_DAY_USD,
+                    total=round(qwen_spent()[1], 2), total_budget=QWEN_TOTAL_USD, day=DAY, calls=len(USAGE))
     return dict(provider=PROVIDER, model=label_claude() if PROVIDER == "claude" else PROVIDER, spent=round(spent_today(), 2),
                 budget=BUDGET, day=DAY, calls=len(USAGE))
 
@@ -183,7 +256,7 @@ def _log(msg, secs, kind):
     u = msg.usage
     st = getattr(u, "server_tool_use", None)
     n_search = int(getattr(st, "web_search_requests", 0) or 0) if st else 0
-    rec = dict(t=datetime.now(HKT).strftime("%H:%M:%S"), kind=kind, model=getattr(msg, "model", MODEL), secs=round(secs, 1),
+    rec = dict(prov="claude", t=datetime.now(HKT).strftime("%H:%M:%S"), kind=kind, model=getattr(msg, "model", MODEL), secs=round(secs, 1),
                inp=int(u.input_tokens or 0), out=int(u.output_tokens or 0),
                cr=int(getattr(u, "cache_read_input_tokens", 0) or 0), cw=int(getattr(u, "cache_creation_input_tokens", 0) or 0),
                search=n_search, stop=getattr(msg, "stop_reason", None))
@@ -457,13 +530,13 @@ MIS_GAP = float(os.environ.get("MISTRAL_GAP_SECS", "1.2"))   # 免費模式大�
 _MIS_LAST = [0.0]
 
 
-def _mistral(prompt, timeout):
+def _mistral(prompt, timeout, max_tokens=None):
     key = os.environ.get("MISTRAL_API_KEY", "").strip()
     if not key:
         raise RuntimeError("mistral：冇 MISTRAL_API_KEY")
     deadline, errs = time.time() + timeout, []
     for m in MIS_MODELS:
-        body = json.dumps({"model": m, "temperature": 0.3, "response_format": {"type": "json_object"},
+        body = json.dumps({"model": m, "temperature": 0.3, "response_format": {"type": "json_object"}, "max_tokens": min(int(max_tokens or 8000), 16000),
                            "messages": [{"role": "system", "content": JSON_SYS}, {"role": "user", "content": prompt}]}).encode()
         for attempt in range(2):
             wait = MIS_GAP - (time.time() - _MIS_LAST[0])
@@ -486,6 +559,116 @@ def _mistral(prompt, timeout):
                 errs.append(f"{m} {type(e).__name__}")
                 break
     raise RuntimeError("mistral：" + "、".join(errs))
+
+
+# ---------------------------------------------------------------- Qwen（2026-10-22；阿里雲 Model Studio 香港區，收錢）
+def _qwen_price(model, inp):
+    tiers = QWEN_PRICE.get(model) or next((v for k, v in QWEN_PRICE.items() if str(model).startswith(k)), QWEN_PRICE["qwen3.7-plus"])
+    return next((pi, po) for cap, pi, po in tiers if inp <= cap)
+
+
+def _qlog(kind, model, secs, inp, out, n_search):
+    pi, po = _qwen_price(model, inp)
+    rec = dict(prov="qwen", t=datetime.now(HKT).strftime("%H:%M:%S"), kind=kind, model=model, secs=round(secs, 1), inp=int(inp), out=int(out),
+               search=int(n_search), usd=round((inp * pi + out * po) / 1e6 + n_search * QWEN_SEARCH_USD, 6))
+    USAGE.append(rec)
+    d, a = qwen_spent()
+    print(f"[llm] qwen {kind} {model} {secs:.0f} 秒｜輸入 {inp:,}｜輸出 {out:,}｜搜尋 {n_search}｜約 US${rec['usd']:.4f}"
+          f"（今日 US${d:.3f}／上限 {QWEN_DAY_USD:g}；試用 US${a:.2f}／{QWEN_TOTAL_USD:g}）")
+    return rec
+
+
+def _qwen_post(path, body, timeout):
+    key = os.environ.get("QWEN_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("qwen：冇 QWEN_API_KEY")
+    if not _QW["loaded"]:
+        _qwen_load()                                     # 冇行 start() 嘅程式（例如模型帳戶查證）都要讀帳本先查上限
+    d_spent, all_spent = qwen_spent()
+    if all_spent >= QWEN_TOTAL_USD:
+        raise RuntimeError(f"qwen：試用總預算 US${QWEN_TOTAL_USD:g} 用晒")
+    if d_spent >= QWEN_DAY_USD:
+        raise RuntimeError(f"qwen：今日預算 US${QWEN_DAY_USD:g} 用晒")
+    for attempt in range(2):
+        req = urllib.request.Request(QWEN_BASE + path, data=json.dumps(body).encode(), method="POST",
+                                     headers={"Content-Type": "application/json", "Accept": "application/json", "Authorization": f"Bearer {key}"})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            msg = (e.read() or b"")[:300].decode("utf-8", "ignore")
+            opt = [k for k in ("enable_thinking", "max_tool_calls") if k in body and k in msg]
+            if e.code == 400 and opt and attempt == 0:   # 型號唔收某個選項：拎走再試一次
+                body = {k: v for k, v in body.items() if k not in opt}
+                continue
+            raise RuntimeError(f"qwen：HTTP {e.code} {msg[:160]}")
+    raise RuntimeError("qwen：請求失敗")
+
+
+def _qwen_ask(prompt, timeout, max_tokens=None, kind="ask", model=None):
+    m = model or (QWEN_SMART if str(kind).startswith("research") else QWEN_FAST)
+    body = {"model": m, "temperature": 0.3, "response_format": {"type": "json_object"}, "enable_thinking": False,
+            "max_tokens": min(int(max_tokens or 8000), 16000),
+            "messages": [{"role": "system", "content": JSON_SYS}, {"role": "user", "content": prompt}]}
+    t0 = time.time()
+    d = _qwen_post("/chat/completions", body, timeout)
+    u = d.get("usage") or {}
+    real = d.get("model") or m
+    _qlog(kind, real, time.time() - t0, u.get("prompt_tokens") or 0, u.get("completion_tokens") or 0, 0)
+    return _json(d["choices"][0]["message"]["content"]), f"qwen:{real}"
+
+
+def _qwen_respond(prompt, timeout, kind, max_calls):
+    """Responses API + web_search（OpenAI 兼容 chat 唔會回傳來源，所以搜尋要用呢個）。返 (文字, 來源, 搜尋次數, 型號)。"""
+    body = {"model": QWEN_SMART, "input": prompt, "tools": [{"type": "web_search"}], "max_tool_calls": max(1, int(max_calls)),
+            "max_output_tokens": 8000}
+    t0 = time.time()
+    d = _qwen_post("/responses", body, timeout)
+    texts, src, seen, n = [], [], set(), 0
+    for it in d.get("output") or []:
+        if it.get("type") == "web_search_call":
+            n += 1
+            for s in (it.get("action") or {}).get("sources") or []:
+                url = s.get("url") if isinstance(s, dict) else str(s)
+                if url and url not in seen:
+                    seen.add(url)
+                    src.append(dict(title=(s.get("title") if isinstance(s, dict) else "") or url, url=url, age=None))
+        elif it.get("type") == "message":
+            for c in it.get("content") or []:
+                if c.get("type") in ("output_text", "text"):
+                    texts.append(c.get("text") or "")
+                for a in c.get("annotations") or []:
+                    if a.get("type") == "url_citation" and a.get("url") and a["url"] not in seen:
+                        seen.add(a["url"])
+                        src.append(dict(title=a.get("title") or a["url"], url=a["url"], age=None))
+    u = d.get("usage") or {}
+    n = int(((u.get("x_tools") or {}).get("web_search") or {}).get("count") or n)
+    real = d.get("model") or QWEN_SMART
+    _qlog(kind, real, time.time() - t0, u.get("input_tokens") or 0, u.get("output_tokens") or 0, n)
+    return "".join(texts).strip(), src[:30], n, real
+
+
+def _qwen_search(prompt, timeout):
+    txt, src, n, m = _qwen_respond(prompt + "\n請用網上搜尋補充最新背景同查證，只根據搜尋結果同上面數據；唔肯定就答 unknown。"
+                                   "最後只回覆一個 JSON object，唔好加其他文字。", timeout, "search", QWEN_MAX_TOOL_CALLS)
+    tag = "、".join(s["title"] for s in src[:3] if s["title"]) or "冇列出來源"
+    return _json(txt), f"qwen:{m}（上網搜尋 {n} 次：{tag}）", bool(src) and n > 0, src
+
+
+def _qwen_gather(prompt, timeout, max_search, first):
+    txt, src, n, m = _qwen_respond(GATHER_SYS + "\n\n" + prompt, timeout, "gather", min(int(max_search), QWEN_MAX_TOOL_CALLS + 2))
+    if not src:
+        raise RuntimeError("qwen：搜尋冇來源")
+    txt += "\n\n（呢份筆記嘅來源：" + "、".join(f"[S{first + k}] {s['title']}" for k, s in enumerate(src)) + "）"
+    return txt, src, f"qwen:{m}（上網搜尋 {n} 次）", n
+
+
+def _schema_check(res, schema):
+    """後備供應商冇官方固定格式：起碼檢查 schema 頂層必填欄齊唔齊（2026-10-22 Codex 改卷：之前唔啱格式都照收）。"""
+    miss = [k for k in (schema or {}).get("required") or [] if k not in res]
+    if miss:
+        raise RuntimeError(f"回覆格式唔啱：缺 {'、'.join(miss[:5])}")
+    return res
 
 
 # ---------------------------------------------------------------- 對外
@@ -519,9 +702,13 @@ def ask(prompt, gem_models=None, timeout=None, schema=None, system=None, max_tok
             elif p == "gemini":
                 res, lab = _gemini_ask(other, gem_models, left)
             elif p == "mistral":
-                res, lab = _mistral(other, left)
+                res, lab = _mistral(other, left, max_tokens)
+            elif p == "qwen":
+                res, lab = _qwen_ask(other, left, max_tokens, kind)
             else:
                 continue
+            if schema and p != "claude":
+                _schema_check(res, schema)
             if errs:
                 lab += f"（後備：{_why(errs[0])}）"
                 print(f"[llm] 用咗後備 {lab}；之前：{'；'.join(errs)[:300]}")
@@ -545,6 +732,8 @@ def search(prompt, gem_models=None, timeout=None):
                 res, lab, g, src = _claude_search(prompt, left)
             elif p == "gemini":
                 res, lab, g, src = _gemini_search(prompt, left)
+            elif p == "qwen":
+                res, lab, g, src = _qwen_search(prompt, left)
             else:
                 continue                                     # 其他供應商冇上網搜尋
             if errs:
@@ -569,6 +758,8 @@ def gather(prompt, max_search=None, timeout=None, first=1):
                 notes, src, lab, n = _claude_gather(prompt, left, max_search, first)
             elif p == "gemini":
                 notes, src, lab, n = _gemini_gather(prompt, left, first)
+            elif p == "qwen":
+                notes, src, lab, n = _qwen_gather(prompt, left, max_search, first)
             else:
                 continue                                     # 其他供應商冇上網搜尋
             if errs:

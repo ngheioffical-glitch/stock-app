@@ -133,6 +133,8 @@ jobs:
           RELAY: ${{ github.event.inputs.relay }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          AI_LEDGER: feeds                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 宏觀來源（X 知名人士每 30 分鐘、Polymarket 每次；失敗就沿用上一份）
         run: |
@@ -153,6 +155,8 @@ jobs:
           RELAY: ${{ github.event.inputs.relay }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          AI_LEDGER: feeds                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
           FUT_ALERT: ${{ needs.guard.outputs.fut }}
           FUT_BUCKET: ${{ needs.guard.outputs.fut_b }}
@@ -165,6 +169,7 @@ jobs:
           git init -q -b feeds
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f ai_usage.json ] || curl -sfL -o ai_usage.json "https://raw.githubusercontent.com/${{ github.repository }}/feeds/ai_usage.json" || true   # 今次冇用 AI 都要保留 AI 用量帳本（Qwen 試用累計靠佢）
           git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json ai_usage.json 2>/dev/null)
           git commit -q -m "feeds $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" feeds

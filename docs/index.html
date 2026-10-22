@@ -1822,8 +1822,14 @@ function healthCard(){
     const D = FEED.news.digest;
     add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
     const AS = FEED.news.ai_status;      // 2026-10-20：AI 接駁層（scanner/llm.py）：用緊邊個 AI、今日（香港時間）用咗幾多錢
-    if (AS) add("AI 供應商同今日用量", AS.spent < AS.budget, `${AS.model} · 約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}`,
-      AS.spent >= AS.budget ? "今日 Claude 預算用晒：之後嘅 AI 用 Gemini 後備（會標明），香港時間零時重新計" : "");
+    // 2026-10-22：Qwen（香港區，收錢）多一個試用總額上限；用晒就自動用 Gemini 後備
+    if (AS){
+      const who = AS.provider === "qwen" ? "Qwen" : "Claude", totOut = AS.total_budget != null && AS.total >= AS.total_budget;
+      add("AI 供應商同今日用量", AS.spent < AS.budget && !totOut,
+        `${AS.model} · 今日約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}` + (AS.total_budget != null ? ` · 試用累計 US$${Number(AS.total).toFixed(2)}／US$${AS.total_budget}` : ""),
+        totOut ? `${who} 試用總額用晒：之後嘅 AI 用 Gemini 後備（會標明）；要繼續用就加大 QWEN_TOTAL_USD`
+          : AS.spent >= AS.budget ? `今日 ${who} 預算用晒：之後嘅 AI 用 Gemini 後備（會標明），香港時間零時重新計` : "");
+    }
     // 2026-10-15 用戶：開市前一定要更新一次。紐約平日 09:30 之後檢查今日有冇開市前版今日重點
     const nyNow = new Intl.DateTimeFormat("en-CA", {timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false})
       .formatToParts(new Date()).reduce((o, x) => (o[x.type] = x.value, o), {});
