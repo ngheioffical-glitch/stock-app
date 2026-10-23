@@ -1,0 +1,30 @@
+{
+ "day": "2026-10-23",
+ "scan_date": "2026-10-22",
+ "scan_next_day": "2026-10-23",
+ "stale_scan": false,
+ "green": true,
+ "in_session": false,
+ "cands": [],
+ "runs": [
+  {
+   "run_utc": "2026-10-23T17:44:51Z",
+   "run_hk": "01:44:51",
+   "fetch_s": 1.4,
+   "last_bar_end": "13:40",
+   "delay_min": 4.9,
+   "n_ok": 10
+  },
+  {
+   "run_utc": "2026-10-23T20:40:02Z",
+   "run_hk": "04:40:02",
+   "skip": "收市時間"
+  },
+  {
+   "run_utc": "2026-10-23T23:32:24Z",
+   "run_hk": "07:32:24",
+   "skip": "收市時間"
+  }
+ ],
+ "generated": "2026-10-24 07:32:24 HKT"
+}
