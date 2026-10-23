@@ -1822,12 +1822,12 @@ function healthCard(){
     const D = FEED.news.digest;
     add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
     const AS = FEED.news.ai_status;      // 2026-10-20：AI 接駁層（scanner/llm.py）：用緊邊個 AI、今日（香港時間）用咗幾多錢
-    // 2026-10-22：Qwen（香港區，收錢）多一個試用總額上限；用晒就自動用 Gemini 後備
+    // 2026-10-22：收錢 AI（2026-10-23 起係 DeepSeek）多一個試用總額上限；用晒就自動用 Gemini 後備
     if (AS){
-      const who = AS.provider === "qwen" ? "Qwen" : "Claude", totOut = AS.total_budget != null && AS.total >= AS.total_budget;
+      const who = {deepseek: "DeepSeek", claude: "Claude", gemini: "Gemini", mistral: "Mistral"}[AS.provider] || "AI", totOut = AS.total_budget != null && AS.total >= AS.total_budget;
       add("AI 供應商同今日用量", AS.spent < AS.budget && !totOut,
         `${AS.model} · 今日約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}` + (AS.total_budget != null ? ` · 試用累計 US$${Number(AS.total).toFixed(2)}／US$${AS.total_budget}` : ""),
-        totOut ? `${who} 試用總額用晒：之後嘅 AI 用 Gemini 後備（會標明）；要繼續用就加大 QWEN_TOTAL_USD`
+        totOut ? `${who} 試用總額用晒：之後嘅 AI 用 Gemini 後備（會標明）；要繼續用就加大 AI_PAID_TOTAL_USD（叫 Claude 改）`
           : AS.spent >= AS.budget ? `今日 ${who} 預算用晒：之後嘅 AI 用 Gemini 後備（會標明），香港時間零時重新計` : "");
     }
     // 2026-10-15 用戶：開市前一定要更新一次。紐約平日 09:30 之後檢查今日有冇開市前版今日重點
@@ -2257,6 +2257,9 @@ function setResPos(sym, v){ try { const o = JSON.parse(localStorage.getItem("res
 const rsLogo = (sym, px) => { let h = 0; for (const c of String(sym)) h = (h * 31 + c.charCodeAt(0)) % 360;
   return `<span class="rs-lg" style="--h:${h};width:${px}px;height:${px}px;font-size:${Math.round(px * (sym.length > 3 ? .3 : .36))}px">${esc(String(sym).slice(0, 4))}</span>`; };
 const zhDate = d => d ? `${+d.slice(0, 4)}年${+d.slice(5, 7)}月${+d.slice(8, 10)}日` : "";
+// 2026-10-23：邊個 AI 寫（DeepSeek 收錢、Gemini／Mistral 免費、Claude 收錢）；研究頁同生成按鈕用
+const rsBy = r => { const a = (r.models || {}).analysis || ""; return /Claude/.test(a) ? "Claude" : /deepseek/i.test(a) ? "DeepSeek" : "AI"; };
+const aiProv = () => ((FEED.news || {}).ai_status || {}).provider || "";
 const rsWho = m => !m ? "AI" : /後備/.test(m) ? m : String(m).replace(/^Claude\s+(?=(Opus|Sonnet|Haiku|Fable)\b)/, "").replace(/（effort[^）]*）/, "").replace(/（上網[^）]*）/, "");
 const rsMoney = x => { if (x == null || !isFinite(x)) return "—"; const a = Math.abs(x), s = x < 0 ? "-" : "";
   return a >= 1e12 ? `${s}${(a / 1e12).toFixed(2)} 萬億` : a >= 1e10 ? `${s}${Math.round(a / 1e8).toLocaleString()} 億` : a >= 1e8 ? `${s}${(a / 1e8).toFixed(1)} 億` : `${s}${Math.round(a / 1e4).toLocaleString()} 萬`; };
@@ -2725,9 +2728,10 @@ function resPage(r){
   RS.gl = r.glossary || []; RS.GL = RS.gl.map((g, i) => ({...g, i})).sort((a, b) => b.term.length - a.term.length); RS.src = r.sources || [];
   const V = r.valuation || {};
   return `<div class="rs-in">${rsTop(r.sym, `${r.sym}-${r.name}`)}
-    <div class="rs-bar"><div class="rs-tick">${rsLogo(r.sym, 26)}<b>${esc(r.sym)}</b><span class="px">${f2(r.price)}</span><span class="st">Claude <i>${V.ok ? stars(V.stars) : "未能估值"}</i></span></div>
+    <div class="rs-bar"><div class="rs-tick">${rsLogo(r.sym, 26)}<b>${esc(r.sym)}</b><span class="px">${f2(r.price)}</span><span class="st">${rsBy(r)} <i>${V.ok ? stars(V.stars) : "未能估值"}</i></span></div>
       <div class="rs-pills" id="rsPills">${RS_SECS.map(([k, l], i) => `<button data-go="${k}" class="${i ? "" : "on"}">${l}</button>`).join("")}</div></div>
     ${r.sample ? `<div class="rs-sample"><b>樣本</b>：呢份係 Claude Code 喺對話入面人手代入 AI 回覆整嘅測試報告（數據同計法係真嘅），唔係雲端自動生成。</div>`
+      : /deepseek/i.test((r.models || {}).analysis || "") ? `<div class="rs-sample"><b>DeepSeek 版</b>：呢份由 DeepSeek 寫（${esc(rsWho((r.models || {}).gather))} 上網搵資料、${esc(rsWho((r.models || {}).analysis))} 分析；收錢但好平，計入每日上限），數字照樣由程式計，記得睇來源。</div>`
       : !/Claude/.test((r.models || {}).analysis || "") ? `<div class="rs-sample"><b>免費 AI 版</b>：呢份由免費 AI 寫（${esc(rsWho((r.models || {}).gather))} 上網搵資料、${esc(rsWho((r.models || {}).analysis))} 分析），數字照樣由程式計，但文字質素可能比 Claude 低，記得睇來源。</div>` : ""}
     ${r.dry ? `<div class="rs-sample"><b>未有 AI 分析</b>：呢份淨係程式數據（測試模式）。</div>` : ""}
     ${rsSum(r)}${rsPos(r)}${rsView(r)}${rsPrimer(r)}${rsBiz(r)}${rsVal(r)}${rsDir(r)}${rsHist(r)}${rsPeer(r)}${rsSrc(r)}</div>`;
@@ -2816,7 +2820,7 @@ function viewRes(){
       <div class="r"><b>${f2(it.price)}</b><span>${it.stars ? stars(it.stars) : "未能估值"}</span>${it.p_fv ? `<p class="small ${it.p_fv <= 1 ? "up" : "dn"}" style="margin:0">${it.p_fv <= 1 ? "低" : "高"}過公允 ${pc0(Math.abs(1 - it.p_fv))}</p>` : ""}</div></div>`).join("");
   h += `<div class="card"><b>生成新報告</b>${!RES_GEN ? `<p class="small muted">暫時停用：研究報告要用 Claude（Opus 5.5），而家 app 用緊 Gemini（2026-10-21 決定暫時唔用 Opus）。開返 Claude 之後先可以生成；上面嘅報告照睇得。</p>`
       : S.ghToken ? `<div class="row" style="flex-wrap:nowrap"><input id="resSym" placeholder="美股代號，例如 NVDA" autocapitalize="characters" style="flex:1"><button id="resGo" class="primary">生成</button></div>
-      <p class="small muted">雲端大約 10 分鐘寫好一份：而家冇開 Claude，用免費 AI（唔使錢；額度爆咗會失敗，遲啲再撳）。開咗 Claude 先會用錢（約 US$1–1.5 一份）；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。模型持倉、排名頭 5 同清單入面嘅股票每星期同業績後自動更新（每日最多 2 份）。</p>`
+      <p class="small muted">雲端大約 10 分鐘寫好一份：${aiProv() === "deepseek" ? "而家用 DeepSeek（收錢但好平，同其他 AI 功能共用每日上限；用晒就轉免費 Gemini）。" : "而家冇開 Claude，用免費 AI（唔使錢；額度爆咗會失敗，遲啲再撳）。"}開咗 Claude 先會用多啲錢（約 US$1–1.5 一份）；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。模型持倉、排名頭 5 同清單入面嘅股票每星期同業績後自動更新（每日最多 2 份）。</p>`
       : `<p class="small muted">喺「設定」填 GitHub token 先可以喺度叫雲端生成。</p>`}${RS.msg ? `<p class="small" style="color:var(--cyan)">${esc(RS.msg)}</p>` : ""}</div>`;
   return h;
 }
@@ -2889,7 +2893,7 @@ function bind(){
   evDrawPage();                                        // 事件線要等 HTML 出咗先知闊度
   on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
   const rgo = () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ alert("請輸入美股代號，例如 NVDA"); return; }
-    if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（而家用免費 AI，唔使錢）。`)) resGenerate(v); };
+    if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（${aiProv() === "deepseek" ? "而家用 DeepSeek，收錢但好平" : "而家用免費 AI，唔使錢"}）。`)) resGenerate(v); };
   on("#resGo", rgo); const rsy = $("#resSym"); if (rsy) rsy.onkeydown = e => { if (e.key === "Enter") rgo(); };
 }
 

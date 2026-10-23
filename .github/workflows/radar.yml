@@ -32,7 +32,7 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 前瞻敘事（穩定幣、各鏈、各類項目數據 + X + AI；AI 每日寫一次；失敗唔影響其他）
@@ -46,7 +46,7 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: Meme 雷達（熱門池、安全檢查、熱度 × 安全排名、AI；失敗唔影響其他）
@@ -60,7 +60,7 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 題材雷達（核能、稀土等題材 ETF 同成份股、新聞關鍵字、AI；失敗唔影響其他）
@@ -75,7 +75,7 @@ jobs:
           PYTHONIOENCODING: utf-8
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}           # 2026-10-22：有就用 Qwen（香港區，收錢，有每日／試用上限）
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 推去 radar 分支
@@ -84,7 +84,7 @@ jobs:
           git init -q -b radar
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          [ -f ai_usage.json ] || curl -sfL -o ai_usage.json "https://raw.githubusercontent.com/${{ github.repository }}/radar/ai_usage.json" || true   # 今次冇用 AI 都要保留 AI 用量帳本（Qwen 試用累計靠佢）
+          [ -f ai_usage.json ] || curl -sfL -o ai_usage.json "https://raw.githubusercontent.com/${{ github.repository }}/radar/ai_usage.json" || true   # 今次冇用 AI 都要保留 AI 用量帳本（收錢 AI 試用累計靠佢）
           git add radar.json $(ls narr.json meme.json theme.json ai_usage.json 2>/dev/null)
           git commit -q -m "radar $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" radar

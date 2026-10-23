@@ -978,8 +978,9 @@ def _manual(dirp, name, prompt):
 
 def build(sym, dry=False, manual=None, fresh=False):
     sym = sym.upper().strip().lstrip("$")
-    # 有 Claude key 就 Claude 起頭（中途失敗先退後備，標明）；冇就用免費 AI（2026-10-22）：Gemini 上網搵資料、Mistral 寫分析（冇 Mistral 就全部 Gemini）
-    llm.ORDER = [p for p in ("claude", "qwen", "mistral", "gemini") if llm.has_key(p)]   # 2026-10-22 加 Qwen（香港區，收錢；有上限）
+    # 有 Claude key 就 Claude 起頭（中途失敗先退後備，標明）；冇就 DeepSeek（2026-10-23，收錢但好平，有每日／試用上限）；
+    # 再冇就用免費 AI（2026-10-22）：Gemini 上網搵資料、Mistral 寫分析（冇 Mistral 就全部 Gemini）
+    llm.ORDER = [p for p in ("claude", "deepseek", "mistral", "gemini") if llm.has_key(p)]
     t0, u0 = time.time(), len(llm.USAGE)
     old = None if fresh else load_report(sym)          # --fresh：當第一次研究（唔同上次比較、唔存舊檔）
     D = collect(sym)
@@ -1084,11 +1085,11 @@ def main(argv):
         if not os.environ.get("ANTHROPIC_API_KEY", "").strip() and os.environ.get("RESEARCH_REQUIRE_CLAUDE", "0") == "1":
             print("[research] 冇 ANTHROPIC_API_KEY：研究報告要用 Claude 起頭（RESEARCH_REQUIRE_CLAUDE=1），今次唔做")
             return 0 if "--due" in argv else 1
-        if not (llm.has_key("claude") or llm.has_key("gemini")):
-            print("[research] 冇可以上網搜尋嘅 AI key（Claude 或者 Gemini），今次唔做")
+        if not any(llm.has_key(p) for p in ("claude", "deepseek", "gemini")):
+            print("[research] 冇可以上網搜尋嘅 AI key（Claude、DeepSeek 或者 Gemini），今次唔做")
             return 0 if "--due" in argv else 1
     if not (dry or manual):
-        llm.start(OUT.parent, "ai_usage_research.json")  # 讀今日用量同各流程 Qwen 帳本（上限要跨流程計）
+        llm.start(OUT.parent, "ai_usage_research.json")  # 讀今日用量同各流程收錢 AI 帳本（上限要跨流程計）
     bad, done = 0, 0
     for s in syms:
         # 2026-10-21 Codex 改卷：每份開始前都查上限（之前成批只查一次）；失敗嗰份已經用咗嘅錢都要記帳
