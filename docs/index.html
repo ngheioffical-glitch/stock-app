@@ -47,7 +47,7 @@ main>*{min-width:0;max-width:100%}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 2px;min-width:0}
 .brand{font-family:var(--brand);font-weight:800;font-size:14px;letter-spacing:.14em;color:var(--cyan);text-shadow:0 0 14px rgba(0,229,255,.45);white-space:nowrap;flex:none}
 .brand span{color:var(--ink);opacity:.55}
-.chip{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel2);
+.chip{font-family:var(--mono);font-size:12px;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--panel2);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 
 .card{position:relative;background:var(--panel);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;
@@ -68,7 +68,7 @@ main>*{min-width:0;max-width:100%}
 .status{font-family:var(--brand);font-size:18px;font-weight:800;letter-spacing:.12em}
 .gauges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .gauge{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0}
-.gauge span{display:block;font-size:11px;color:var(--muted);letter-spacing:.04em;line-height:1.6;min-height:3.2em}   /* 2026-10-02：標籤一律留兩行高，三格嘅數字同 bar 先對齊 */
+.gauge span{display:block;font-size:12px;color:var(--muted);letter-spacing:.04em;line-height:1.6;min-height:3.2em}   /* 2026-10-02：標籤一律留兩行高，三格嘅數字同 bar 先對齊 */
 .gauge b{font-family:var(--mono);font-size:15px}
 .bar{height:4px;border-radius:2px;background:rgba(120,200,255,.12);overflow:hidden;margin-top:6px}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--buy));box-shadow:0 0 10px var(--cyan)}
@@ -77,7 +77,7 @@ main>*{min-width:0;max-width:100%}
 .sig .head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .sym{font-family:var(--mono);font-size:22px;font-weight:700;letter-spacing:.04em}
 .ind{display:block;font-size:12px;color:var(--muted);line-height:1.3}
-.tag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:6px;white-space:nowrap;border:1px solid transparent}
+.tag{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:6px;white-space:nowrap;border:1px solid transparent}
 .t-cyan{color:var(--cyan);background:var(--cyan-soft);border-color:rgba(0,229,255,.3)}
 .t-buy{color:var(--buy);background:var(--buy-soft);border-color:rgba(44,245,160,.3)}
 .t-stop{color:var(--stop);background:var(--stop-soft);border-color:rgba(255,77,109,.3)}
@@ -88,12 +88,12 @@ main>*{min-width:0;max-width:100%}
 [data-trsym]{cursor:pointer}
 .t-dim{color:var(--muted);background:rgba(120,200,255,.06);border-color:var(--line)}
 .price{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1.1;color:var(--cyan);text-shadow:0 0 18px rgba(0,229,255,.35)}
-.lbl{font-size:11px;letter-spacing:.14em;color:var(--muted)}
+.lbl{font-size:12px;letter-spacing:.08em;color:var(--muted)}
 .dist{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
 .dist .bar{flex:1;margin:0}
 .kv{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .kv div{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;min-width:0}
-.kv span{display:block;font-size:11px;color:var(--muted)}
+.kv span{display:block;font-size:12px;color:var(--muted)}
 .kv b{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 details{border-top:1px dashed var(--line2);padding-top:8px}
 summary{cursor:pointer;font-size:12px;color:var(--cyan);letter-spacing:.06em;list-style:none}
@@ -105,7 +105,7 @@ details b{color:var(--ink);font-family:var(--mono)}
 .tablewrap{overflow-x:auto;border-radius:12px;box-shadow:var(--glow);background:var(--panel)}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
-th{font-size:11px;letter-spacing:.1em;color:var(--muted);font-weight:700;background:rgba(0,229,255,.05);position:sticky;top:0}
+th{font-size:12px;letter-spacing:.04em;color:var(--muted);font-weight:700;background:rgba(0,229,255,.05);position:sticky;top:0}
 tr:last-child td{border-bottom:0}
 td.r,th.r{text-align:right}
 td.hl{color:var(--cyan);font-weight:700}
@@ -126,9 +126,9 @@ input{font:inherit;font-family:var(--mono);font-size:13px;color:var(--ink);backg
 .grid2{display:grid;grid-template-columns:1fr;gap:10px}
 
 nav{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:736px;margin:0 auto;
-  display:grid;grid-template-columns:repeat(8,minmax(0,1fr));z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));z-index:5;border-radius:16px;background:rgba(8,14,22,.82);
   box-shadow:0 0 0 1px var(--line2),0 10px 40px rgba(0,0,0,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-nav button{border:0;background:none;padding:9px 0 8px;font-size:10.5px;font-weight:500;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;white-space:nowrap;letter-spacing:-.02em}   /* 2026-10-20：加「研究」變 9 格，字細少少；2026-10-21 Serenity + Trump 合成「人物」，變返 8 格 */
+nav button{border:0;background:none;padding:9px 0 8px;font-size:12px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;white-space:nowrap}   /* 2026-10-24：8 格 → 5 格，字 10.5 → 12px */
 nav svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 nav button[aria-current="page"]{color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,.5)}
 nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
@@ -141,7 +141,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .news:last-child{border-bottom:0}
 .news a{color:var(--ink);text-decoration:none;font-weight:500;line-height:1.45}
 .news a:hover{color:var(--cyan)}
-.news .meta{font-size:11.5px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.news .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .ev{display:grid;grid-template-columns:54px 1fr;gap:2px 10px;padding:9px 0;border-bottom:1px solid var(--line)}
 .ev:last-child{border-bottom:0}
 .ev .exp{grid-column:2;font-size:12px;color:var(--ink);margin-top:4px}
@@ -149,10 +149,10 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .ev .exp p{margin:4px 0;line-height:1.5}
 .ev .aiexp{border-left:2px solid var(--cyan);padding-left:8px}
 .ev .tm{font-family:var(--mono);font-size:13px;color:var(--cyan)}
-.ev .tm small{color:var(--dim)}
+.ev .tm small{color:var(--muted)}
 .ev .nm{font-weight:500;line-height:1.35}
-.ev .en{display:block;font-size:11.5px;color:var(--muted);font-weight:400}
-.ev .vals{grid-column:2;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:11px;color:var(--muted)}
+.ev .en{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.ev .vals{grid-column:2;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:12px;color:var(--muted)}
 .ev .vals b{display:block;font-family:var(--mono);font-size:14px;color:var(--ink)}
 .ev.done .vals b.act{color:var(--buy);text-shadow:0 0 10px rgba(44,245,160,.4)}
 .imp{display:inline-flex;gap:2px;vertical-align:middle;margin-right:5px}
@@ -190,14 +190,14 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 @keyframes letter{0%{opacity:0;transform:translateY(8px);filter:blur(6px)}60%{opacity:1;filter:blur(0);color:#fff}100%{opacity:1;transform:none}}
 .sp-logo b.sl{animation-name:letterDim}
 @keyframes letterDim{from{opacity:0}to{opacity:.55}}
-.sp-sub{font-family:var(--mono);font-size:11px;letter-spacing:.22em;color:var(--muted);height:14px}
+.sp-sub{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--muted);height:14px}
 .sp-sub::after{content:"_";animation:blink 1s steps(1) infinite;color:var(--cyan)}
 @keyframes blink{50%{opacity:0}}
 .sp-bar{width:180px;height:2px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
 .sp-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--buy));box-shadow:0 0 12px var(--cyan);transition:width .45s var(--ease)}
 .snap{display:flex;flex-wrap:wrap;gap:4px 12px;padding:8px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
-.snap>.muted{flex-basis:100%;font-size:11.5px}
-.zm{font-size:11px;color:var(--dim);font-family:var(--mono)}
+.snap>.muted{flex-basis:100%;font-size:12px}
+.zm{font-size:12px;color:var(--muted);font-family:var(--mono)}
 .gear{padding:5px;border-radius:999px;line-height:0;flex:none}
 .gear svg{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:1.7;stroke-linecap:round}
 .gear.on svg{stroke:var(--cyan);filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
@@ -218,7 +218,7 @@ details.card>summary::-webkit-details-marker{display:none}
 @keyframes fadein{from{opacity:.35}to{opacity:1}}
 button{transition:transform .14s var(--ease),background-color .2s,box-shadow .25s,color .2s,border-color .2s}
 button:active{transform:scale(.95)}
-nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 8);padding:0 4px;pointer-events:none;transition:transform .42s var(--ease)}
+nav .pill{position:absolute;top:5px;bottom:5px;left:0;width:calc(100% / 5);padding:0 6px;pointer-events:none;transition:transform .42s var(--ease)}
 nav .pill::before{content:"";display:block;height:100%;border-radius:12px;background:linear-gradient(180deg,rgba(0,229,255,.18),rgba(0,229,255,.04));
   box-shadow:inset 0 0 0 1px rgba(0,229,255,.3),0 0 20px rgba(0,229,255,.18)}
 nav button{position:relative;z-index:1}
@@ -245,7 +245,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 @media (max-width:400px){
   .brand{font-size:12px;letter-spacing:.07em}
   .topbar .chip{flex:none}
-  th,td{padding:7px 4px;font-size:11.5px}
+  th,td{padding:7px 4px;font-size:12px}
   td.st,th.st{min-width:66px}
   td .ind{max-width:96px}
   td.mono:not(.r){white-space:normal;min-width:70px}   /* 股票名嗰格（代號 + Serenity 標記 + 升跌 + 行業）可以摺行；數字格（.r）照舊唔摺 */
@@ -291,7 +291,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rs-more summary{color:var(--rm)!important;font-size:13px;font-weight:700;margin-top:8px;cursor:pointer}
 .rs-more summary::after{content:" ▸"} .rs-more[open] summary::after{content:" ▾"}
 .rs-more p{font-size:14.5px;color:#d2d2d9;margin-top:6px}
-.rs-cite{display:inline-block;font-size:10.5px;font-weight:700;color:var(--rteal);background:rgba(125,211,232,.1);border-radius:4px;padding:0 3px;margin:0 1px;line-height:1.5;
+.rs-cite{display:inline-block;font-size:12px;font-weight:700;color:var(--rteal);background:rgba(125,211,232,.1);border-radius:4px;padding:0 3px;margin:0 1px;line-height:1.5;
   vertical-align:super;cursor:pointer;font-family:var(--mono)}
 .rs-gl{text-decoration:underline dotted rgba(236,236,241,.55);text-underline-offset:4px;cursor:pointer}
 .rs-p{font-size:17px;line-height:1.85;margin-top:14px;color:#f0f0f4}
@@ -299,9 +299,9 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rs-meta{font-size:13px;color:var(--rm);margin-top:8px;line-height:1.6}
 .rs-hero{position:relative;margin:0 -16px;height:280px;background:radial-gradient(120% 90% at 60% 30%,rgba(79,182,214,.1),transparent 70%)}
 .rs-hero svg{display:block;width:100%;height:100%}
-.rs-cap{position:absolute;top:6px;right:16px;font-size:11px;color:var(--rm);margin:0;pointer-events:none}
+.rs-cap{position:absolute;top:6px;right:16px;font-size:12px;color:var(--rm);margin:0;pointer-events:none}
 .rs-ev{cursor:pointer}
-.rs-ev text{font-size:11px;font-weight:700;fill:#f3f3f5;font-family:var(--sans)}
+.rs-ev text{font-size:12px;font-weight:700;fill:var(--ink);font-family:var(--sans)}
 .rs-ev rect{fill:rgba(26,26,32,.92);stroke:rgba(255,255,255,.14)}
 .rs-pulse{animation:rsPulse 2.2s ease-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes rsPulse{0%{opacity:.8;transform:scale(.6)}100%{opacity:0;transform:scale(2.6)}}
@@ -393,7 +393,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rs-qa[open] summary::after{transform:rotate(180deg)}
 .rs-qa>div{padding:0 16px 14px}
 .rs-fact{font-size:14.5px;line-height:1.7;margin-top:9px}
-.rs-fact .bt{display:inline-block;background:#26262d;color:#e9e9ee;font-size:11.5px;font-weight:800;border-radius:5px;padding:0 6px;margin-right:8px;vertical-align:1px}
+.rs-fact .bt{display:inline-block;background:#26262d;color:#e9e9ee;font-size:12px;font-weight:800;border-radius:5px;padding:0 6px;margin-right:8px;vertical-align:1px}
 .rs-fact .bt.m{background:rgba(243,165,109,.16);color:var(--rora)}
 .rs-dg{margin:6px 0 10px;border-radius:14px;padding:14px 12px;background:radial-gradient(120% 120% at 50% 0%,#14324a,#0d1724 70%);border:1px solid rgba(125,211,232,.18)}
 .rs-dg p.t{font-size:12px;color:#9fc3d3;margin:0 0 8px;text-align:center}
@@ -413,7 +413,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rs-scn h4{margin:0;font-size:16px;font-weight:900;display:flex;justify-content:space-between;gap:8px}
 .rs-scn .kv3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
 .rs-scn .kv3 div{background:#0f0f13;border-radius:10px;padding:6px 8px}
-.rs-scn .kv3 span{display:block;font-size:11.5px;color:var(--rm)} .rs-scn .kv3 b{font-family:var(--mono);font-size:14.5px}
+.rs-scn .kv3 span{display:block;font-size:12px;color:var(--rm)} .rs-scn .kv3 b{font-family:var(--mono);font-size:14.5px}
 .rs-src{font-size:13.5px;line-height:1.6;padding:8px 0;border-bottom:1px solid var(--rl);display:flex;gap:8px}
 .rs-src b{font-family:var(--mono);color:var(--rteal);flex:none;min-width:2.6em}
 .rs-src a{color:#dcdce3;text-decoration:none;word-break:break-word} .rs-src small{color:var(--rm)}
@@ -440,7 +440,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 @media (max-width:380px){.rs-name{font-size:27px}.rs-big{font-size:33px}.rs-m b{font-size:25px}.rs-pc .p b{font-size:31px}.rs-s b{font-size:14px}}
 /* ───────── 影片風格（2026-10-21 用戶：「改成影片風格」→ 試睇訊號頁之後「成個 app 改晒」）：同研究頁一樣嘅近黑底、灰黑扁平卡、白色粗字、柔和青色、
    白色膠囊掣；冇網格、冇霓虹發光。<html class="vs">（寫死喺 HTML，開 app 第一刻就生效）；拎走個 class 就變返之前嘅「未來科技感」 */
-:root.vs{--bg:#0a0a0d;--bg2:#111115;--panel:#16161b;--panel2:#1f1f25;--ink:#ececf1;--muted:#8f8f9a;--dim:#5f5f69;
+:root.vs{--bg:#0a0a0d;--bg2:#111115;--panel:#16161b;--panel2:#1f1f25;--ink:#ececf1;--muted:#9a9aa4;--dim:#5f5f69;   /* 2026-10-24：--muted 由 #8f8f9a 調亮（喺所有底色對比 ≥ 5:1）；--dim 淨係做裝飾，唔寫資料 */
   --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--cyan:#7dd3e8;--cyan-soft:rgba(125,211,232,.12);
   --buy:#8be0b4;--buy-soft:rgba(139,224,180,.12);--stop:#ff8a8a;--stop-soft:rgba(255,138,138,.12);--warn:#f3c26d;--warn-soft:rgba(243,194,109,.12);
   --glow:none;--brand:var(--sans)}
@@ -483,7 +483,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .vs .sp-logo{font-family:var(--sans);font-weight:900;letter-spacing:.04em;color:var(--ink)}
 .vs .sp-logo b{text-shadow:none}
 .vs .sp-bar i{background:var(--cyan);box-shadow:none}
-.vs .sp-sub::after{color:var(--muted)}
+.vs .sp-sub{font-family:var(--sans);letter-spacing:.12em} .vs .sp-sub::after{content:none}   /* 2026-10-24：拎走終端機式閃動底線 */
 .vs details b{font-family:inherit}
 /* 事件股價線（2026-10-21） */
 .ev-mini{height:230px;margin:0 -18px}
@@ -500,6 +500,22 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .ev-dot{position:absolute;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:#8fdcf0;box-shadow:0 0 0 3px rgba(10,10,13,.9);pointer-events:none}
 .ev-tip{position:absolute;top:2px;max-width:72%;padding:4px 10px;border-radius:9px;background:rgba(31,31,37,.97);border:1px solid rgba(255,255,255,.14);
   font-size:12px;line-height:1.45;color:#ececf1;pointer-events:none;z-index:3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ───────── 2026-10-24 界面重整（老師：「有啲亂」「做到專業上架質素」；/codex 兩邊同意） */
+.vs nav button{background:none}                            /* 底部導航：淨係揀中嗰格有底（.pill） */
+.subnav{margin:-2px 0 0}                                   /* 每個大分頁入面嘅細分頁（白色膠囊） */
+.subnav button{flex:1;padding:7px 10px;font-size:14px}
+.mtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:8px}   /* 今日頁市況方格：撳入去先睇詳細 */
+.mt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:var(--panel);border:0;border-radius:14px;padding:10px 12px;text-align:left;color:var(--ink);min-width:0}
+.mt span{font-size:12px;color:var(--muted);white-space:nowrap}
+.mt b{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.25}
+.mt em{font-style:normal;font-size:12px;font-weight:600;white-space:nowrap}
+.dlist{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.6}
+.rs-sh .card{background:transparent;padding:0;box-shadow:none}   /* 彈出頁入面嘅卡唔再加框 */
+details.sig>summary{list-style:none;cursor:pointer} details.sig>summary::-webkit-details-marker{display:none}
+details.sig>summary .head{align-items:center}
+details.sig .more{font-size:12px;color:var(--muted);margin-left:auto;white-space:nowrap}
+details.sig[open] .more{display:none}
+.todo-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 </style>
 </head>
 <body>
@@ -514,8 +530,8 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
       <path class="chart" d="M40 98 L54 88 L64 93 L78 72 L88 79 L110 50" stroke="var(--buy)" stroke-width="3" style="filter:drop-shadow(0 0 5px var(--buy))"/>
       <circle class="dot" cx="110" cy="50" r="4.5" fill="var(--buy)" style="filter:drop-shadow(0 0 8px var(--buy))"/>
     </svg>
-    <div class="sp-logo"><b style="--k:0">L</b><b style="--k:1">E</b><b style="--k:2">A</b><b style="--k:3">D</b><b style="--k:4">E</b><b style="--k:5">R</b><b style="--k:6" class="sl">/</b><b style="--k:7" class="sl">/</b><b style="--k:8">B</b><b style="--k:9">R</b><b style="--k:10">E</b><b style="--k:11">A</b><b style="--k:12">K</b><b style="--k:13">O</b><b style="--k:14">U</b><b style="--k:15">T</b></div>
-    <div class="sp-sub" id="spSub">INITIALIZING</div>
+    <div class="sp-logo"><b style="--k:0">龍</b><b style="--k:1">頭</b><b style="--k:2">突</b><b style="--k:3">破</b></div>
+    <div class="sp-sub" id="spSub">載入緊</div>
     <div class="sp-bar"><i id="spBar"></i></div>
   </div>
 </div>
@@ -523,14 +539,12 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 <div id="rs" hidden></div>
 
 <nav id="tabs" aria-label="分頁"><span class="pill" aria-hidden="true"></span>
-  <button data-tab="today" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>訊號</button>
-  <button data-tab="model"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>模型</button>
-  <button data-tab="rank"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>排名</button>
-  <button data-tab="res"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h7M9 17h5"/></svg>研究</button>
-  <button data-tab="news"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>新聞</button>
-  <button data-tab="crypto"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5m0-8v8M11 6v1.5M11 16.5V18"/></svg>加密</button>
-  <button data-tab="radar"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l6-6"/></svg>雷達</button>
-  <button data-tab="ppl"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14.3A4.5 4.5 0 0 1 21 18.5"/></svg>人物</button>
+  <!-- 2026-10-24 界面重整（老師：「有啲亂…唔知邊度打邊」「做到專業上架質素」；/codex 兩邊同意）：底部 8 格 → 5 格，每格入面用細分頁 -->
+  <button data-tab="today" aria-current="page"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M15 8h5v5"/></svg>今日</button>
+  <button data-tab="strat"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/></svg>策略</button>
+  <button data-tab="stocks"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>股票</button>
+  <button data-tab="info"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h10M7 13h6"/></svg>資訊</button>
+  <button data-tab="cry"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 7.5h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5m0-8v8M11 6v1.5M11 16.5V18"/></svg>加密</button>
 </nav>
 
 <script>
@@ -558,9 +572,8 @@ try { TAB = localStorage.getItem(KEY + "-tab") || "today"; } catch(e){}
 // ───────────────────────── 工具
 const $ = s => document.querySelector(s);
 // AI 型號標籤；2026-10-20 起 Claude 出事退返 Gemini／GitHub 會寫「後備：原因」，用紅色 ⚠ 標明（用戶要求）
-const mdl = m => !m ? "" : /後備/.test(m)
-  ? `<span class="tag t-stop" title="Claude 今次用唔到，用咗後備 AI">⚠ ${esc(String(m).replace(/^github:/, "GitHub · "))}</span>`
-  : `<span class="tag t-dim" title="用咗呢個 AI 型號">${esc(String(m).replace(/^github:/, "GitHub · "))}</span>`;
+// 2026-10-24 界面重整：用家面前唔顯示 AI 型號名（「設定 → AI 用量」有）；主力 AI 今次用唔到、用咗後備先標明（撳住睇原因）
+const mdl = m => !m ? "" : /後備/.test(m) ? `<span class="tag t-warn" title="${esc(String(m))}">後備 AI</span>` : "";
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const safeUrl = u => { const s = String(u ?? "").trim(); return /^https?:\/\//i.test(s) ? s : "#"; };   // 2026-10-21 Codex 改卷：外部連結只准 http／https（防 javascript: 之類）
 const f2 = x => (x == null || !isFinite(x)) ? "—" : Number(x).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -619,30 +632,63 @@ function aiBanner(){
   return a && (a.kind === "quota" || a.kind === "key") ? `<div class="info small" style="margin-top:2px">⚠ <b>${a.kind === "quota" ? "AI 額度用晒" : "AI key 失效"}</b>：${esc(a.text.replace(/^[^：]*：/, ""))}</div>` : "";
 }
 function topbar(){
-  return `<div class="topbar"><div class="brand">LEADER<span>//</span>BREAKOUT</div>
+  return `<div class="topbar"><div class="brand">龍頭突破</div>
     <div class="row" style="gap:8px;flex-wrap:nowrap;min-width:0">${SCAN ? `<span class="chip">${esc(SCAN.date.slice(5))} 收市</span>` : ""}
-    <button class="gear${TAB === "set" ? " on" : ""}" id="goSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button></div></div>` + aiBanner();
+    <button class="gear${TAB === "set" ? " on" : ""}" id="goSet" aria-label="設定"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button></div></div>` + aiBanner() + subNav();
 }
 
-function header(){
+// 2026-10-24 界面重整：今日頁次序 = 數據警告 → 今日要做 → 大市燈號 → 市況方格（撳入去睇詳細）→ AI 重點 → 事件線（/codex 兩邊同意）
+function dataAlert(){
   if (ERR) return `<div class="alert"><b>讀唔到數據</b><p class="small">${esc(ERR)}。去「設定」檢查數據網址，或者遲啲再試。</p></div>`;
   if (!SCAN) return "";
-  const g = SCAN.green;
   const stale = Date.now() > Date.parse(SCAN.next_day + "T22:30:00Z") + 8 * 3600e3;
+  return stale ? `<div class="alert"><b>數據舊咗</b><p class="small">仲係 ${SCAN.date} 收市數據，${SCAN.next_day} 嘅應該已經出咗：自動掃描可能失敗，唔好照下面價錢落單。</p></div>` : "";
+}
+function lightCard(){
+  if (!SCAN) return "";
+  const g = SCAN.green;
   const d200 = SCAN.ndx / SCAN.ndx_s200 - 1, d21 = SCAN.ndx / SCAN.ndx_e21 - 1, d50 = SCAN.ndx_e21 / SCAN.ndx_s50 - 1;
   const w = x => Math.max(4, Math.min(100, 50 + x * 500));
-  return (stale ? `<div class="alert"><b>數據舊咗</b><p class="small">仲係 ${SCAN.date} 收市數據，${SCAN.next_day} 嘅應該已經出咗：自動掃描可能失敗，唔好照下面價錢落單。</p></div>` : "") + `<div class="card">
-    <div class="row spread"><div class="light"><span class="orb ${g ? "g" : "r"}"></span><div><div class="status ${g ? "up" : "dn"}">${g ? "RISK ON" : "RISK OFF"}</div>
-      <div class="small muted">${g ? "大市綠燈：領導股可以買、趨勢腳可以揸 TQQQ、低吸腳可以買" : "大市紅燈：領導股賣晒、趨勢腳揸 IEF、唔低吸"}</div></div></div>
-      <span class="tag ${SCAN.week_end ? "t-warn" : "t-dim"}">${SCAN.week_end ? "週尾：檢查排名" : "平日"}</span></div>
+  return `<div class="card">
+    <div class="row spread"><div class="light"><span class="orb ${g ? "g" : "r"}"></span><div><div class="status ${g ? "up" : "dn"}">${g ? "大市綠燈" : "大市紅燈"}</div>
+      <div class="small muted">${g ? "領導股可以買、趨勢腳揸 TQQQ、低吸腳可以買" : "領導股賣晒、趨勢腳揸 IEF、唔低吸"}</div></div></div>
+      ${SCAN.week_end ? `<span class="tag t-warn">週尾：檢查排名</span>` : ""}</div>
     <div class="gauges">
-      <div class="gauge"><span>NDX vs 200 日線</span><b class="${d200 >= 0 ? "up" : "dn"}">${pct(d200)}</b><div class="bar"><i style="width:${w(d200)}%"></i></div></div>
-      <div class="gauge"><span>NDX vs 21 日 EMA</span><b class="${d21 >= 0 ? "up" : "dn"}">${pct(d21)}</b><div class="bar"><i style="width:${w(d21)}%"></i></div></div>
-      <div class="gauge"><span>21 EMA vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
+      <div class="gauge"><span>納指 vs 200 日線</span><b class="${d200 >= 0 ? "up" : "dn"}">${pct(d200)}</b><div class="bar"><i style="width:${w(d200)}%"></i></div></div>
+      <div class="gauge"><span>納指 vs 21 日均線</span><b class="${d21 >= 0 ? "up" : "dn"}">${pct(d21)}</b><div class="bar"><i style="width:${w(d21)}%"></i></div></div>
+      <div class="gauge"><span>21 日 vs 50 日線</span><b class="${d50 >= 0 ? "up" : "dn"}">${pct(d50)}</b><div class="bar"><i style="width:${w(d50)}%"></i></div></div>
     </div>
-    <p class="small"><b>V2.7：</b>${g ? "綠燈：領導股照 buy-stop 買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、輪動腳唔揸 TQQQ；轉返綠燈之後按波幅分 4 份買返"}。今日要做乜睇下面「V2.7 要做」。</p>
-    <p class="small muted">NDX <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = NDX &gt; 200 日線，或者 NDX &gt; 21 日 EMA &gt; 50 日線。</p>
-  </div>` + rsiCard() + fearCard() + bounceCard() + fngCard("stock") + valCard();
+    <details><summary class="small muted">燈號規則</summary>
+      <p class="small">${g ? "綠燈：領導股照突破價買、趨勢腳揸 TQQQ（QQQ 20 日波幅 ≥ 35% 就賣晒；賣咗之後分 4 份買返：波幅跌穿 30%、27.5%、25%、22.5% 各買一份）" : "紅燈：領導股下一日開市賣晒、趨勢腳揸 IEF（7–10 年美國國債）、輪動腳唔揸 TQQQ；轉返綠燈之後按波幅分 4 份買返"}。</p>
+      <p class="small muted">納指 100 <span class="num">${f0(SCAN.ndx)}</span> · 下一個交易日 <span class="num">${SCAN.next_day}</span>。綠燈 = 納指 &gt; 200 日線，或者納指 &gt; 21 日均線 &gt; 50 日線。</p></details>
+  </div>`;
+}
+function header(){ return dataAlert() + lightCard(); }
+// 市況方格：RSI、VIX、恐慌貪婪、估值、見底區；撳入去用彈出頁睇原本嘅詳細卡（資料一樣，只係唔再全部攤開）
+const MKT = {rsi: () => rsiCard(), vix: () => fearCard(), fng: () => fngCard("stock"), val: () => valCard(), bounce: () => bounceCard()};
+function mktTiles(){
+  if (!SCAN) return "";
+  const T = [];
+  if (SCAN.ndx_rsi != null){ const [l, c] = rsiZone(SCAN.ndx_rsi); T.push(["rsi", "大市 RSI", Math.round(SCAN.ndx_rsi), l, c]); }
+  const F = SCAN.fear; if (F && F.vix != null && !(F.active || F.vix >= 25)) T.push(["vix", "VIX", F.vix.toFixed(1), "平靜", ""]);
+  const G = FNG && FNG.stock; if (G) T.push(["fng", "恐慌貪婪", Math.round(G.score), G.rating, fngCls(G.score)]);
+  const V = VAL && VAL.market && VAL.market.ndx; if (V && V.pe) T.push(["val", "納指市盈率", V.pe, V.label || "", VALC[V.label] || ""]);
+  const B = SCAN.bounce; if (B && B.zone && !(B.signal && B.signal.active)) T.push(["bounce", "牛市回調", "觀察", "撳入去睇", "warnc"]);
+  if (!T.length) return "";
+  return `<div class="mtiles">${T.map(([k, n, v, l, c]) => `<button class="mt" data-mkt="${k}"><span>${n}</span><b class="${c}">${esc(String(v))}</b><em class="${c}">${esc(l)}</em></button>`).join("")}</div>`;
+}
+// 今日要做：模型待辦 + 有觸發嘅訊號（VIX 恐慌、見底）一定攤開
+function todayTodo(){
+  const F = SCAN && SCAN.fear, B = SCAN && SCAN.bounce;
+  return v24Today() + (F && (F.active || F.vix >= 25) ? fearCard() : "") + (B && B.zone && B.signal && B.signal.active ? bounceCard() : "");
+}
+// AI 今日重點（新聞頁有全文）：每點只顯示第一句
+function digestMini(){
+  const D = FEED.news && FEED.news.digest; if (!D || !(D.points || []).length) return "";
+  const first = p => { const s = String(p).split(/(?<=[。！？])/)[0]; return s.length > 90 ? s.slice(0, 88) + "…" : s; };
+  return `<div class="card"><div class="row spread"><b>AI 今日重點</b><span class="small muted">${esc(D.generated || "")}</span></div>
+    <ul class="dlist">${D.points.slice(0, 3).map(p => `<li>${esc(first(p))}</li>`).join("")}</ul>
+    <button class="small" data-sub="news">睇晒全文 →</button></div>`;
 }
 // 大市 RSI 大卡（2026-10-18 用戶：顯示得太婉轉，好難睇到）：NDX 14 日 RSI，≥ 70 超買、≤ 30 超賣；只係資訊
 const rsiZone = v => v >= 70 ? ["超買", "warnc"] : v >= 55 ? ["偏強", "up"] : v > 45 ? ["中性", ""] : v > 30 ? ["偏弱", "warnc"] : ["超賣", "dn"];
@@ -681,7 +727,7 @@ function fearCard(){
 let BTC = null;
 async function fetchBtc(){
   try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "btc.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
-    if (r.ok){ BTC = await r.json(); if (TAB === "crypto" || TAB === "radar") render(); } } catch(e){}
+    if (r.ok){ BTC = await r.json(); if (TAB === "crypto" || RADAR_LEAF.includes(TAB)) render(); } } catch(e){}
 }
 function btcChart(C){
   if (!C || C.length < 10) return "";
@@ -762,7 +808,7 @@ function whaleCard(){
 let RADAR = null, RTAB = "growth";
 async function fetchRadar(){
   try { const b = (S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/").replace(/\/feeds\/$/, "/radar/"); const r = await fetch(b + "radar.json?t=" + Math.floor(Date.now() / 600e3), {cache:"no-store"});
-    if (r.ok){ RADAR = await r.json(); if (TAB === "radar") render(); } } catch(e){}
+    if (r.ok){ RADAR = await r.json(); if (RADAR_LEAF.includes(TAB)) render(); } } catch(e){}
 }
 let RADAR_MSG = "";
 async function radarRun(){             // 用 app 設定嘅 GitHub token 觸發 radar.yml（同新聞「重新整理」一樣）
@@ -852,7 +898,7 @@ async function fetchRadarAll(){
     fetch(b + "narr.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) NARR = j; }).catch(() => {}),
     fetch(b + "meme.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) MEME = j; }).catch(() => {}),
     fetch(b + "theme.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) THEME = j; }).catch(() => {})]);
-  if (TAB === "radar") render();
+  if (RADAR_LEAF.includes(TAB)) render();
 }
 const stageTag = s => !s ? "" : `<span class="tag ${/早期/.test(s) ? "t-cyan" : /升溫/.test(s) ? "t-buy" : /過熱/.test(s) ? "t-stop" : "t-dim"}">${esc(s)}</span>`;
 function narrCard(){
@@ -967,6 +1013,15 @@ function viewRadar(){
   return topbar() + `<div class="row spread"><h2>雷達</h2><button id="radarReload" class="small">重新整理</button></div>
     <div class="chips mtabs">${secs.map(([k, l]) => `<button data-rsec="${k}" aria-pressed="${RSEC === k}">${l}</button>`).join("")}</div>`
     + (RSEC === "narr" ? narrCard() : RSEC === "theme" ? themeCard() : RSEC === "meme" ? memeCard() : radarCard());
+}
+// 2026-10-24：雷達拆開放入三個大分頁（題材 → 股票、前瞻 → 資訊、項目／Meme → 加密），每部分自己一頁
+const RADAR_LEAF = ["theme", "narr", "proj", "meme"];
+function viewRadarSec(k){
+  if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
+  if (!BTC) fetchBtc();
+  RSEC = k;
+  return topbar() + `<div class="row spread"><h2>${{narr: "前瞻敘事", theme: "題材", proj: "項目雷達", meme: "Meme"}[k]}</h2><button id="radarReload" class="small">重新整理</button></div>`
+    + (k === "narr" ? narrCard() : k === "theme" ? themeCard() : k === "meme" ? memeCard() : radarCard());
 }
 // 大額轉帳（2026-10-05 用戶：追大戶工具清單 Whale Alert）：scanner/walert.py → feeds/walert.json；AI 分析 ai.py walert_ai
 function walertCard(){
@@ -1211,21 +1266,29 @@ function janCard(){
     <button id="janDone" class="small">今年做咗，收埋</button></div>`;
 }
 function viewToday(){
+  if (!FEED.news && !FEED.err) fetchFeeds();
+  const n = SCAN ? signals().list.length : 0;
+  return topbar() + janCard() + dataAlert() + todayTodo() + lightCard() + mktTiles() + digestMini() + evMarketCard()
+    + (n ? `<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>` : "");
+}
+// 股票 → 揀股（2026-10-24 由今日頁搬過嚟）：表 = 一行一隻；下面每隻預設收埋，撳先睇止蝕、RSI、估值、落單方法
+function viewPick(){
+  let h = topbar();
+  if (!SCAN) return h + dataAlert();
   const o = signals();
-  let h = topbar() + janCard() + header() + evMarketCard() + v24Today();
-  h += `<div class="row spread"><h2>揀股參考（V2.2）· ${SCAN ? esc(SCAN.next_day) : ""}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
-  if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅 buy-stop 喺上面「V2.7 要做」。</p>`;
-  h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">買入價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
+  h += `<div class="row spread"><h2>揀股參考 · ${esc(SCAN.next_day)}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
+  if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅單喺「今日」頁「今日要做」。</p>`;
+  h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">突破價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
     ${o.list.map(r => `<tr><td class="mono"><b>${r.sym}</b>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
       <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
-    <p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺上面「V2.7 要做」；下面「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。買入價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近 swing low − 0.2 ATR。</p>`
+    <details><summary class="small muted">點用呢張表</summary><p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺「今日」頁「今日要做」；「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。突破價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近低位 − 0.2 ATR。</p></details>`
     + liveStatus();
   h += o.list.map(r => {
     const gap = r.pivot / r.close - 1, fill = Math.max(3, Math.min(100, (1 - gap / 0.15) * 100));
-    return `<div class="card sig">
-      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">RS #${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
+    return `<details class="card sig"><summary>
+      <div class="head"><div><span class="sym">${r.sym}</span> <span class="tag t-cyan">排名 #${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
         ${liveTag(r.sym)}</div>
-      <div><div class="lbl">買入價 · BUY STOP</div><div class="price">${f2(r.pivot)}</div></div>
+      <div class="row" style="gap:10px"><div><div class="lbl">突破買入價</div><div class="price">${f2(r.pivot)}</div></div><span class="num small">仲差 ${pct(gap)}</span><span class="more">詳細 ▾</span></div></summary>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
       ${serNote(r.sym)}${levNote(r.sym)}${valOf(r.sym) ? `<p class="small" style="margin:2px 0">${valTxt(r.sym, true)}</p>` : ""}
       <div class="kv">
@@ -1238,7 +1301,7 @@ function viewToday(){
         <p>買入：觸價市價單（MIT）· 買入 · 觸發價 <b>${f2(r.pivot)}</b> · 有效期「當日」</p>
         <p>成交後：觸價市價單（MIT）· 賣出 · 觸發價 <b>${f2(r.stop)}</b> · 長期有效（GTC）</p>
         <p>收市升到 <b>${f2(r.be_trigger)}</b>（2R）之後，止蝕推上成本價；之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈就賣。</p></details>
-    </div>`;
+    </details>`;
   }).join("");
   return h;
 }
@@ -1300,14 +1363,25 @@ const trPost = (t, cand, skip) => `<div class="news"><a href="${esc(safeUrl(t.ur
 // 2026-10-21 用戶批合併重複：底部 Serenity、Trump 兩格合成「人物」一格（入面用掣揀）；內部照用 TAB "ser"／"trump"，舊連結（撳股票睇 Serenity／Trump）照用得
 const PPL = ["ser", "trump"];
 const pplTab = () => { try { const t = localStorage.getItem(KEY + "-ppl"); return PPL.includes(t) ? t : "ser"; } catch(e){ return "ser"; } };
-const navOf = t => PPL.includes(t) ? "ppl" : t;
-const pplSwitch = () => `<div class="chips">${[["ser", "Serenity"], ["trump", "Trump"]].map(([k, l]) => `<button data-ppl="${k}" aria-pressed="${TAB === k}">${l}</button>`).join("")}</div>`;
+// 2026-10-24 界面重整（老師：「有啲亂…唔知邊度打邊」；/codex 兩邊同意）：底部 5 格 = GROUPS 嘅 key，每格入面用細分頁（subNav）。
+// TAB 照舊係細分頁（today、model、rank、res、news、ser、trump、crypto…，舊連結照用得）；雷達拆開：題材 → 股票（核能、稀土呢類係股票 ETF）、
+// 前瞻敘事 → 資訊、項目雷達同 Meme → 加密
+const GROUPS = {
+  today: [["today", "今日"]],
+  strat: [["model", "策略"]],
+  stocks: [["pick", "揀股"], ["rank", "排名"], ["res", "研究"], ["theme", "題材"]],
+  info: [["news", "新聞"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],
+  cry: [["crypto", "加密"], ["proj", "項目"], ["meme", "Meme"]],
+};
+const navOf = t => Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === t)) || t;
+const subNav = () => { const g = GROUPS[navOf(TAB)]; return g && g.length > 1 ? `<div class="chips mtabs subnav">${g.map(([k, l]) => `<button data-sub="${k}" aria-pressed="${TAB === k}">${l}</button>`).join("")}</div>` : ""; };
+const lastSub = g => { try { const t = localStorage.getItem(KEY + "-g-" + g); if (GROUPS[g].some(([k]) => k === t)) return t; } catch(e){} return GROUPS[g][0][0]; };
 function viewSer(){
-  return topbar() + pplSwitch() + `<div class="row spread"><h2>Serenity · X @aleabitoreddit</h2><button id="serReload" class="small">重新整理</button></div>` + viewSerList();
+  return topbar() + `<div class="row spread"><h2>Serenity · X @aleabitoreddit</h2><button id="serReload" class="small">重新整理</button></div>` + viewSerList();
 }
 function viewTrump(){
   const errs = (TR && TR.errs) || [];
-  return topbar() + pplSwitch() + `<div class="row spread"><h2>Trump · Truth Social</h2><button id="trReload" class="small">重新整理</button></div>`
+  return topbar() + `<div class="row spread"><h2>Trump · Truth Social</h2><button id="trReload" class="small">重新整理</button></div>`
     + (errs.length ? `<p class="small muted">部分來源出錯，已用後備：${esc(errs.join("；"))}</p>` : "") + viewTrList();
 }
 function viewTrList(){
@@ -1707,14 +1781,15 @@ function v24Todo(base){
   const v = MCONT && MCONT.view; if (!MODELV(v)) return "";
   const amt = f => f != null && base > 0 ? ` · 約 ${f0(base * f)} 美元` : "";
   const sh = t => t.trigger && base > 0 && t.frac != null ? `（約 ${f0(Math.floor(base * t.frac / t.trigger))} 股）` : "";
+  const zh = s => String(s || "").replace(/buy-stop/gi, "突破單");      // 2026-10-24：雲端模型文字有英文術語，顯示嗰陣譯做中文
   const it = (v.todo || []).map(t => { const out = t.side === "賣出" || /→ (IEF|現金)/.test(t.sym);
-    return `<div class="${out ? "alert" : "info"}"><b>${esc(t.when)}：${esc(LEGN[t.leg] || "")} ${esc(t.side === "轉" || t.side === "調整" ? t.sym : t.side + " " + t.sym)}</b>
-      ${t.trigger ? `<p class="small">掛 buy-stop：<b class="num">${f2(t.trigger)}</b>（升到或高過呢個價先買）· 止蝕 <b class="num dn">${f2(t.stop)}</b></p>` : ""}
-      ${t.frac != null ? `<p class="small">金額：佔帳戶 ${(t.frac * 100).toFixed(t.frac < 0.1 ? 1 : 0)}%${amt(t.frac)}${sh(t)}</p>` : ""}<p class="small">原因：${esc(t.reason)}</p></div>`; });
+    return `<div class="${out ? "alert" : "info"}"><b>${esc(zh(t.when))}：${esc(LEGN[t.leg] || "")} ${esc(t.side === "轉" || t.side === "調整" ? t.sym : t.side + " " + t.sym)}</b>
+      ${t.trigger ? `<p class="small">掛突破單：<b class="num">${f2(t.trigger)}</b>（升到或高過呢個價先買）· 止蝕 <b class="num dn">${f2(t.stop)}</b></p>` : ""}
+      ${t.frac != null ? `<p class="small">金額：佔帳戶 ${(t.frac * 100).toFixed(t.frac < 0.1 ? 1 : 0)}%${amt(t.frac)}${sh(t)}</p>` : ""}<p class="small">原因：${esc(zh(t.reason))}</p></div>`; });
   const ups = ((v.actions || {}).stops || []).map(x => `<div class="info"><b>改止蝕：${esc(x.sym)}</b><p class="small">止蝕由 ${f2(x.old)} 推高到 <b class="num">${f2(x.new)}</b>${x.be ? "（已升過 2R，保本後跟 swing low 上移）" : ""}，記得改券商嘅止蝕單。</p></div>`);
   const nb = (v.todo || []).filter(t => t.trigger).length;
-  return `<h2>${esc(v.ver)} · ${esc(v.next_day)} 要做</h2>` + ups.join("") + (it.length ? it.join("") + (nb > 1 ? `<p class="small muted">領導股 buy-stop 掛 ${nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。</p>` : "") +
-    `<p class="small muted">「開市」= 美股開市（香港 21:30，冬令 22:30）落開市單；「收市前」= 落收市價單（MOC），香港 04:00（冬令 05:00）收市。${base > 0 ? "" : "喺「模型」頁填本金就會計埋金額。"}</p>`
+  return `<div class="todo-h"><h2>今日要做</h2><span class="small muted">${esc(v.ver)} · ${esc(v.next_day)}</span></div>` + ups.join("") + (it.length ? it.join("") + (nb > 1 ? `<p class="small muted">領導股突破單掛 ${nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。</p>` : "") +
+    `<p class="small muted">「開市」= 美股開市（香港 21:30，冬令 22:30）落開市單；「收市前」= 落收市價單（MOC），香港 04:00（冬令 05:00）收市。${base > 0 ? "" : "喺「策略」頁填本金就會計埋金額。"}</p>`
     : `<div class="ok"><b>冇嘢要做：揸住就得</b></div>`);
 }
 // 趨勢腳：V2.7 分 4 份買返（T.vol_ins 每份門檻、T.n_on 而家幾多份揸 TQQQ）；舊版只得一份
@@ -1746,7 +1821,7 @@ function legsCard(v){
 function v24Today(){
   const v = MCONT && MCONT.view; if (!MODELV(v)) return "";
   const fs = followState(MCONT), base = fs && fs.val ? fs.val : S.capital;
-  return v24Todo(base) + legsCard(v);
+  return v24Todo(base);                                // 2026-10-24：四部分比例（legsCard）只放「策略」頁，今日頁淨係要做
 }
 function viewModel(){
   let h = topbar();
@@ -1894,12 +1969,12 @@ function dsPeakBox(){
   const now = new Date(), pk = dsPeak(), nx = dsNext(), mins = nx ? Math.round((nx - now) / 60e3) : 0;
   const hk = new Date(Date.now() + 8 * 3600e3), Y = hk.getUTCFullYear(), Mo = hk.getUTCMonth(), D = hk.getUTCDate(), nowH = hk.getUTCHours();
   const cells = Array.from({length: 24}, (_, h) => { const p = dsPeakAt(new Date(Date.UTC(Y, Mo, D, h - 8)));   // 今日（香港時間）每個鐘
-    return `<i title="${String(h).padStart(2, "0")}:00 ${p ? "繁忙" : "非繁忙"}" style="flex:1;height:10px;border-radius:2px;background:${p ? "var(--warn)" : "rgba(44,245,160,.38)"};${h === nowH ? "outline:2px solid var(--ink);outline-offset:1px" : ""}"></i>`; }).join("");
+    return `<i title="${String(h).padStart(2, "0")}:00 ${p ? "繁忙" : "非繁忙"}" style="flex:1;height:10px;border-radius:2px;background:${p ? "var(--warn)" : "var(--buy)"};opacity:${p ? 1 : .45};${h === nowH ? "outline:2px solid var(--ink);outline-offset:1px" : ""}"></i>`; }).join("");
   const ticks = [0, 9, 12, 14, 18, 24].map(h => `<span style="position:absolute;left:${h / 24 * 100}%;transform:translateX(${h ? h === 24 ? "-100%" : "-50%" : "0"})">${h}</span>`).join("");
   return `<div class="small" style="display:flex;flex-direction:column;gap:6px">
     <div><b>DeepSeek 價錢時段（香港時間）</b>：星期一至五 <b>09:00–12:00</b>、<b>14:00–18:00</b> 係<b style="color:var(--warn)">繁忙（全價）</b>；其他時間同星期六日係<b class="up">非繁忙（半價）</b>。</div>
     <div>而家：<b style="color:${pk ? "var(--warn)" : "var(--buy)"}">${pk ? "繁忙（全價）" : "非繁忙（半價）"}</b>${nx ? `，${esc(hkWhen(nx))} 轉${pk ? "非繁忙" : "繁忙"}（再過 ${mins >= 60 ? Math.floor(mins / 60) + " 個鐘 " : ""}${mins % 60} 分鐘）` : ""}</div>
-    <div style="display:flex;gap:2px">${cells}</div><div class="muted mono" style="position:relative;height:14px;font-size:10px">${ticks}</div>
+    <div style="display:flex;gap:2px">${cells}</div><div class="muted mono" style="position:relative;height:16px;font-size:12px">${ticks}</div>
     <div class="muted">今日嘅時段條：黃 = 繁忙、綠 = 非繁忙、框 = 而家。中國公眾假期其實全日半價，程式當平日計（估算會偏高少少）。</div></div>`;
 }
 function aiUseCard(){
@@ -2010,7 +2085,7 @@ async function fetchFeeds(force){
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;
   autoRefresh();
-  if (TAB === "news" || TAB === "crypto" || TAB === "model") render();
+  if (TAB === "news" || TAB === "crypto" || TAB === "model" || TAB === "today") render();   // 2026-10-24：今日頁有 AI 重點
 }
 
 // AI 宏觀思考（2026-10-02 用戶：好似評論文章咁畀多啲角度；冇客觀答案）：scanner/ai.py think()，每日 2 次，債息異動／轉燈即刻寫
@@ -2390,7 +2465,7 @@ const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsB
 // 股價圖（對數刻度）+ 事件：按實際闊度畫（字唔會跟住放大）。2026-10-21：研究頁同事件線共用（evDraw）；
 // cap = 最多幾個事件寫標籤（揀 w 最高；研究頁 AI 事件冇 w 當最重要），其餘按類別畫細點，一樣撳得
 // 2026-10-23 用戶：「淨係要重要事件，轉燈同大升跌就得」→ 大升綠、大跌紅、轉燈黃（研究頁 AI 事件冇 kind，照用青色）
-const EV_DOT = {up: "#2cf5a0", down: "#ff4d6d", light: "#ffc857"};
+const EV_DOT = {up: "var(--buy)", down: "var(--stop)", light: "var(--warn)"};   // 2026-10-24：跟主題（柔和綠紅），唔再寫死霓虹色
 const evCol = e => e.kind === "big" ? (e.chg >= 0 ? EV_DOT.up : EV_DOT.down) : EV_DOT[e.kind] || "#8fdcf0";
 function rsChart(r){ const C = r.chart || {}; evDraw($("#rsHero"), C, (C.events || []).filter(e => (e.w ?? 99) >= 99).length + 2); }   // 研究 AI 事件全部寫標籤 + 數據事件頭 2 個
 function evDraw(box, C, cap){
@@ -2405,7 +2480,7 @@ function evDraw(box, C, cap){
   const lab = new Set(all.filter(e => !(e.kind === "big" && !e.ai)).sort((a, b) => (b.w ?? 99) - (a.w ?? 99) || b.i - a.i).slice(0, cap).map(e => e.k));
   const evs = all.filter(e => lab.has(e.k)).sort((a, b) => a.i - b.i), dots = all.filter(e => !lab.has(e.k)), rows = [];
   evs.forEach(e => {
-    e.w = Math.min(150, 14 + [...e.label].reduce((s, ch) => s + (ch.charCodeAt(0) > 255 ? 11.5 : 7.8), 0));
+    e.w = Math.min(160, 14 + [...e.label].reduce((s, ch) => s + (ch.charCodeAt(0) > 255 ? 12.5 : 8.2), 0));   // 標籤字 12px
     e.tx = Math.min(W - e.w - 4, Math.max(4, xi(e.i) - e.w / 2));
     let r = rows.findIndex(end => end < e.tx - 4); if (r < 0){ r = rows.length; rows.push(0); }
     rows[r] = e.tx + e.w; e.row = r;
@@ -2416,12 +2491,12 @@ function evDraw(box, C, cap){
   const line = c.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
   const area = `${line}L${X(c.length - 1).toFixed(1)},${H}L${X(0).toFixed(1)},${H}Z`;
   let tags = dots.map(e => { const x = X(e.i), y = Y(c[e.i]);
-    return `<g class="rs-ev" data-ev="${e.k}"><circle cx="${x}" cy="${y}" r="3.4" fill="${evCol(e)}" stroke="#0a0a0d" stroke-width="1"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`; }).join("");
+    return `<g class="rs-ev" data-ev="${e.k}"><circle cx="${x}" cy="${y}" r="3.4" style="fill:${evCol(e)};stroke:var(--bg)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`; }).join("");
   evs.forEach(e => {
     const x = X(e.i), y = Y(c[e.i]), ty = top0 + e.row * 22;
     tags += `<g class="rs-ev" data-ev="${e.k}"><line x1="${x}" y1="${ty + 18}" x2="${x}" y2="${y - 6}" stroke="rgba(255,255,255,.3)" stroke-dasharray="2 3"/>
       <rect x="${e.tx}" y="${ty}" width="${e.w}" height="18" rx="5"/><text x="${e.tx + e.w / 2}" y="${ty + 12.5}" text-anchor="middle">${esc(e.label)}</text>
-      <circle cx="${x}" cy="${y}" r="5.5" fill="#0a0a0d" stroke="${evCol(e)}" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="13" fill="transparent"/></g>`;
+      <circle cx="${x}" cy="${y}" r="5.5" style="fill:var(--bg);stroke:${evCol(e)}" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="13" fill="transparent"/></g>`;
   });
   const lx = X(c.length - 1), ly = Y(c[c.length - 1]);
   box.innerHTML = `<p class="rs-cap">${esc(d[0].slice(0, 4))} 年起走勢（對數刻度）· 撳事件睇說明</p>
@@ -2431,9 +2506,9 @@ function evDraw(box, C, cap){
       <mask id="rsMask"><rect width="${W}" height="${H}" fill="url(#rsFade)"/></mask>
       <filter id="rsGlow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
     <path d="${area}" fill="url(#rsDots)" mask="url(#rsMask)"/>
-    <path d="${line}" fill="none" stroke="#8fdcf0" stroke-width="2.2" stroke-linejoin="round" filter="url(#rsGlow)"/>
+    <path d="${line}" fill="none" style="stroke:var(--cyan)" stroke-width="2.2" stroke-linejoin="round" filter="url(#rsGlow)"/>
     ${tags}
-    <circle class="rs-pulse" cx="${lx}" cy="${ly}" r="7" fill="none" stroke="#8fdcf0" stroke-width="2"/><circle cx="${lx}" cy="${ly}" r="4.5" fill="#8fdcf0"/>
+    <circle class="rs-pulse" cx="${lx}" cy="${ly}" r="7" fill="none" style="stroke:var(--cyan)" stroke-width="2"/><circle cx="${lx}" cy="${ly}" r="4.5" style="fill:var(--cyan)"/>
   </svg>`;
   evScrub(box, {X, Y, c, d, evs: all, pl, pr, W});
 }
@@ -2480,13 +2555,18 @@ const evUrl = f => S.dataUrl.replace(/scan\.json(\?.*)?$/, "events/" + f);
 const EVK = {big: "大升跌", light: "轉燈", earn: "業績", model: "模型", dd: "回撤"};   // 後面三個係 2026-10-23 之前嘅舊事件
 async function fetchEvIndex(){
   try { const r = await fetch(evUrl("index.json") + "?t=" + Date.now(), {cache: "no-store"});
-    if (r.ok){ EVX = await r.json(); if (["today", "rank", "model"].includes(TAB)) render(); } } catch(e){}
+    if (r.ok){ EVX = await r.json(); if (["today", "rank", "model", "pick"].includes(TAB)) render(); } } catch(e){}
 }
-async function evGet(key){
-  if (EVC[key]) return EVC[key];
-  const r = await fetch(evUrl(key + ".json") + "?t=" + Math.floor(Date.now() / 600e3), {cache: "no-store"});
-  if (!r.ok) throw new Error(r.status === 404 ? "未有呢條事件線" : "HTTP " + r.status);
-  return EVC[key] = await r.json();
+const EVP = {};                                         // 2026-10-24：下載緊嘅就共用同一個請求（之前開頁會重複下載 3–4 次）
+function evGet(key){
+  if (EVC[key]) return Promise.resolve(EVC[key]);
+  return EVP[key] || (EVP[key] = (async () => {
+    try {
+      const r = await fetch(evUrl(key + ".json") + "?t=" + Math.floor(Date.now() / 600e3), {cache: "no-store"});
+      if (!r.ok) throw new Error(r.status === 404 ? "未有呢條事件線" : "HTTP " + r.status);
+      return EVC[key] = await r.json();
+    } finally { delete EVP[key]; }
+  })());
 }
 const evHas = key => !!(EVX && EVX.items && EVX.items[key]);
 const evTag = sym => evHas(sym) ? ` <span class="tag t-evl" data-evsym="${esc(sym)}" role="button" title="撳落去睇股價走勢同大事">走勢</span>` : "";
@@ -2891,12 +2971,17 @@ function viewRes(){
   return h;
 }
 
-const ORDER = ["today", "model", "rank", "res", "news", "crypto", "radar", "ppl"];     // 設定唔喺底部導航（頂部齒輪）；"ppl" = 人物（Serenity／Trump）
+const ORDER = Object.keys(GROUPS);     // 底部 5 格（2026-10-24 由 8 格改）；設定唔喺底部導航（頂部齒輪）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
 function render(anim){
   const app = $("#app");
-  app.innerHTML = ({today:viewToday, model:viewModel, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, radar:viewRadar, ser:viewSer, trump:viewTrump, set:viewSet}[TAB] || viewToday)();
+  if (TAB === "radar") TAB = "proj";                  // 2026-10-24 之前嘅「雷達」分頁拆開咗
+  if (TAB === "ppl") TAB = pplTab();
+  const rs = k => () => viewRadarSec(k);
+  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
+    theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme")}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
+  if (GROUPS[navOf(TAB)]) try { localStorage.setItem(KEY + "-g-" + navOf(TAB), TAB); } catch(e){}   // 每個大分頁記住上次睇邊個細分頁
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === navOf(TAB) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
   const pill = $("#tabs .pill"); if (pill){ const k = ORDER.indexOf(navOf(TAB)); pill.style.opacity = k < 0 ? 0 : 1; if (k >= 0) pill.style.transform = `translateX(${k * 100}%)`; }
   if (anim === "r" || anim === "l"){
@@ -2923,7 +3008,8 @@ function bind(){
   document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-rtab]").forEach(b => b.onclick = () => { RTAB = b.dataset.rtab; render(); });
-  document.querySelectorAll("[data-ppl]").forEach(b => b.onclick = () => { if (b.dataset.ppl === TAB) return; TAB = b.dataset.ppl; try { localStorage.setItem(KEY + "-tab", TAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
+  document.querySelectorAll("[data-sub]").forEach(b => b.onclick = () => go(b.dataset.sub));      // 細分頁、今日頁嘅「揀股參考 →」「睇晒全文 →」
+  document.querySelectorAll("[data-mkt]").forEach(b => b.onclick = () => { const f = MKT[b.dataset.mkt]; if (f) rsSheet(f() + `<button data-close style="width:100%">知道</button>`); });
   on("#radarRun", () => radarRun());
   on("#janDone", () => { try { localStorage.setItem("jan-done", String(new Date().getFullYear())); } catch(e){} render(); });
   on("#radarReload", () => { RADAR_MSG = ""; fetchRadarAll(); });
@@ -2965,10 +3051,14 @@ function bind(){
 
 let LASTTAB = null;
 function go(tab){
-  if (tab === "ppl") tab = PPL.includes(TAB) ? TAB : pplTab();      // 撳「人物」：返去上次睇嘅 Serenity 或者 Trump
+  if (tab === "ppl") tab = PPL.includes(TAB) ? TAB : pplTab();      // 舊連結：「人物」= 上次睇嘅 Serenity 或者 Trump
+  if (tab === "radar") tab = "proj";
+  // 撳底部大分頁：已經喺呢格就留喺而家個細分頁（再撳 = 返頂）；由第二格過嚟就去上次睇嘅細分頁
+  if (GROUPS[tab] && !GROUPS[tab].some(([k]) => k === tab)) tab = navOf(TAB) === tab ? TAB : lastSub(tab);
   if (tab === TAB){ window.scrollTo({top:0, behavior:"smooth"}); return; }
   if (tab === "set") LASTTAB = TAB;
-  const dir = tab === "set" ? "r" : (TAB === "set" ? "l" : (ORDER.indexOf(navOf(tab)) > ORDER.indexOf(navOf(TAB)) ? "r" : "l"));
+  const same = navOf(tab) === navOf(TAB);              // 同一格入面轉細分頁：淡入，唔左右滑
+  const dir = same ? "f" : tab === "set" ? "r" : (TAB === "set" ? "l" : (ORDER.indexOf(navOf(tab)) > ORDER.indexOf(navOf(TAB)) ? "r" : "l"));
   TAB = tab; try{localStorage.setItem(KEY+"-tab",TAB);}catch(e){}
   if (tab === "news") FEED.scrolled = true;           // 2026-10-02 用戶：入新聞唔自動跳去今日
   try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch(e){}
@@ -3005,7 +3095,7 @@ async function fetchScan(){
 // ───────────────────────── 開 app 動畫：最少 1.7 秒，數據到咗先收（最多 4 秒）
 const SPLASH = {t0: performance.now(), done: false};
 (function(){
-  const steps = [[0, "CONNECTING DATA FEED", 18], [450, "SCANNING MARKET LEADERS", 52], [950, "CALIBRATING SIGNALS", 80]];
+  const steps = [[0, "連接數據", 18], [450, "掃描龍頭股", 52], [950, "整理今日要做", 80]];   // 2026-10-24：之前係英文
   steps.forEach(([ms, txt, w]) => setTimeout(() => { if (SPLASH.done) return; const s = $("#spSub"), b = $("#spBar"); if (s) s.textContent = txt; if (b) b.style.width = w + "%"; }, ms));
   setTimeout(splashDone, 4000);
 })();
