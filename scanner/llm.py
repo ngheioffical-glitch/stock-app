@@ -155,6 +155,8 @@ def _why(err):
         return "未設定 DeepSeek key"
     if "HTTP 402" in e:
         return f"{who} 餘額用晒（要增值）"
+    if "HTTP 401" in e:
+        return f"{who} key 唔啱（要重新開 key 再貼入 GitHub Secret）"
     if "拒答" in e:
         return f"{who} 拒答"
     if re.search(r"429|rate|overloaded|529|額度", e, re.I):
@@ -615,6 +617,7 @@ def _ds_post(path, body, timeout):
                 return json.loads(r.read())
         except urllib.error.HTTPError as e:
             msg = (e.read() or b"")[:300].decode("utf-8", "ignore")
+            msg = re.sub(r"(api key:?\s*)\S+", r"\g<1>****", msg, flags=re.I)   # 錯誤訊息會入公開數據（news.json）：key 尾都唔好留
             if e.code in (429, 500, 503, 504) and attempt == 0 and deadline - time.time() > 40:
                 time.sleep(5)                            # 繁忙／超咗每秒上限：等陣再試一次（402 餘額不足就唔試）
                 continue
