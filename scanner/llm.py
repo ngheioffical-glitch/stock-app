@@ -65,7 +65,7 @@ DS_FAST = os.environ.get("DEEPSEEK_MODEL", "deepseek-flash").strip()            
 DS_SMART = os.environ.get("DEEPSEEK_MODEL_SMART", "deepseek-v4-pro").strip()    # 研究報告（搵資料筆記 + 分析）
 DS_PRICE = {"flash": (0.006, 0.30, 1.20), "pro": (0.044, 1.32, 3.96)}
 DS_SEARCH_USD = float(os.environ.get("DEEPSEEK_PRICE_SEARCH", "0.00075"))     # Search API：有結果先收錢，每千次 US$0.75
-DS_QUERIES = int(os.environ.get("DEEPSEEK_MAX_SEARCH", "5"))                  # 每個答案最多搜幾次（研究搵資料最多 +3）
+DS_QUERIES = int(os.environ.get("DEEPSEEK_MAX_SEARCH", "3"))                  # 每個答案最多搜幾次（研究搵資料最多 +3）；2026-10-23 老師：由 5 減做 3（慳搜尋費）
 DS_RESULTS = int(os.environ.get("DEEPSEEK_SEARCH_COUNT", "6"))                # 每次搜尋攞幾多條結果（唔影響價錢）
 # 收錢 AI 嘅上限（2026-10-22 Qwen 試用時定：每日 US$1、試用總額 US$10，老師冇反對；DeepSeek 照用）
 PAID = ("deepseek",)
