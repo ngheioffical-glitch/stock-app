@@ -179,8 +179,22 @@ def ai_prompt(key, name, evs):
     return (f"{who} 喺以下日子（美國時間）大升或者大跌：\n{rows}\n"
             "請上網搜尋每一日（或者前一晚）令佢大升或者大跌嘅主要原因（新聞、公司公告、經濟數據、政策）。"
             "回覆 JSON：{\"items\": [{\"date\": \"YYYY-MM-DD\", \"label\": \"最多 8 個中文字嘅事件名（例如：DeepSeek 衝擊、關稅升級、業績勁過預期）\", "
-            "\"detail\": \"一至兩句香港廣東話：發生咩事、點解影響股價，要有具體數字或者名\"}]}，每個日子一項。"
+            "\"detail\": \"一至兩句香港廣東話：發生咩事、點解影響股價，要有具體數字或者名\", "
+            "\"src\": [支持呢一項嘅搜尋結果編號，例如 1, 3]}]}，每個日子一項。"
             "搵唔到可靠原因嘅 label 寫 unknown，唔好估。")
+
+
+def item_src(x, src):
+    """AI 講明邊幾個搜尋結果（[S#] 編號）支持呢個日子就用嗰幾個；冇講就沿用成批頭 3 個（Gemini 嘅來源冇編號）。
+    2026-10-23：之前一律用成批頭 3 個，一批 3 個日子嘅來源會掛錯（例如 7 月 17 日掛咗講英偉達大漲嘅文章）。"""
+    refs = []
+    for r in x.get("src") or []:
+        m = re.search(r"\d+", str(r))
+        k = int(m.group()) if m else 0
+        if 1 <= k <= len(src) and k not in refs:
+            refs.append(k)
+    pick = [src[k - 1] for k in refs[:3]] if refs else src[:3]
+    return [dict(title=s.get("title") or s.get("url"), url=s.get("url")) for s in pick if s.get("url")]
 
 
 def ai_fill(jobs, cache):
@@ -218,16 +232,18 @@ def ai_fill(jobs, cache):
                 print(f"[events] AI 額度／速度上限（{str(lab)[:120]}），今次停，聽日再問")
                 return n - len(batch)
             items = {str(x.get("date")): x for x in (res or {}).get("items") or [] if isinstance(x, dict)}
-            srcs = [dict(title=s.get("title") or s.get("url"), url=s.get("url")) for s in src[:3] if s.get("url")]
             for e in batch:
                 ck, x = f"{key}|{e['d']}", items.get(e["d"]) or {}
                 label = str(x.get("label") or "").strip()
                 if grounded and label and label.lower() != "unknown":
-                    cache[ck] = dict(label=label[:16], detail=str(x.get("detail") or "")[:320], src=srcs,
+                    cache[ck] = dict(label=label[:16], detail=str(x.get("detail") or "")[:320], src=item_src(x, src), sv=2,
                                      model=lab.split("（")[0][:60], at=datetime.now(HKT).strftime("%Y-%m-%d"))
                     print(f"[events] AI {ck}：{label}")
                 else:
                     old = cache.get(ck) or {}
+                    if old.get("label"):                         # 重問來源唔成功：保留舊原因，唔再問
+                        old["sv"] = 2
+                        continue
                     cache[ck] = dict(fail=int(old.get("fail", 0)) + 1, at=datetime.now(HKT).strftime("%Y-%m-%d"),
                                      why=("冇搜尋來源" if res and not grounded else "搵唔到原因" if res else str(lab))[:120])
     return n
@@ -295,9 +311,11 @@ def main():
             if e["kind"] != "big":
                 continue
             a = cache.get(f"{key}|{e['d']}") or {}
-            if a.get("label") or int(a.get("fail", 0)) >= MAX_FAIL:
+            if (a.get("label") and a.get("sv")) or int(a.get("fail", 0)) >= MAX_FAIL:
                 continue
-            jobs.append(((tier, -int(e["d"].replace("-", ""))), key, name if key == MKT_KEY else f"{key}{'（' + ind[key] + '）' if ind.get(key) else ''}", e))
+            # 2026-10-23 之前搵到嘅原因：來源係成批共用、未逐項對應（sv 冇設）→ 排最後再問一次，換返啱嘅來源
+            tier_e = tier + (10 if a.get("label") else 0)
+            jobs.append(((tier_e, -int(e["d"].replace("-", ""))), key, name if key == MKT_KEY else f"{key}{'（' + ind[key] + '）' if ind.get(key) else ''}", e))
     import llm
     llm.start(ROOT / "docs", "ai_usage_scan.json")          # 每日掃描嘅 AI 帳本（同模型帳戶查證共用；daily-scan commit）
     asked = ai_fill(jobs, cache) if jobs else 0
