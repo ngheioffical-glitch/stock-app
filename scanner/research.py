@@ -978,9 +978,9 @@ def _manual(dirp, name, prompt):
 
 def build(sym, dry=False, manual=None, fresh=False):
     sym = sym.upper().strip().lstrip("$")
-    # 有 Claude key 就 Claude 起頭（中途失敗先退後備，標明）；冇就 DeepSeek（2026-10-23，收錢但好平，有每日／試用上限）；
-    # 再冇就用免費 AI（2026-10-22）：Gemini 上網搵資料、Mistral 寫分析（冇 Mistral 就全部 Gemini）
-    llm.ORDER = [p for p in ("claude", "deepseek", "mistral", "gemini") if llm.has_key(p)]
+    # 2026-10-23 用戶：「成個app deepseek行先，然後gemini做後備」→ 研究同其他功能一樣跟 llm.py 次序（AI_PROVIDER + AI_FALLBACK）；
+    # 之前係「有 Claude key 就 Claude 起頭」，而家 Claude 要設 AI_PROVIDER=claude 先用
+    llm.ORDER = [p for p in llm._order() if llm.has_key(p)]
     t0, u0 = time.time(), len(llm.USAGE)
     old = None if fresh else load_report(sym)          # --fresh：當第一次研究（唔同上次比較、唔存舊檔）
     D = collect(sym)
@@ -1088,6 +1088,9 @@ def main(argv):
         if not any(llm.has_key(p) for p in ("claude", "deepseek", "gemini")):
             print("[research] 冇可以上網搜尋嘅 AI key（Claude、DeepSeek 或者 Gemini），今次唔做")
             return 0 if "--due" in argv else 1
+    if "--due" in argv and not force and llm.PROVIDER in llm.PAID and llm.peak_now():
+        print("[research] 而家係 DeepSeek 繁忙時段（香港平日 09–12、14–18 時），自動研究留返下次非繁忙先做（慳錢）")
+        return 0                                         # 2026-10-23 用戶：「set死排程一定要非繁忙時段做」
     if not (dry or manual):
         llm.start(OUT.parent, "ai_usage_research.json")  # 讀今日用量同各流程收錢 AI 帳本（上限要跨流程計）
     bad, done = 0, 0

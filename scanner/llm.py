@@ -141,6 +141,8 @@ def _why(err):
     """後備原因（俾 app 顯示）：寫明係邊個供應商出事（2026-10-21：之前一律寫 Claude）。"""
     e = str(err)
     who = {"gemini": "Gemini", "mistral": "Mistral", "deepseek": "DeepSeek"}.get(e.split("：", 1)[0].strip().lower(), "Claude")
+    if "繁忙時段唔用" in e:
+        return f"{who} 繁忙時段唔用（慳錢）"
     if "試用總預算" in e:
         return f"{who} 試用預算用晒"
     if "預算" in e:
@@ -577,6 +579,11 @@ def _ds_peak():
     return u.weekday() < 5 and (1 <= u.hour < 4 or 6 <= u.hour < 10)
 
 
+def peak_now():
+    """俾其他程式用：而家係咪繁忙時段（香港平日 09–12、14–18 時）。主力係收錢 AI 嗰陣，排程可以留返非繁忙先做。"""
+    return _ds_peak()
+
+
 def _ds_usd(model, hit, miss, out, n_search=0):
     ph, pm, po = DS_PRICE["flash"] if "flash" in str(model).lower() else DS_PRICE["pro"]   # 認唔到型號就當 pro（寧願高估）
     f = 1.0 if _ds_peak() else 0.5
@@ -594,6 +601,10 @@ def _dlog(kind, model, secs, hit, miss, out, n_search=0):
 
 
 def _paid_check(prov):
+    # 2026-10-23 用戶：「set死排程一定要非繁忙時段做，唔可以繁忙時段」→ 繁忙時段一律唔叫 DeepSeek（自動用 Gemini 後備）；
+    # 真係要用就設 DEEPSEEK_PEAK_OK=1
+    if _ds_peak() and os.environ.get("DEEPSEEK_PEAK_OK", "").strip() != "1":
+        raise RuntimeError(f"{prov}：繁忙時段唔用（香港平日 09–12、14–18 時；慳錢）")
     if not _PD["loaded"]:
         _paid_load()                                     # 冇行 start() 嘅程式都要讀帳本先查上限
     d, a = paid_spent()

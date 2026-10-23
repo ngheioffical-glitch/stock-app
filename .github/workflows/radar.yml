@@ -2,7 +2,7 @@ name: 新項目雷達
 # 2026-10-03：每 6 個鐘（DefiLlama 收入、X 研究人士、AI 分析同導讀；2026-10-20 起 Claude Opus 5.5 優先、Gemini 後備），推去 radar 分支（同 feeds 分開，唔會拖慢新聞）；app 由 raw.githubusercontent.com 讀
 on:
   schedule:
-    - cron: "17 1,13 * * *"   # 2026-10-06 慳運算：每日 2 次（香港 09:17、21:17）
+    - cron: "47 23,13 * * *"  # 2026-10-06 慳運算：每日 2 次；2026-10-23 用戶「排程一定要非繁忙時段做」：香港 07:47、21:47（之前 09:17 係 DeepSeek 繁忙時段）
   workflow_dispatch:
   push:                    # 改雷達程式 push 上嚟就即刻行一次（用戶登入唔到 GitHub 撳 Run workflow）
     branches: [main]

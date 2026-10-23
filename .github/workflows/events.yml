@@ -1,0 +1,46 @@
+name: 事件線補原因
+# 2026-10-23 用戶：「大市事件線…淨係話大跌但係冇寫點解，唔係video裡面嗰個做法」「set死排程一定要非繁忙時段做」
+# → 只行 scanner/events.py：用 DeepSeek 上網幫大升跌搵原因（每次最多 25 次、每次 3 個日子），每日掃描（香港 06:43）之外每晚再補一次。
+# 香港 19:47（DeepSeek 非繁忙；美股未開市，唔會攞到未完嘅今日價）。改 events.py push 上嚟即刻行一次。
+# 同每日掃描用同一個 concurrency group：唔會兩個同時寫 docs/events。
+on:
+  schedule:
+    - cron: "47 11 * * *"     # 11:47 UTC = 香港 19:47（DeepSeek 繁忙時段係香港平日 09–12、14–18 時）
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [scanner/events.py, .github/workflows/events.yml]
+permissions:
+  contents: write
+concurrency:
+  group: daily-scan
+  cancel-in-progress: false
+jobs:
+  events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scanner/requirements.txt
+      - run: pip install -r scanner/requirements.txt
+      - name: 事件股價線 + AI 搵大升跌原因（繁忙時段唔問 AI）
+        run: python scanner/events.py
+        timeout-minutes: 25
+        env:
+          PYTHONIOENCODING: utf-8
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
+          AI_LEDGER: scan                                     # 同每日掃描共用 AI 用量帳本（docs/ai_usage_scan.json）
+      - name: 提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/events
+          if [ -f docs/ai_usage_scan.json ]; then git add docs/ai_usage_scan.json; fi
+          if git diff --cached --quiet; then echo "冇新嘢"; exit 0; fi
+          git commit -m "事件線補原因 $(date -u +%FT%H:%MZ)"
+          for i in 1 2 3; do git pull --rebase origin main && git push && exit 0; sleep 5; done; exit 1

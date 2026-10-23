@@ -8,7 +8,8 @@
   大升跌同佢嘅原因合做一個點；之前嘅業績、模型買賣、由高位跌 10%／20% 拎走）：
     big   大升大跌：個股單日 ≥ max(6%, 3 × 之前 60 日波幅)；大市單日 ≥ 2.5%。業績後嗰日嘅大升跌標「業績」，說明加埋 EPS 實際對預測。
     light 大市紅綠燈轉燈（V2.2：NDX > 200 日線，或者 > 21 EMA 而且 21 EMA > 50 日線）
-  AI：每個大升跌用 llm.search 上網搵原因，有來源先用（冇來源唔當真）；搵到就標籤寫「事件名 升跌%」（例如「關稅暫停 90 日 +12.0%」）。
+  AI：每個大升跌用 llm.search 上網搵原因，有來源先用（冇來源唔當真）；搵到就標籤只寫事件名（例如「關稅暫停 90 日」，好似用戶條影片咁），
+    升跌幅放喺 chg（app 列表顯示）；DeepSeek 繁忙時段（香港平日 09–12、14–18 時）唔問，留返非繁忙（.github/workflows/events.yml 每晚補）。
     結果存 docs/events/ai_cache.json（每個事件問一次，搵唔到最多再試 2 次）；同一條線 EVENTS_BATCH 個日子一次問、
     每次之間停 EVENTS_PAUSE 秒、最多 EVENTS_MAX_CALLS 次（DeepSeek：3 個、2 秒、25 次；Gemini 免費：6 個、15 秒、6 次）；
     429／額度用晒就停（唔當失敗，聽日再問）。大市先，再持倉、排名、研究；新嘅先。
@@ -189,6 +190,9 @@ def ai_fill(jobs, cache):
     if not llm.available():
         print("[events] 冇 AI key：淨係數據事件")
         return 0
+    if llm.PROVIDER in llm.PAID and llm.peak_now():   # 2026-10-23 用戶：「set死排程一定要非繁忙時段做」
+        print("[events] DeepSeek 繁忙時段（香港平日 09–12、14–18 時）：今次唔問 AI，留返非繁忙先補（慳錢）")
+        return 0
     groups, order = {}, []
     for pri, key, name, e in sorted(jobs, key=lambda j: j[0]):
         if key not in groups:
@@ -232,8 +236,8 @@ def ai_fill(jobs, cache):
 def apply_ai(key, evs, cache):
     for e in evs:
         a = cache.get(f"{key}|{e['d']}")
-        if e["kind"] == "big" and a and a.get("label"):     # 大升跌同原因合做一個點：「事件名 升跌%」，說明用 AI 嘅（業績數據照留）
-            e.update(ai=True, label=f"{a['label']} {pct(e['chg'])}", detail=(a.get("detail") or e.get("detail")) + (" " + e["detail"].split("。")[0] + "。" if e.get("earn") else ""),
+        if e["kind"] == "big" and a and a.get("label"):     # 大升跌同原因合做一個點：標籤 = 事件名（升跌幅喺 chg），說明用 AI 嘅（業績數據照留）
+            e.update(ai=True, label=a["label"], detail=(a.get("detail") or e.get("detail")) + (" " + e["detail"].split("。")[0] + "。" if e.get("earn") else ""),
                      src=a.get("src") or [], model=a.get("model"))
         w = BASE_W[e["kind"]] + (3 if e.get("ai") else 0) + (0.5 if e.get("earn") else 0)
         if e.get("chg") is not None:
@@ -265,6 +269,9 @@ def main():
     start = pd.Timestamp(today.year - 2, 1, 1)
     C = download(syms, (start - timedelta(days=420)).strftime("%Y-%m-%d"))
     C.index = pd.to_datetime(C.index).tz_localize(None)
+    ny = datetime.now(NYT)
+    if ny.hour * 60 + ny.minute < 16 * 60 + 15:          # 美股未收市（例如香港晚上 events.yml 補原因）：今日未完嘅價唔算，唔會當大升跌
+        C = C[C.index.date < ny.date()]
     cache = load(OUT / "ai_cache.json", {})
     cache = {k: v for k, v in cache.items() if not (v.get("fail") and QUOTA.search(v.get("why", "")))}   # 額度問題唔係事件問題：清走再問
     series, jobs = {}, []

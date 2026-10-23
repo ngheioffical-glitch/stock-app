@@ -489,7 +489,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .ev-mini{height:230px;margin:0 -18px}
 .evleg{margin:2px 0 0;line-height:1.7} .evleg i{font-style:normal}
 .evl{display:flex;flex-direction:column}
-.evr{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.evr{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
 .evr:last-child{border-bottom:0}
 .evr .mono{font-size:12px;color:var(--muted)}
 .evr b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2401,7 +2401,8 @@ function evDraw(box, C, cap){
   // 事件標籤排喺圖上面幾行（同一行唔重疊），虛線連去當日收市點
   const xi = i => pl + i / (c.length - 1) * (W - pl - pr);
   const all = (C.events || []).map((e, k) => ({...e, k})).filter(e => e.i >= 0 && e.i < c.length);
-  const lab = new Set(all.slice().sort((a, b) => (b.w ?? 99) - (a.w ?? 99) || b.i - a.i).slice(0, cap).map(e => e.k));
+  // 2026-10-23 用戶：「淨係話大跌但係冇寫點解，唔係video裡面嗰個做法」→ 圖上只寫有名嘅事件（AI 搵到原因、轉燈、研究事件），未有原因嘅大升跌只畫點
+  const lab = new Set(all.filter(e => !(e.kind === "big" && !e.ai)).sort((a, b) => (b.w ?? 99) - (a.w ?? 99) || b.i - a.i).slice(0, cap).map(e => e.k));
   const evs = all.filter(e => lab.has(e.k)).sort((a, b) => a.i - b.i), dots = all.filter(e => !lab.has(e.k)), rows = [];
   evs.forEach(e => {
     e.w = Math.min(150, 14 + [...e.label].reduce((s, ch) => s + (ch.charCodeAt(0) > 255 ? 11.5 : 7.8), 0));
@@ -2498,10 +2499,13 @@ const evSheetHtml = (e, C) => `<h4>${esc(e.label)}</h4>
   ${(e.src || []).length ? `<p class="small">來源：${e.src.map(s => `<a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.title || evHost(s.url))}</a>`).join("、")}</p>` : ""}
   ${e.model ? `<p class="small muted">${esc(e.model)}</p>` : ""}<button data-close>知道</button>`;
 const evLegend = () => `<p class="small muted evleg"><i style="color:${EV_DOT.up}">●</i> 大升　<i style="color:${EV_DOT.down}">●</i> 大跌　<i style="color:${EV_DOT.light}">●</i> 轉燈
-  · 標籤 = AI 搵到原因嘅大升跌（「事件名 升跌%」）優先；未搵到原因嘅先寫升跌幅，每日補</p>`;
+  · 圖上只寫有原因嘅大事（AI 上網搵到嘅事件名）同轉燈；細點 = 未搵到原因嘅大升跌（每晚補）</p>`;
+// 列表：日子、事件名、升跌幅，有原因就加一句（AI 說明第一句）；未有原因嘅寫「等 AI 搵原因」
+const evWhy = e => { const s = String(e.detail || "").split(/(?<=[。！？])/)[0]; return s.length > 70 ? s.slice(0, 68) + "…" : s; };
 const evRows = (M, key, n) => M.events.map((e, k) => ({...e, k})).sort((a, b) => b.i - a.i).slice(0, n).map(e =>
   `<div class="evr" role="button" data-evk="${esc(key)}" data-evi="${e.k}"><span class="mono">${esc(M.chart.d[e.i].slice(2))}</span>
-    <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI" : EVK[e.kind] || ""}</span><b style="color:${evCol(e)}">${esc(e.label)}</b></div>`).join("");
+    <div style="min-width:0"><b style="color:${evCol(e)}">${esc(e.label)}</b>${e.ai && e.chg != null ? ` <span class="mono small ${e.chg >= 0 ? "up" : "dn"}">${pct(e.chg)}</span>` : ""}${e.earn ? ` <span class="tag t-warn">業績後</span>` : ""}
+      <div class="small muted">${e.ai || e.kind === "light" ? esc(evWhy(e)) : e.kind === "big" ? "等 AI 搵原因（每晚補）" : ""}</div></div></div>`).join("");
 // 訊號頁：大市事件線（納指 100）
 function evMarketCard(){
   if (!evHas("MARKET")) return "";
