@@ -189,7 +189,8 @@ def _raw(path):
 
 
 def start(out=None, fname="ai_usage.json"):
-    """開始時讀今日用量：今次運行之前嘅步驟（out/fname）→ 上一次 feeds 運行（feeds 分支）。讀唔到就由 0 計。
+    """開始時讀今日用量：今次運行之前嘅步驟（out/fname）→ 自己流程上一次運行（LEDGERS[AI_LEDGER]；2026-10-23 之前一律讀 feeds，
+    雷達帳本會抄埋新聞嘅請求，app「AI 用量」加埋就重複計）。讀唔到就由 0 計。
     有收錢 AI（DeepSeek）key 就順便讀晒各流程嘅收錢 AI 帳本（_paid_load）。"""
     global _PREV
     from pathlib import Path
@@ -198,7 +199,7 @@ def start(out=None, fname="ai_usage.json"):
         if f and f.exists():
             _PREV = json.loads(f.read_text(encoding="utf-8"))
         elif os.environ.get("GITHUB_REPOSITORY"):
-            _PREV = _raw("feeds/ai_usage.json")
+            _PREV = _raw(LEDGERS.get(LEDGER, "feeds/ai_usage.json"))
     except Exception as e:  # noqa: BLE001
         print(f"[llm] 讀唔到之前用量（由 0 計）：{str(e)[:80]}")
         _PREV = None

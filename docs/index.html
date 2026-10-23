@@ -1869,8 +1869,50 @@ function healthCard(){
     <p class="small muted">全部自動：數據晚咗會自動補（10 日內）、持倉退市／拆股會自動處理。見到 ⚠ 超過一日都冇恢復，先需要搵人跟進。</p></div>`;
 }
 
+// 2026-10-23 用戶：「做唔做到有儀表板check到依家消耗幾多？」→ 設定頁「AI 用量」：讀四個流程嘅用量帳本（scanner/llm.py 每次運行寫），
+// 程式按官方價估算（繁忙／非繁忙、緩存、搜尋次數）。準確帳單同戶口餘額要去 DeepSeek 官網睇（餘額唔放 app，因為 app 數據係公開嘅）。
+const AIU_SRC = [["feeds", "新聞"], ["radar", "雷達"], ["scan", "每日掃描"], ["research", "研究"]];
+const AIU_KIND = {ask: "對答／翻譯", search: "上網查證", "search-q": "寫搜尋字", web: "搜尋", gather: "研究搵資料", "research-a": "研究分析", "research-w": "研究寫作", json: "整理"};
+let AIU = null, AIU_BUSY = false;
+async function fetchAIUse(){
+  if (AIU_BUSY) return;
+  AIU_BUSY = true;
+  const f = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/", m = f.replace(/\/feeds\/$/, "/main/docs/"), t = "?t=" + Math.floor(Date.now() / 60e3);
+  const url = {feeds: f + "ai_usage.json", radar: f.replace(/\/feeds\/$/, "/radar/") + "ai_usage.json", scan: m + "ai_usage_scan.json", research: m + "ai_usage_research.json"};
+  const got = await Promise.all(AIU_SRC.map(([k]) => fetch(url[k] + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).catch(() => null)));
+  AIU = {at: Date.now(), L: Object.fromEntries(AIU_SRC.map(([k], i) => [k, got[i]]))};
+  AIU_BUSY = false;
+  if (TAB === "set") render();
+}
+const dsPeak = () => { const d = new Date(), w = d.getUTCDay(), h = d.getUTCHours(); return w >= 1 && w <= 5 && ((h >= 1 && h < 4) || (h >= 6 && h < 10)); };   // 香港 09–12、14–18 時（平日）
+function aiUseCard(){
+  if (!AIU || Date.now() - AIU.at > 5 * 60e3) fetchAIUse();
+  if (!AIU) return `<div class="card"><b>AI 用量</b><p class="small muted">載入緊…</p></div>`;
+  const day = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);        // 香港時間今日
+  const R = AIU_SRC.map(([k, n]) => { const L = AIU.L[k] || {}, P = L.paid || {};
+    return {k, n, ok: !!AIU.L[k], today: P.day === day ? +P.today || 0 : 0, total: +P.total || 0, cap: P, calls: L.day === day ? (L.calls || []) : []}; });
+  const capD = +(R.find(x => x.cap.cap_day) || {cap: {}}).cap.cap_day || 1, capT = +(R.find(x => x.cap.cap_total) || {cap: {}}).cap.cap_total || 10;
+  const today = R.reduce((a, x) => a + x.today, 0), total = R.reduce((a, x) => a + x.total, 0);
+  const calls = R.flatMap(x => x.calls.map(c => ({...c, src: x.n}))).sort((a, b) => String(b.t).localeCompare(String(a.t)));
+  const nS = calls.reduce((a, c) => a + (+c.search || 0), 0);
+  const prov = ((FEED.news || {}).ai_status || {}).provider || "";
+  const bar = (v, cap) => `<div class="bar"><i style="width:${Math.min(100, cap ? v / cap * 100 : 0).toFixed(1)}%;${v >= cap ? "background:var(--stop);box-shadow:none" : ""}"></i></div>`;
+  const usd = x => "US$" + (x >= 0.1 ? x.toFixed(2) : x.toFixed(4));
+  const mdl = m => String(m || "").replace(/^deepseek-/, "").replace(/^claude-/, "");
+  return `<div class="card"><div class="row spread"><b>AI 用量</b><span class="tag ${prov === "deepseek" ? "t-cyan" : "t-dim"}">${prov === "deepseek" ? "DeepSeek" : esc(prov || "—")}${prov === "deepseek" ? (dsPeak() ? " · 繁忙時段（全價）" : " · 非繁忙（半價）") : ""}</span></div>
+    <div class="gauges" style="grid-template-columns:1fr 1fr">
+      <div class="gauge"><span>今日（香港時間）／每日上限</span><b class="${today >= capD ? "dn" : ""}">${usd(today)}</b> <span style="display:inline;min-height:0">／US$${capD}</span>${bar(today, capD)}</div>
+      <div class="gauge"><span>試用累計／試用總額上限</span><b class="${total >= capT ? "dn" : ""}">${usd(total)}</b> <span style="display:inline;min-height:0">／US$${capT}</span>${bar(total, capT)}</div></div>
+    <p class="small muted" style="margin:0">今日各部分：${R.map(x => `${x.n} ${x.ok ? usd(x.today) : "未有"}`).join(" · ")}｜今日 ${calls.length} 個請求、搜尋 ${nS} 次（每個部分最多記最近 40 個）</p>
+    ${calls.length ? `<div style="display:flex;flex-direction:column;gap:4px">${calls.slice(0, 15).map(c => `<div class="small" style="display:flex;gap:8px;justify-content:space-between">
+      <span><span class="mono muted">${esc(String(c.t || "").slice(0, 5))}</span> ${esc(c.src)} · ${esc(AIU_KIND[c.kind] || c.kind || "")} <span class="muted">${esc(mdl(c.model))}</span></span>
+      <span class="mono muted" style="white-space:nowrap">${c.inp ? `${(+c.inp).toLocaleString()} 入／${(+c.out || 0).toLocaleString()} 出` : ""}${c.search ? ` · 搜 ${c.search}` : ""} · ${usd(+c.usd || 0)}</span></div>`).join("")}</div>`
+      : `<p class="small muted">今日未有收錢 AI 請求${prov === "deepseek" ? "（下次排程或者開 app 更新新聞就會有）" : "（而家用緊免費 AI，唔使錢）"}。</p>`}
+    <p class="small muted" style="margin:0">呢度係程式按 DeepSeek 官方價估算（繁忙時段香港平日 09–12、14–18 時全價，其他時間半價）；準確帳單同戶口餘額睇 <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener">platform.deepseek.com</a>。超過每日上限或者試用總額，AI 會自動轉用免費 Gemini（會標明）。</p></div>`;
+}
+
 function viewSet(){
-  return topbar() + `<h2>設定</h2>` + healthCard() + `
+  return topbar() + `<h2>設定</h2>` + healthCard() + aiUseCard() + `
   <div class="card"><div class="grid2">
     <label>資金（美元，可以唔填；填咗先計股數）<input id="capital" type="number" step="any" inputmode="decimal" value="${S.capital || ""}" placeholder="例如 100000"></label>
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
