@@ -1884,7 +1884,24 @@ async function fetchAIUse(){
   AIU_BUSY = false;
   if (TAB === "set") render();
 }
-const dsPeak = () => { const d = new Date(), w = d.getUTCDay(), h = d.getUTCHours(); return w >= 1 && w <= 5 && ((h >= 1 && h < 4) || (h >= 6 && h < 10)); };   // 香港 09–12、14–18 時（平日）
+// DeepSeek 繁忙時段 = UTC 01–04、06–10 時（香港 09–12、14–18 時），星期一至五；其他時間半價（2026-10-23 用戶：「app要顯示翻幾時係繁忙幾時唔係」）
+const dsPeakAt = d => { const w = d.getUTCDay(), h = d.getUTCHours(); return w >= 1 && w <= 5 && ((h >= 1 && h < 4) || (h >= 6 && h < 10)); };
+const dsPeak = () => dsPeakAt(new Date());
+const dsNext = () => { const now = new Date(), p = dsPeakAt(now), t = new Date(now); t.setUTCMinutes(0, 0, 0);   // 下次轉時段（只會喺整點轉）
+  for (let k = 0; k < 24 * 8; k++){ t.setUTCHours(t.getUTCHours() + 1); if (dsPeakAt(t) !== p) return t; } return null; };
+const hkWhen = d => new Intl.DateTimeFormat("zh-HK", {timeZone: "Asia/Hong_Kong", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false}).format(d);
+function dsPeakBox(){
+  const now = new Date(), pk = dsPeak(), nx = dsNext(), mins = nx ? Math.round((nx - now) / 60e3) : 0;
+  const hk = new Date(Date.now() + 8 * 3600e3), Y = hk.getUTCFullYear(), Mo = hk.getUTCMonth(), D = hk.getUTCDate(), nowH = hk.getUTCHours();
+  const cells = Array.from({length: 24}, (_, h) => { const p = dsPeakAt(new Date(Date.UTC(Y, Mo, D, h - 8)));   // 今日（香港時間）每個鐘
+    return `<i title="${String(h).padStart(2, "0")}:00 ${p ? "繁忙" : "非繁忙"}" style="flex:1;height:10px;border-radius:2px;background:${p ? "var(--warn)" : "rgba(44,245,160,.38)"};${h === nowH ? "outline:2px solid var(--ink);outline-offset:1px" : ""}"></i>`; }).join("");
+  const ticks = [0, 9, 12, 14, 18, 24].map(h => `<span style="position:absolute;left:${h / 24 * 100}%;transform:translateX(${h ? h === 24 ? "-100%" : "-50%" : "0"})">${h}</span>`).join("");
+  return `<div class="small" style="display:flex;flex-direction:column;gap:6px">
+    <div><b>DeepSeek 價錢時段（香港時間）</b>：星期一至五 <b>09:00–12:00</b>、<b>14:00–18:00</b> 係<b style="color:var(--warn)">繁忙（全價）</b>；其他時間同星期六日係<b class="up">非繁忙（半價）</b>。</div>
+    <div>而家：<b style="color:${pk ? "var(--warn)" : "var(--buy)"}">${pk ? "繁忙（全價）" : "非繁忙（半價）"}</b>${nx ? `，${esc(hkWhen(nx))} 轉${pk ? "非繁忙" : "繁忙"}（再過 ${mins >= 60 ? Math.floor(mins / 60) + " 個鐘 " : ""}${mins % 60} 分鐘）` : ""}</div>
+    <div style="display:flex;gap:2px">${cells}</div><div class="muted mono" style="position:relative;height:14px;font-size:10px">${ticks}</div>
+    <div class="muted">今日嘅時段條：黃 = 繁忙、綠 = 非繁忙、框 = 而家。中國公眾假期其實全日半價，程式當平日計（估算會偏高少少）。</div></div>`;
+}
 function aiUseCard(){
   if (!AIU || Date.now() - AIU.at > 5 * 60e3) fetchAIUse();
   if (!AIU) return `<div class="card"><b>AI 用量</b><p class="small muted">載入緊…</p></div>`;
@@ -1903,12 +1920,13 @@ function aiUseCard(){
     <div class="gauges" style="grid-template-columns:1fr 1fr">
       <div class="gauge"><span>今日（香港時間）／每日上限</span><b class="${today >= capD ? "dn" : ""}">${usd(today)}</b> <span style="display:inline;min-height:0">／US$${capD}</span>${bar(today, capD)}</div>
       <div class="gauge"><span>試用累計／試用總額上限</span><b class="${total >= capT ? "dn" : ""}">${usd(total)}</b> <span style="display:inline;min-height:0">／US$${capT}</span>${bar(total, capT)}</div></div>
+    ${dsPeakBox()}
     <p class="small muted" style="margin:0">今日各部分：${R.map(x => `${x.n} ${x.ok ? usd(x.today) : "未有"}`).join(" · ")}｜今日 ${calls.length} 個請求、搜尋 ${nS} 次（每個部分最多記最近 40 個）</p>
     ${calls.length ? `<div style="display:flex;flex-direction:column;gap:4px">${calls.slice(0, 15).map(c => `<div class="small" style="display:flex;gap:8px;justify-content:space-between">
       <span><span class="mono muted">${esc(String(c.t || "").slice(0, 5))}</span> ${esc(c.src)} · ${esc(AIU_KIND[c.kind] || c.kind || "")} <span class="muted">${esc(mdl(c.model))}</span></span>
       <span class="mono muted" style="white-space:nowrap">${c.inp ? `${(+c.inp).toLocaleString()} 入／${(+c.out || 0).toLocaleString()} 出` : ""}${c.search ? ` · 搜 ${c.search}` : ""} · ${usd(+c.usd || 0)}</span></div>`).join("")}</div>`
       : `<p class="small muted">今日未有收錢 AI 請求${prov === "deepseek" ? "（下次排程或者開 app 更新新聞就會有）" : "（而家用緊免費 AI，唔使錢）"}。</p>`}
-    <p class="small muted" style="margin:0">呢度係程式按 DeepSeek 官方價估算（繁忙時段香港平日 09–12、14–18 時全價，其他時間半價）；準確帳單同戶口餘額睇 <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener">platform.deepseek.com</a>。超過每日上限或者試用總額，AI 會自動轉用免費 Gemini（會標明）。</p></div>`;
+    <p class="small muted" style="margin:0">呢度係程式按 DeepSeek 官方價估算；準確帳單同戶口餘額睇 <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener">platform.deepseek.com</a>。超過每日上限或者試用總額，AI 會自動轉用免費 Gemini（會標明）。</p></div>`;
 }
 
 function viewSet(){
@@ -2371,7 +2389,9 @@ const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsB
 
 // 股價圖（對數刻度）+ 事件：按實際闊度畫（字唔會跟住放大）。2026-10-21：研究頁同事件線共用（evDraw）；
 // cap = 最多幾個事件寫標籤（揀 w 最高；研究頁 AI 事件冇 w 當最重要），其餘按類別畫細點，一樣撳得
-const EV_DOT = {earn: "#f3c26d", model: "#b9a2ff", light: "#8be0b4", dd: "#ff8a8a", big: "#8fdcf0"};
+// 2026-10-23 用戶：「淨係要重要事件，轉燈同大升跌就得」→ 大升綠、大跌紅、轉燈黃（研究頁 AI 事件冇 kind，照用青色）
+const EV_DOT = {up: "#2cf5a0", down: "#ff4d6d", light: "#ffc857"};
+const evCol = e => e.kind === "big" ? (e.chg >= 0 ? EV_DOT.up : EV_DOT.down) : EV_DOT[e.kind] || "#8fdcf0";
 function rsChart(r){ const C = r.chart || {}; evDraw($("#rsHero"), C, (C.events || []).filter(e => (e.w ?? 99) >= 99).length + 2); }   // 研究 AI 事件全部寫標籤 + 數據事件頭 2 個
 function evDraw(box, C, cap){
   if (!box) return;
@@ -2395,12 +2415,12 @@ function evDraw(box, C, cap){
   const line = c.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
   const area = `${line}L${X(c.length - 1).toFixed(1)},${H}L${X(0).toFixed(1)},${H}Z`;
   let tags = dots.map(e => { const x = X(e.i), y = Y(c[e.i]);
-    return `<g class="rs-ev" data-ev="${e.k}"><circle cx="${x}" cy="${y}" r="3.4" fill="${EV_DOT[e.kind] || "#8fdcf0"}" stroke="#0a0a0d" stroke-width="1"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`; }).join("");
+    return `<g class="rs-ev" data-ev="${e.k}"><circle cx="${x}" cy="${y}" r="3.4" fill="${evCol(e)}" stroke="#0a0a0d" stroke-width="1"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`; }).join("");
   evs.forEach(e => {
     const x = X(e.i), y = Y(c[e.i]), ty = top0 + e.row * 22;
     tags += `<g class="rs-ev" data-ev="${e.k}"><line x1="${x}" y1="${ty + 18}" x2="${x}" y2="${y - 6}" stroke="rgba(255,255,255,.3)" stroke-dasharray="2 3"/>
       <rect x="${e.tx}" y="${ty}" width="${e.w}" height="18" rx="5"/><text x="${e.tx + e.w / 2}" y="${ty + 12.5}" text-anchor="middle">${esc(e.label)}</text>
-      <circle cx="${x}" cy="${y}" r="5.5" fill="#0a0a0d" stroke="#8fdcf0" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="13" fill="transparent"/></g>`;
+      <circle cx="${x}" cy="${y}" r="5.5" fill="#0a0a0d" stroke="${evCol(e)}" stroke-width="2.2"/><circle cx="${x}" cy="${y}" r="13" fill="transparent"/></g>`;
   });
   const lx = X(c.length - 1), ly = Y(c[c.length - 1]);
   box.innerHTML = `<p class="rs-cap">${esc(d[0].slice(0, 4))} 年起走勢（對數刻度）· 撳事件睇說明</p>
@@ -2453,10 +2473,10 @@ function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) r
 
 // ───────── 事件股價線（2026-10-21 用戶：「影片條 curve 會標邊個時間發生咩大事」「優先要 AI 先，歷史就用翻歷史數據加翻落去」
 // 「唔只係個股，直頭成個大市都可以有」）：scanner/events.py → docs/events/index.json + <MARKET|代號>.json。
-// AI（而家 Gemini，有上網來源先用）解釋咗嘅事件最優先寫標籤；其他係數據事件（業績、大升大跌、模型買賣、轉燈、回撤），畫做細點
+// 2026-10-23 起淨係大升跌同轉燈：AI（DeepSeek，有上網來源先用）搵到原因嘅大升跌寫「事件名 升跌%」，最優先寫標籤；其他畫做細點
 let EVX = null, EVC = {}, EV_RZ = 0;
 const evUrl = f => S.dataUrl.replace(/scan\.json(\?.*)?$/, "events/" + f);
-const EVK = {big: "大升跌", earn: "業績", model: "模型", light: "燈號", dd: "回撤"};
+const EVK = {big: "大升跌", light: "轉燈", earn: "業績", model: "模型", dd: "回撤"};   // 後面三個係 2026-10-23 之前嘅舊事件
 async function fetchEvIndex(){
   try { const r = await fetch(evUrl("index.json") + "?t=" + Date.now(), {cache: "no-store"});
     if (r.ok){ EVX = await r.json(); if (["today", "rank", "model"].includes(TAB)) render(); } } catch(e){}
@@ -2473,22 +2493,22 @@ const evC = M => ({d: M.chart.d, c: M.chart.c, events: M.events});
 const evHost = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return ""; } };
 const evSheetHtml = (e, C) => `<h4>${esc(e.label)}</h4>
   <p style="color:var(--muted)">${esc((C.d || [])[e.i] || e.d || "")} · 收市 ${f2((C.c || [])[e.i])}${e.chg != null ? ` · 當日 ${pct(e.chg)}` : ""}
-    · <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI 解釋" : EVK[e.kind] || "數據"}</span></p>
+    · <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI 搵到原因" : EVK[e.kind] || "數據"}</span>${e.earn ? ` <span class="tag t-warn">業績後</span>` : ""}</p>
   <p>${esc(e.detail || "")}</p>
   ${(e.src || []).length ? `<p class="small">來源：${e.src.map(s => `<a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.title || evHost(s.url))}</a>`).join("、")}</p>` : ""}
   ${e.model ? `<p class="small muted">${esc(e.model)}</p>` : ""}<button data-close>知道</button>`;
-const evLegend = () => `<p class="small muted evleg">標籤 = 最重要嘅事件（AI 解釋優先）· 細點：${Object.entries({earn: "業績", model: "模型買賣", light: "轉燈", dd: "回撤", big: "大升跌"})
-  .map(([k, l]) => `<i style="color:${EV_DOT[k]}">●</i> ${l}`).join("　")}</p>`;
+const evLegend = () => `<p class="small muted evleg"><i style="color:${EV_DOT.up}">●</i> 大升　<i style="color:${EV_DOT.down}">●</i> 大跌　<i style="color:${EV_DOT.light}">●</i> 轉燈
+  · 標籤 = AI 搵到原因嘅大升跌（「事件名 升跌%」）優先；未搵到原因嘅先寫升跌幅，每日補</p>`;
 const evRows = (M, key, n) => M.events.map((e, k) => ({...e, k})).sort((a, b) => b.i - a.i).slice(0, n).map(e =>
   `<div class="evr" role="button" data-evk="${esc(key)}" data-evi="${e.k}"><span class="mono">${esc(M.chart.d[e.i].slice(2))}</span>
-    <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI" : EVK[e.kind] || ""}</span><b>${esc(e.label)}</b></div>`).join("");
+    <span class="tag ${e.ai ? "t-cyan" : "t-dim"}">${e.ai ? "AI" : EVK[e.kind] || ""}</span><b style="color:${evCol(e)}">${esc(e.label)}</b></div>`).join("");
 // 訊號頁：大市事件線（納指 100）
 function evMarketCard(){
   if (!evHas("MARKET")) return "";
   const M = EVC.MARKET;
   if (!M){ evGet("MARKET").then(() => { if (TAB === "today") render(); }).catch(() => {}); return ""; }
   const I = EVX.items.MARKET;
-  return `<div class="card"><div class="row spread"><b>大市事件線 · 納指 100</b><span class="small muted">${I.n} 個事件 · AI 解釋 ${I.ai}</span></div>
+  return `<div class="card"><div class="row spread"><b>大市事件線 · 納指 100</b><span class="small muted">${I.n} 個事件 · AI 搵到原因 ${I.ai}</span></div>
     <div class="rs-hero ev-mini" id="evMkt" data-evkey="MARKET"></div>${evLegend()}
     <div class="evl">${evRows(M, "MARKET", 4)}</div>
     <button class="small" data-evsym="MARKET">睇晒全部事件</button></div>`;
@@ -2512,7 +2532,7 @@ async function openEv(key){
   if (!(history.state && history.state.rs)) history.pushState({rs: key}, "");
   el.innerHTML = `<div class="rs-in">${rsTop(key, title)}<p class="rs-sec" style="color:var(--rm)">載入緊…</p></div>`;
   $("#rsBack").onclick = () => closeRes();
-  el.onclick = e => { if (e.target.closest("#rsMenu")) rsSheet(`<p>資料：Yahoo 收市、業績日期、模型帳戶；AI 解釋用 Gemini 上網搵（有來源先用）。只係資訊，唔係買賣訊號。</p><button data-close>知道</button>`);
+  el.onclick = e => { if (e.target.closest("#rsMenu")) rsSheet(`<p>資料：Yahoo 收市、業績日期；大升跌嘅原因由 AI（DeepSeek，用唔到就 Gemini）上網搵，有來源先用。只係資訊，唔係買賣訊號。</p><button data-close>知道</button>`);
     const r = e.target.closest("[data-openres]"); if (r){ closeRes(); setTimeout(() => openRes(r.dataset.openres), 50); } };
   try {
     const M = await evGet(key);
@@ -2523,7 +2543,7 @@ async function openEv(key){
       <div class="rs-hero" id="evHero" data-evkey="${esc(key)}"></div>
       <section class="rs-sec">${evLegend()}<h3 class="rs-h">大事（新到舊）</h3><div class="evl">${evRows(M, key, 999)}</div>
         ${key !== "MARKET" && resItem(key) ? `<p style="margin-top:14px"><button class="primary" data-openres="${esc(key)}">睇 AI 個股研究報告</button></p>` : ""}
-        <p class="rs-meta">AI 解釋 ${M.events.filter(e => e.ai).length} 個（Gemini 上網搵，有來源先用；每日補多啲）· 更新 ${esc(M.gen || "")}</p></section></div>`;
+        <p class="rs-meta">AI 搵到原因 ${M.events.filter(e => e.ai).length}／${M.events.filter(e => e.kind === "big").length} 個大升跌（上網搵，有來源先用；每日補多啲）· 更新 ${esc(M.gen || "")}</p></section></div>`;
     el.scrollTop = 0; evDraw($("#evHero"), evC(M), 7);
   } catch(e){ const p = el.querySelector(".rs-sec"); if (p) p.textContent = "讀唔到：" + e.message; }
 }

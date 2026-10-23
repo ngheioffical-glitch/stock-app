@@ -3,17 +3,15 @@
 
 輸出 docs/events/<KEY>.json（KEY = MARKET 即納指 100，或者股票代號）+ docs/events/index.json（有邊啲、幾多個事件）：
   chart:  {d: [...], c: [...]}  前年 1 月 1 日起每日收市（拆股、派息調整）
-  events: [{d, i, kind, label, detail, chg, w, ai, src, model}]  i = chart 第幾日；w = 重要程度（app 揀頭幾個寫標籤，其他畫點）
-事件：
-  數據（唔使 AI）：
-    big   大升大跌：個股單日 ≥ max(6%, 3 × 之前 60 日波幅)；大市單日 ≥ 2.5%
-    earn  業績：yfinance get_earnings_dates（EPS 實際對預測、驚喜 %、當日／翌日股價反應）
-    model 模型買入／賣出（docs/model_cont.json 嘅 trades 同持倉；大市線放趨勢腳、輪動腳嘅 TQQQ）
+  events: [{d, i, kind, label, detail, chg, w, ai, src, model, earn}]  i = chart 第幾日；w = 重要程度（app 揀頭幾個寫標籤，其他畫點）
+事件（2026-10-23 用戶：「淨係要重要事件，轉燈同大升跌就得」「大升跌其實就係因為大事件？會唔會可以合拼」→ 只留兩種，
+  大升跌同佢嘅原因合做一個點；之前嘅業績、模型買賣、由高位跌 10%／20% 拎走）：
+    big   大升大跌：個股單日 ≥ max(6%, 3 × 之前 60 日波幅)；大市單日 ≥ 2.5%。業績後嗰日嘅大升跌標「業績」，說明加埋 EPS 實際對預測。
     light 大市紅綠燈轉燈（V2.2：NDX > 200 日線，或者 > 21 EMA 而且 21 EMA > 50 日線）
-    dd    大市由高位跌 10%／20%（每次跌浪第一次）
-  AI（優先；2026-10-21 用 Gemini，免費）：大升大跌同股價郁 ≥ 5% 嘅業績用 llm.search 上網搵原因，有來源先用（冇來源唔當真），
-    結果存 docs/events/ai_cache.json（每個事件問一次，搵唔到最多再試 2 次）；2026-10-22 起同一條線 EVENTS_BATCH 個日子一次問、
-    每次之間停 EVENTS_PAUSE 秒、最多 EVENTS_MAX_CALLS 次；Gemini 429／額度用晒就停（唔當失敗，聽日再問）。大市先，再持倉、排名、研究；新嘅先。
+  AI：每個大升跌用 llm.search 上網搵原因，有來源先用（冇來源唔當真）；搵到就標籤寫「事件名 升跌%」（例如「關稅暫停 90 日 +12.0%」）。
+    結果存 docs/events/ai_cache.json（每個事件問一次，搵唔到最多再試 2 次）；同一條線 EVENTS_BATCH 個日子一次問、
+    每次之間停 EVENTS_PAUSE 秒、最多 EVENTS_MAX_CALLS 次（DeepSeek：3 個、2 秒、25 次；Gemini 免費：6 個、15 秒、6 次）；
+    429／額度用晒就停（唔當失敗，聽日再問）。大市先，再持倉、排名、研究；新嘅先。
 股票：模型持倉（唔計 ETF）+ RS 排名頭 15 + 研究清單。
 用法：python scanner/events.py（每日掃描之後；冇 AI key 就淨係數據事件）
 """
@@ -36,17 +34,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(os.environ.get("EVENTS_OUT") or ROOT / "docs" / "events")
 HKT, NYT = ZoneInfo("Asia/Hong_Kong"), ZoneInfo("America/New_York")
-MAX_CALLS = int(os.environ.get("EVENTS_MAX_CALLS", "6"))    # 每次最多問 AI 幾次（每次一批日子）
-BATCH = int(os.environ.get("EVENTS_BATCH", "6"))             # 一次問同一條線最多幾個日子
-PAUSE = float(os.environ.get("EVENTS_PAUSE", "15"))          # 每次之間停幾秒（Gemini 免費版每分鐘有上限）
+# 2026-10-23：用 DeepSeek（收錢但冇每分鐘額度）就問密啲、每批少啲日子（每次搜尋得 3 次，一批 6 個日子搵唔晒原因）
+_PAID = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip()) and os.environ.get("AI_PROVIDER", "deepseek").strip().lower() == "deepseek"
+MAX_CALLS = int(os.environ.get("EVENTS_MAX_CALLS", "25" if _PAID else "6"))    # 每次最多問 AI 幾次（每次一批日子）
+BATCH = int(os.environ.get("EVENTS_BATCH", "3" if _PAID else "6"))             # 一次問同一條線最多幾個日子
+PAUSE = float(os.environ.get("EVENTS_PAUSE", "2" if _PAID else "15"))          # 每次之間停幾秒（Gemini 免費版每分鐘有上限）
 AI_SECS = int(os.environ.get("EVENTS_AI_SECS", "900"))
 QUOTA = re.compile(r"429|Too Many|RESOURCE_EXHAUSTED|額度|quota", re.I)
-EARN_AI = 0.05                    # 業績股價郁 ≥ 5% 先問 AI（細郁嘅業績，數據標籤 EPS 實際對預測已經夠）
 MAX_FAIL = 3
 ETF = {"TQQQ", "IEF", "TMF", "UGL", "SGOV", "BIL", "QQQ", "SPY", "QLD", "SQQQ", "GLD"}
 MKT, MKT_KEY, MKT_NAME = "^NDX", "MARKET", "納指 100"
-LEG = {"lead": "領導股", "dip": "低吸腳", "xr": "輪動腳", "trend": "趨勢腳"}
-BASE_W = {"big": 1.0, "earn": 2.0, "dd": 2.2, "light": 1.5, "model": 1.2}
+BASE_W = {"big": 1.0, "light": 1.5}
 
 
 def load(p, default=None):
@@ -142,31 +140,8 @@ def earnings(sym, c):
     return out
 
 
-def model_events(sym, md, market=False):
-    """模型帳戶買賣：個股 = 領導股；大市線 = 趨勢腳、輪動腳嘅 TQQQ（低吸腳太密唔放）。"""
-    out = []
-    for t in md.get("trades", []):
-        if market:
-            if t["sym"] != "TQQQ" or t["leg"] not in ("trend", "xr"):
-                continue
-        elif t["sym"] != sym:
-            continue
-        who = f"模型（{LEG.get(t['leg'], t['leg'])}）"
-        out.append(dict(d=t["date"], kind="model", label=f"模型買{'入' if not market else ' TQQQ'}",
-                        detail=f"{who}買入{' TQQQ' if market else ''}，約 {t['entry']:.2f}。"))
-        if t.get("sell_date"):
-            out.append(dict(d=t["sell_date"], kind="model", label=f"模型賣出 {pct(t['ret'], 0)}",
-                            detail=f"{who}賣出{' TQQQ' if market else ''}，約 {t['sell']:.2f}，回報 {pct(t['ret'])}。原因：{t.get('reason') or '—'}"))
-    if not market:
-        for p in md.get("positions", []):
-            if p["sym"] == sym:
-                out.append(dict(d=p["date"], kind="model", label="模型買入（揸緊）",
-                                detail=f"模型（領導股）買入，約 {p['entry']:.2f}；止蝕 {p['stop']:.2f}。"))
-    return out
-
-
 def market_events(full, start):
-    """大市：紅綠燈轉燈（V2.2 規則）、由高位跌 10%／20%（新高之後先會再計）。full = 有足夠歷史計 200 日線嘅收市。"""
+    """大市紅綠燈轉燈（V2.2 規則）。full = 有足夠歷史計 200 日線嘅收市。"""
     e21 = full.ewm(span=21, adjust=False).mean()
     s50, s200 = full.rolling(50).mean(), full.rolling(200).mean()
     green = (full > s200) | ((full > e21) & (e21 > s50))
@@ -178,39 +153,28 @@ def market_events(full, start):
                             detail=("大市轉綠燈：NDX 企返 200 日線之上，或者 21 EMA > 50 日線。V2.7：領導股可以買、趨勢腳可以揸 TQQQ。" if g else
                                     "大市轉紅燈：NDX 跌穿 200 日線而且短期均線轉弱。V2.7：領導股賣晒、趨勢腳轉 IEF。")))
         prev = g
-    peak = full.cummax()
-    hit = set()
-    for d in full.index:
-        if full[d] >= peak[d]:
-            hit.clear()
-        dd = full[d] / peak[d] - 1
-        for lv in (0.10, 0.20):
-            if dd <= -lv and lv not in hit:
-                hit.add(lv)
-                if d >= start:
-                    out.append(dict(d=str(d.date()), kind="dd", label=f"由高位跌 {lv:.0%}",
-                                    detail=f"納指 100 由高位 {peak[d]:,.0f} 跌到 {full[d]:,.0f}（{pct(dd)}）。"))
     return out
 
 
-def merge(evs):
-    """同一日有業績同大升大跌：留業績（大升大跌唔重複）；其他同日同類嘅只留一個。"""
-    earn_days = {e["d"] for e in evs if e["kind"] == "earn"}
+def merge(evs, earn=()):
+    """業績後嗰日嘅大升跌：同一個點，標「業績」、說明加埋 EPS（2026-10-23：細郁嘅業績唔再單獨標）。同日同類嘅只留一個。"""
+    ed = {e["d"]: e for e in earn}
     seen, out = set(), []
     for e in sorted(evs, key=lambda e: (e["d"], e["kind"])):
-        if e["kind"] == "big" and e["d"] in earn_days:
+        if (e["d"], e["kind"]) in seen:
             continue
-        k = (e["d"], e["kind"], e["label"])
-        if k not in seen:
-            seen.add(k)
-            out.append(e)
+        seen.add((e["d"], e["kind"]))
+        if e["kind"] == "big" and e["d"] in ed:
+            up = (e.get("chg") or 0) > 0
+            e = dict(e, earn=True, label=f"業績{'大升' if up else '大跌'} {pct(e['chg'])}", detail=ed[e["d"]]["detail"] + " " + e["detail"])
+        out.append(e)
     return out
 
 
 def ai_prompt(key, name, evs):
     """一次問一條線嘅幾個日子（2026-10-22：之前一日一個請求，Gemini 免費額度 20 次全部 429）。"""
     who = f"美股指數 {name}" if key == MKT_KEY else f"美股 {name}"
-    rows = "\n".join(f"{k + 1}. {e['d']} 收市 {pct(e['chg'])}" + ("（公佈業績之後）" if e["kind"] == "earn" else "") for k, e in enumerate(evs))
+    rows = "\n".join(f"{k + 1}. {e['d']} 收市 {pct(e['chg'])}" + ("（公佈業績之後）" if e.get("earn") else "") for k, e in enumerate(evs))
     return (f"{who} 喺以下日子（美國時間）大升或者大跌：\n{rows}\n"
             "請上網搜尋每一日（或者前一晚）令佢大升或者大跌嘅主要原因（新聞、公司公告、經濟數據、政策）。"
             "回覆 JSON：{\"items\": [{\"date\": \"YYYY-MM-DD\", \"label\": \"最多 8 個中文字嘅事件名（例如：DeepSeek 衝擊、關稅升級、業績勁過預期）\", "
@@ -268,13 +232,12 @@ def ai_fill(jobs, cache):
 def apply_ai(key, evs, cache):
     for e in evs:
         a = cache.get(f"{key}|{e['d']}")
-        if e["kind"] in ("big", "earn") and a and a.get("label"):
-            e.update(ai=True, label=a["label"], detail=a.get("detail") or e.get("detail"), src=a.get("src") or [], model=a.get("model"))
-        w = BASE_W[e["kind"]] + (3 if e.get("ai") else 0)
-        if e.get("chg") is not None and e["kind"] in ("big", "earn"):
+        if e["kind"] == "big" and a and a.get("label"):     # 大升跌同原因合做一個點：「事件名 升跌%」，說明用 AI 嘅（業績數據照留）
+            e.update(ai=True, label=f"{a['label']} {pct(e['chg'])}", detail=(a.get("detail") or e.get("detail")) + (" " + e["detail"].split("。")[0] + "。" if e.get("earn") else ""),
+                     src=a.get("src") or [], model=a.get("model"))
+        w = BASE_W[e["kind"]] + (3 if e.get("ai") else 0) + (0.5 if e.get("earn") else 0)
+        if e.get("chg") is not None:
             w += min(abs(e["chg"]) * 10, 2)
-        if e["kind"] == "dd":                            # 跌 20% 比跌 10% 重要（10% 一年可以有幾次，標籤唔好俾佢霸晒）
-            w += 0.4 if "20%" in e["label"] else -0.6
         e["w"] = round(w, 3)
     return evs
 
@@ -297,7 +260,7 @@ def pack(key, name, c, evs):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    syms, held, top, ind, md = targets()
+    syms, held, top, ind, _ = targets()
     today = datetime.now(NYT).date()
     start = pd.Timestamp(today.year - 2, 1, 1)
     C = download(syms, (start - timedelta(days=420)).strftime("%Y-%m-%d"))
@@ -306,7 +269,7 @@ def main():
     cache = {k: v for k, v in cache.items() if not (v.get("fail") and QUOTA.search(v.get("why", "")))}   # 額度問題唔係事件問題：清走再問
     series, jobs = {}, []
     full = C[MKT].dropna()
-    mk = merge([e for e in big_moves(full, True) if e["d"] >= str(start.date())] + market_events(full, start) + model_events("", md, market=True))
+    mk = merge([e for e in big_moves(full, True) if e["d"] >= str(start.date())] + market_events(full, start))
     series[MKT_KEY] = (MKT_NAME, full[full.index >= start], mk)
     for s in syms:
         if s not in C.columns:
@@ -317,12 +280,12 @@ def main():
         if len(c) < 30:
             continue
         big = [e for e in big_moves(cf, False) if e["d"] >= str(start.date())]
-        series[s] = (s, c, merge(big + earnings(s, c) + model_events(s, md)))
+        series[s] = (s, c, merge(big, earnings(s, c)))
     # AI 優先：大市先，再持倉、排名、研究；新嘅先；問過而成功嘅唔再問，失敗最多 MAX_FAIL 次
     for key, (name, c, evs) in series.items():
         tier = 0 if key == MKT_KEY else 1 if key in held else 2 if key in top else 3
         for e in evs:
-            if e["kind"] not in ("big", "earn") or (e["kind"] == "earn" and abs(e.get("chg") or 0) < EARN_AI):
+            if e["kind"] != "big":
                 continue
             a = cache.get(f"{key}|{e['d']}") or {}
             if a.get("label") or int(a.get("fail", 0)) >= MAX_FAIL:
