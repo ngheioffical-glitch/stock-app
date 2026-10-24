@@ -1,13 +1,18 @@
 name: 新聞同經濟數據
-# 每 5 分鐘抓新聞同經濟日曆，推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
+# 新聞同經濟日曆密啲更新；其他（加密、債息、商品、Trump、Serenity、業績、AI 宏觀思考等）淨係全部更新排程先做；推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
+# 2026-10-24 老師：「唔建議更新得咁密，淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」→ guard 輸出 full（scanner/feeds_gate.py）：
+#   full=1 全部做：下面標「全部」嘅排程（cron 字串要同 feeds_gate.py 嘅 FULL_CRONS 一樣）、app 撳「重新整理」、改呢個檔 push
+#   full=0 淨係新聞：其他排程、app 開嗰陣自動更新（relay=1）；其他檔沿用上一份
 on:
   schedule:
-    - cron: "41 10-12 * * 1-5"    # 2026-10-15 開市前；2026-10-23 拎走 17:41（DeepSeek 繁忙時段到 18:00）→ 香港 18:41–20:41：GitHub 每日嘅排程通常會行（只係遲），開市前試多幾次
-    - cron: "11 13 * * 1-5"       # 開市前最後一次（夏令紐約 09:11，冬令 08:11）
-    - cron: "7,22,37,52 * * * *"   # 2026-10-14：避開整點（GitHub 整點最多人排，排程最易遲或者被跳過）；2026-10-06 慳運算：每 15 分鐘；今日重點喺 ai.py 限制每 45 分鐘先寫一次
+    - cron: "41 10,12 * * 1-5"    # 開市前新聞：香港 18:41、20:41（GitHub 每日嘅排程通常會行，只係遲，開市前試多幾次；2026-10-23 拎走 17:41 DeepSeek 繁忙時段）
+    - cron: "41 11 * * *"         # 全部：香港 19:41（每日；週末加密都更新）
+    - cron: "11 13 * * 1-5"       # 全部：開市前最後一次（香港 21:11；夏令紐約 09:11，冬令 08:11）
+    - cron: "29 22 * * *"         # 全部：香港 06:29（每日，美股收市後）
+    - cron: "7,22,37,52 * * * *"   # 新聞：每 15 分鐘，guard 再揀行唔行（2026-10-14 避開整點，GitHub 整點最多人排）；今日重點喺 ai.py 限制每 45 分鐘先寫一次
   workflow_dispatch:
     inputs:
-      relay:               # "1" = 自動（2026-10-15 起係 app 開嗰陣新聞超過 15 分鐘自動更新），唔強制重寫 AI；app 撳「重新整理」唔傳 → 當手動（強制重寫 AI）
+      relay:               # "1" = 自動（2026-10-15 起係 app 開嗰陣新聞超過 15 分鐘自動更新），淨係新聞、唔強制重寫 AI；app 撳「重新整理」唔傳 → 當手動（全部更新、強制重寫 AI）
         required: false
         default: ""
   push:                    # 2026-10-03：改呢個檔 push 上嚟就即刻跑一次
@@ -33,6 +38,7 @@ jobs:
       fut_d: ${{ steps.g.outputs.fut_d }}
       pre: ${{ steps.g.outputs.pre }}
       fut_now: ${{ steps.g.outputs.fut_now }}
+      full: ${{ steps.g.outputs.full }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,7 +47,7 @@ jobs:
       - id: g
         run: |
           last=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/commits/feeds" | python3 -c "import json,sys,datetime;d=json.load(sys.stdin);print(int(datetime.datetime.fromisoformat(d['commit']['committer']['date'].replace('Z','+00:00')).timestamp()))" || echo 0)
-          python3 scanner/feeds_gate.py "${{ github.event_name }}" "$last"
+          python3 scanner/feeds_gate.py "${{ github.event_name }}" "$last" "${{ github.event.schedule }}" "${{ github.event.inputs.relay }}"
   feeds:
     needs: guard
     if: needs.guard.outputs.run == '1'
@@ -56,7 +62,14 @@ jobs:
       - run: python scanner/feeds.py out
         env:
           PYTHONIOENCODING: utf-8
-      - name: Serenity 近 3 日（每次都抓；失敗就沿用上一份，唔影響新聞）
+      - name: 淨係新聞：其他檔沿用上一份（推去 feeds 分支係成個覆蓋，唔抄返就會唔見）
+        if: needs.guard.outputs.full != '1'
+        run: |
+          for f in serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json; do
+            curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/$f" -o "out/$f" || rm -f "out/$f"
+          done
+      - name: Serenity 近 3 日（全部更新先抓；失敗就沿用上一份，唔影響新聞）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/serenity_recent.json" -o out/serenity_recent.json || true
           python scanner/serenity.py recent out
@@ -64,7 +77,8 @@ jobs:
         timeout-minutes: 4
         env:
           PYTHONIOENCODING: utf-8
-      - name: Trump Truth Social 近 3 日（每次都抓；失敗就沿用上一份）
+      - name: Trump Truth Social 近 3 日（全部更新先抓；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/trump_recent.json" -o out/trump_recent.json || true
           python scanner/trump.py recent out
@@ -72,7 +86,8 @@ jobs:
         timeout-minutes: 3
         env:
           PYTHONIOENCODING: utf-8
-      - name: 比特幣燈號（365 日線、MVRV、資金費率、利率；失敗就沿用上一份）
+      - name: 比特幣燈號（365 日線、MVRV、資金費率、利率；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           pip install -q pandas
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/btc.json" -o out/btc.json || true
@@ -81,7 +96,8 @@ jobs:
         timeout-minutes: 3
         env:
           PYTHONIOENCODING: utf-8
-      - name: 恐慌貪婪指數（股市 CNN、加密 alternative.me；失敗就沿用上一份）
+      - name: 恐慌貪婪指數（股市 CNN、加密 alternative.me；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/fng.json" -o out/fng.json || true
           python scanner/fng.py out
@@ -89,7 +105,8 @@ jobs:
         timeout-minutes: 2
         env:
           PYTHONIOENCODING: utf-8
-      - name: Hyperliquid 巨鯨持倉（失敗就沿用上一份）
+      - name: Hyperliquid 巨鯨持倉（全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/hyper.json" -o out/hyper.json || true
           python scanner/hyper.py out
@@ -97,7 +114,8 @@ jobs:
         timeout-minutes: 3
         env:
           PYTHONIOENCODING: utf-8
-      - name: 美債息（財政部官方 + Yahoo 盤中；失敗就沿用上一份）
+      - name: 美債息（財政部官方 + Yahoo 盤中；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/rates.json" -o out/rates.json || true
           python scanner/rates.py out
@@ -105,7 +123,8 @@ jobs:
         timeout-minutes: 2
         env:
           PYTHONIOENCODING: utf-8
-      - name: 商品（原油、黃金、白銀、銅；失敗就沿用上一份）
+      - name: 商品（原油、黃金、白銀、銅；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/commod.json" -o out/commod.json || true
           python scanner/commod.py out
@@ -113,7 +132,8 @@ jobs:
         timeout-minutes: 2
         env:
           PYTHONIOENCODING: utf-8
-      - name: 大額轉帳（Whale Alert X；失敗就沿用上一份）
+      - name: 大額轉帳（Whale Alert X；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/walert.json" -o out/walert.json || true
           python scanner/walert.py out
@@ -121,7 +141,8 @@ jobs:
         timeout-minutes: 2
         env:
           PYTHONIOENCODING: utf-8
-      - name: 業績重點（持倉 + 排名頭 15；每 55 分鐘先做；Claude Opus 5.5 上網搜尋，Gemini 後備；失敗就沿用上一份）
+      - name: 業績重點（持倉 + 排名頭 15；全部更新先做，而且每 55 分鐘最多一次；AI 上網搜尋，Gemini 後備；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/earnings.json" -o out/earnings.json || true
           pip install -q yfinance pandas anthropic
@@ -136,7 +157,8 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: feeds                                     # 跨流程 AI 用量帳本（llm.py）
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
-      - name: 宏觀來源（X 知名人士每 30 分鐘、Polymarket 每次；失敗就沿用上一份）
+      - name: 宏觀來源（X 知名人士、Polymarket；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
         run: |
           curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/macro_src.json" -o out/macro_src.json || true
           python scanner/macro_src.py out
@@ -144,7 +166,7 @@ jobs:
         timeout-minutes: 3
         env:
           PYTHONIOENCODING: utf-8
-      - name: AI 翻譯（新聞 + 加密 + Serenity + Trump，即時）、今日重點、加密重點；Claude Opus 5.5（high）優先，Gemini、GitHub Models 後備（會標明）；出錯都唔影響新聞
+      - name: AI 翻譯、經濟數據解讀、今日重點（每次）；宏觀思考、加密重點、大額轉帳、商品分析（全部更新先做）；DeepSeek 主力、Gemini 後備（會標明）；出錯都唔影響新聞
         run: |
           pip install -q anthropic
           python scanner/ai.py out
@@ -163,6 +185,7 @@ jobs:
           FUT_DAY: ${{ needs.guard.outputs.fut_d }}
           PREMARKET: ${{ needs.guard.outputs.pre }}
           FUT_NOW: ${{ needs.guard.outputs.fut_now }}
+          FEEDS_FULL: ${{ needs.guard.outputs.full }}          # 2026-10-24：0 = 淨係新聞（ai.py 唔寫宏觀思考、加密、大額轉帳、商品分析）
       - name: 推去 feeds 分支
         working-directory: out
         run: |

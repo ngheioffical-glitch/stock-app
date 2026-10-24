@@ -560,6 +560,9 @@ const KEY = "signals-app";                // 舊版（v21-app）嘅持倉紀錄�
 const defaults = { capital: 0, dataUrl: "scan.json",
                    feedUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/feeds/",
                    liveUrl: "https://raw.githubusercontent.com/ngheioffical-glitch/stock-app/live/intraday.json" };
+// 2026-10-24 老師：「淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」：新聞以外嘅雲端數據（加密、債息、商品、Trump、Serenity、業績、AI 分析）
+// 淨係呢幾個時間更新（.github/workflows/feeds.yml 標「全部」嘅排程），或者撳「重新整理」（要 GitHub token）
+const FULL_AT = "香港 06:29、19:41（平日加 21:11）";
 
 function load(){
   try {
@@ -732,7 +735,7 @@ function fearCard(){
     <div class="card"><div class="tablewrap"><table><tr><th>恐慌籃子</th><th class="r">買入</th><th class="r">收市</th><th class="r">回報</th></tr>${rows}</table></div>${note}</div>`;
 }
 
-// 比特幣燈號（2026-10-01；scanner/btc.py → feeds/btc.json，每 5 分鐘；回測 stock-strategy/LAB_BTC.md）
+// 比特幣燈號（2026-10-01；scanner/btc.py → feeds/btc.json，2026-10-24 起淨係全部更新排程（FULL_AT）；回測 stock-strategy/LAB_BTC.md）
 let BTC = null;
 async function fetchBtc(){
   try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "btc.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
@@ -797,7 +800,7 @@ function cryptoAiCard(){
     <ul class="small" style="margin:6px 0 0;padding-left:18px">${A.points.map(p => `<li style="margin:4px 0">${esc(p)}</li>`).join("")}</ul>
     ${A.whales ? `<p class="small"><b>巨鯨：</b>${esc(A.whales)}</p>` : ""}
     ${(A.trump || []).length ? `<p class="small"><b>Trump 最近講加密</b>（Truth Social）：${esc(A.trump[0].text.slice(0, 240))}${A.trump[0].text.length > 240 ? "…" : ""}</p>` : ""}
-    <p class="small muted">${esc(A.generated)} · 根據加密快訊同 Hyperliquid 巨鯨倉位變動，AI 寫，唔係投資建議；每 28 分鐘先重寫，有 ≥ $5M 新巨鯨動作或者撳「重新整理」（設定咗 GitHub token）就即刻重寫。</p></div>`;
+    <p class="small muted">${esc(A.generated)} · 根據加密快訊同 Hyperliquid 巨鯨倉位變動，AI 寫，唔係投資建議；${FULL_AT}更新，或者撳「重新整理」（設定咗 GitHub token）即刻重寫。</p></div>`;
 }
 function whaleCard(){
   if (!HYP || !HYP.whales) return "";
@@ -809,7 +812,7 @@ function whaleCard(){
   return `<div class="card"><div class="lbl">Hyperliquid 巨鯨（歷史盈利頭 25 + 上月頭 10，共 ${HYP.whales.length} 個）</div>
     ${ag ? `<div class="tablewrap"><table><tr><th>幣</th><th class="r">多倉</th><th class="r">空倉</th><th class="r">淨</th></tr>${ag}</table></div>` : `<p class="small muted">巨鯨而家冇倉</p>`}
     <div class="lbl" style="margin-top:8px">最近倉位變動（≥ $250K）</div>
-    ${ev || `<p class="small muted">暫時冇（每 5 分鐘比較一次持倉，有開倉／加倉／減倉／平倉就會出）</p>`}
+    ${ev || `<p class="small muted">暫時冇（${FULL_AT}比較一次持倉，有開倉／加倉／減倉／平倉就會出）</p>`}
     <p class="small muted">更新 ${esc(String(HYP.generated).replace("T", " ").slice(0, 16))} UTC · 公開鏈上數據（Hyperliquid API），撳名打開 hypurrscan 睇全部倉位。巨鯨都會蝕錢，只作參考。${HYP.err && Object.keys(HYP.err).length ? ` · <span class="dn">部分讀取失敗</span>` : ""}</p></div>`;
 }
 // 新項目雷達（2026-10-03 用戶：出咗類似 HYPE 嘅項目會高度關注）：scanner/radar.py → radar 分支 radar.json（radar.yml 每日 2 次）。
@@ -1075,14 +1078,14 @@ function walertCard(){
       <td class="r mono">$${(v.in / 1e6).toFixed(0)}M</td><td class="r mono">$${(v.out / 1e6).toFixed(0)}M</td><td class="r mono ${v.net > 0 ? "dn" : v.net < 0 ? "up" : ""}">${m(v.net)}</td></tr>`).join("")}</table></div>` : ""}
     ${moreList(W.items.slice(0, 12).map(x => `<div class="news"><div><span class="tag ${kc(x.kind)}">${esc(x.kind)}</span> <b class="mono">${esc(x.amt)} ${esc(x.sym)}</b> <span class="small muted">（$${(x.usd / 1e6).toFixed(0)}M）</span></div>
       <div class="meta"><span>${esc(x.frm || "")}${x.frm || x.to ? " → " : ""}${esc(x.to || "")}</span><span>${ago(new Date(x.ts * 1000).toISOString())}</span>${x.link ? `<a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">詳情</a>` : ""}</div></div>`), 4)}
-    <p class="small muted">Whale Alert 官方 X（大約 1,000 萬美元以上），每 15–30 分鐘更新。紅「入交易所」= 可能準備賣；綠「出交易所」= 可能長揸；穩定幣淨流入交易所 = 有新錢準備買。<b>只係線索，唔係買賣訊號</b>：轉入交易所可能只係內部調動或者託管，錢包身份多數唔知；你嘅 BTC 100 日線規則唔會因此改變。想知錢包係邊個，可以自己用 Arkham 查（要註冊）。</p></div>`;
+    <p class="small muted">Whale Alert 官方 X（大約 1,000 萬美元以上），${FULL_AT}更新。紅「入交易所」= 可能準備賣；綠「出交易所」= 可能長揸；穩定幣淨流入交易所 = 有新錢準備買。<b>只係線索，唔係買賣訊號</b>：轉入交易所可能只係內部調動或者託管，錢包身份多數唔知；你嘅 BTC 100 日線規則唔會因此改變。想知錢包係邊個，可以自己用 Arkham 查（要註冊）。</p></div>`;
 }
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
   if (!L.length) return "";
   return `<div class="card" style="gap:0"><div class="lbl" style="margin-bottom:4px">加密快訊</div>${moreList(L.map(x => `<div class="news"><a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
       <div class="meta"><span>${esc(x.src)}</span><span>${ago(x.t)}</span>${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`), 5)}
-    <p class="small muted">CoinDesk、Cointelegraph、Decrypt、The Block，每 5 分鐘更新；新聞頁「加密」分類有更多。</p></div>`;
+    <p class="small muted">CoinDesk、Cointelegraph、Decrypt、The Block，跟新聞一齊更新；新聞頁「加密」分類有更多。</p></div>`;
 }
 function viewCrypto(){
   if (!BTC) fetchBtc();
@@ -1265,7 +1268,7 @@ function bounceCard(){
   </div>`;
 }
 
-// 盤中 5 分鐘（測試）：GitHub Actions 開市期間每 5 分鐘更新 live 分支
+// 盤中 5 分鐘（測試）：GitHub Actions 開市期間每個鐘更新 live 分支（2026-10-24 起；app 唔再每分鐘讀，開 app／返前景先讀）
 let LIVE = null;
 async function fetchLive(){
   try {
@@ -1340,7 +1343,7 @@ function viewPick(){
   return h;
 }
 
-// ───────────────────────── Serenity 關注（scanner/serenity.py：每日近 60 日 + feeds 每 30 分鐘近 3 日）
+// ───────────────────────── Serenity 關注（scanner/serenity.py：每日近 60 日 + feeds 全部更新排程近 3 日）
 let SER = null;
 async function fetchSer(){
   const tw = {}, add = j => ((j && j.tweets) || []).forEach(t => tw[t.id] = t), bust = "?t=" + Math.floor(Date.now() / 60e3);
@@ -1427,7 +1430,7 @@ function viewTrList(){
   let h = search + (top.length ? `<div class="card"><span class="small muted">近 30 日提過嘅公司（撳落去睇 2022 年起全部）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-tr"}" data-trsym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>` : "");
   const L = TR.recent.filter(t => t.text && t.text.length > 3).slice(0, 60);
   h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px"><span class="small muted" style="padding-top:8px">最新貼文（近 3 日）</span>` + (L.length ? moreList(L.map(t => trPost(t, cand)), 10) : `<p class="muted" style="padding:10px 0">暫時冇</p>`) + `</div>`;   // 2026-10-24：頭 10 條（貼文長）
-  return h + `<p class="small muted">Trump 嘅 Truth Social（佢喺 X 大多只轉片）。來源：trumpstruth.org 為主、X @TrumpTruthOnX 後備（兩邊互相補漏）、2022 起公開存檔；每 5 分鐘更新，AI 即時翻譯。只列有文字嘅貼文；公司用名稱對照代號，可能有漏或者誤判。只供參考，唔係買入訊號。</p>`;
+  return h + `<p class="small muted">Trump 嘅 Truth Social（佢喺 X 大多只轉片）。來源：trumpstruth.org 為主、X @TrumpTruthOnX 後備（兩邊互相補漏）、2022 起公開存檔；${FULL_AT}更新（撳「重新整理」即刻更新），AI 翻譯。只列有文字嘅貼文；公司用名稱對照代號，可能有漏或者誤判。只供參考，唔係買入訊號。</p>`;
 }
 function viewTrHist(cand){
   const sym = TRSYM;
@@ -1927,7 +1930,7 @@ function healthCard(){
   if (FEED.news){
     const g = hkt(FEED.news.generated), age = (now - g) / 60e3;
     const nmax = usOpen() ? 90 : 300;
-    add("新聞、經濟數據、Trump、Serenity 最新", age < nmax, FEED.news.generated, age >= nmax ? (FEED.cloud || `已經 ${age >= 120 ? Math.round(age / 60) + " 個鐘" : Math.round(age) + " 分鐘"}冇更新（開市時間每 15–30 分鐘；收市後每 4 個鐘或者期貨郁 0.75%；開 app 超過 15 分鐘會自動更新）`) : "");
+    add("新聞、經濟數據最新", age < nmax, FEED.news.generated, age >= nmax ? (FEED.cloud || `已經 ${age >= 120 ? Math.round(age / 60) + " 個鐘" : Math.round(age) + " 分鐘"}冇更新（開市時間每 15–30 分鐘；收市後每 4 個鐘或者期貨郁 0.75%；開 app 超過 15 分鐘會自動更新）`) : "");
     const D = FEED.news.digest;
     add("AI 今日重點", !FEED.news.ai_err, D ? D.generated + " · " + (D.model || "") : "未有", FEED.news.ai_err ? String(FEED.news.ai_err).slice(0, 160) : "");
     const AS = FEED.news.ai_status;      // 2026-10-20：AI 接駁層（scanner/llm.py）：用緊邊個 AI、今日（香港時間）用咗幾多錢
@@ -1955,19 +1958,19 @@ function healthCard(){
     const shown = /HKT/.test(String(t)) ? String(t).slice(0, 16) : new Date(now - a * 60e3 + 8 * 3600e3).toISOString().slice(0, 16).replace("T", " ");   // 一律顯示香港時間
     add(name, a < maxMin && !e.length, shown, a >= maxMin ? `已經 ${a >= 120 ? Math.round(a / 60) + " 個鐘" : Math.round(a) + " 分鐘"}冇更新（正常${normal}）` : e.join("；").slice(0, 160));
   };
-  const FM = usOpen() ? 120 : 300, FN = usOpen() ? "每 15–30 分鐘" : "收市後每 4 個鐘或者期貨郁 0.75%";
+  const FM = 16 * 60, FN = FULL_AT + "更新";     // 2026-10-24：新聞以外淨係全部更新排程（最長相隔約 13 個鐘，GitHub 排程會遲，所以 16 個鐘先當過期）
   if (FEED.news){
     fresh("美債息", FEED.rates && FEED.rates.generated, FM, FN, FEED.rates && FEED.rates.errs);
     fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, FM, FN, FEED.commod && FEED.commod.errs);
-    fresh("業績", FEED.earn && FEED.earn.generated, 300, "每 2 個鐘", FEED.earn && FEED.earn.errs);
+    fresh("業績", FEED.earn && FEED.earn.generated, FM, FN, FEED.earn && FEED.earn.errs);
     fresh("大額轉帳（Whale Alert）", FEED.walert && FEED.walert.generated, FM, FN, FEED.walert && FEED.walert.errs);
   }
   if (!BTC) fetchBtc();
   if (!HYP) fetchHyper();
   if (BTC && BTC.ma100 && BTC.ma100.stale) add("加密燈號（BTC 100 日線）", false, "舊數據",        // 2026-10-24：沿用上一份唔再當正常
     `ETH 數據今次攞唔到，燈號沿用 ${BTC.ma100.btc ? BTC.ma100.btc.date : "上一份"} 嗰份；下次更新會自動補返`);
-  else if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), Math.max(FM, 180), FN);
-  if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", Math.max(FM, 180), FN, Object.values(HYP.err || {}));
+  else if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), FM, FN);
+  if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", FM, FN, Object.values(HYP.err || {}));
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
   fresh("估值（每日）", VAL && VAL.generated, 36 * 60, "每日美股收市後", VAL && VAL.errs);
@@ -2076,7 +2079,7 @@ function viewSet(){
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
     <label>新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
     <label>盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label>
-    <label>GitHub token（建議填：開 app 嗰陣新聞超過 15 分鐘會自動叫雲端更新；撳「重新整理」即刻重寫 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
+    <label>GitHub token（建議填：開 app 嗰陣新聞超過 15 分鐘會自動叫雲端更新新聞；撳「重新整理」即刻更新晒全部（加密、債息、商品、Trump、Serenity 等平時${FULL_AT}先更新）同重寫 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
     <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。改完撳上面「儲存」。</p></details>
   <details class="card small muted"><summary><b>策略規則同版本歷史</b></summary><p><b>V2.7（2026-10-12 起，模型用緊）：35% 揀領導股 + 65% ETF，唔用孖展。</b>資金分 4 部分，每月最後一個交易日之後調返 35／45／5／15（領導股部分只用現金調，唔會為咗比例賣股；stock-strategy/RULES_V2.md、LAB_LOSSMIN.md；每年 1 月重新驗證）：</p>
     <p>① <b>領導股 35%</b>（V2.2 規則）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高（buy-stop）就買。每隻用呢部分 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈 → 下一日開市賣。呢部分由高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到高位 −12.5% 以內恢復。呢部分嘅現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
@@ -2093,7 +2096,7 @@ function viewSet(){
     <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></details>`;
 }
 
-// ───────────────────────── 新聞同經濟數據（GitHub Actions 每 30 分鐘更新 feeds 分支）
+// ───────────────────────── 新聞同經濟數據（GitHub Actions：開市每 15–30 分鐘、收市後每 4 個鐘或者期貨大郁，更新 feeds 分支）
 let FEED = {news:null, econ:null, err:null, at:0, busy:false}, NT = "econ", NCAT = "全部", EALL = false;
 try { NT = localStorage.getItem(KEY + "-nt") || "econ"; } catch(e){}
 function fromET(t){
@@ -2105,8 +2108,8 @@ const WD = "日一二三四五六";
 const dayLabel = ds => { const d = new Date(ds + "T12:00:00Z"); return `${ds.slice(5).replace("-", "/")} 星期${WD[d.getUTCDay()]}`; };
 const ago = t => { const m = (Date.now() - Date.parse(t)) / 60e3; return m < 60 ? `${Math.max(1, Math.round(m))} 分鐘前` : m < 1440 ? `${Math.round(m / 60)} 小時前` : `${Math.round(m / 1440)} 日前`; };
 
-// 撳「重新整理」：有 GitHub token 就即刻觸發雲端更新（feeds.yml workflow_dispatch），之後每 15 秒睇下有冇新數據（最多 5 分鐘）
-// 2026-10-15 用戶揀 B：GitHub 排程唔準時，開 app 嗰陣新聞超過 15 分鐘就自動觸發（auto：relay=1，唔強制重寫 AI，慳額度；每部機最多 15 分鐘一次）
+// 撳「重新整理」：有 GitHub token 就即刻觸發雲端全部更新（feeds.yml workflow_dispatch），之後每 15 秒睇下有冇新數據（最多 5 分鐘）
+// 2026-10-15 用戶揀 B：GitHub 排程唔準時，開 app 嗰陣新聞超過 15 分鐘就自動觸發（auto：relay=1，淨係新聞、唔強制重寫 AI，慳額度；每部機最多 15 分鐘一次）
 const repoOf = () => { const m = /githubusercontent\.com\/([^/]+\/[^/]+)\//.exec(S.feedUrl || ""); return m ? m[1] : "ngheioffical-glitch/stock-app"; };
 async function cloudRefresh(auto){
   if (!S.ghToken){ fetchFeeds(true); return; }
@@ -2122,7 +2125,11 @@ async function cloudRefresh(auto){
   const tick = async () => {
     await fetchFeeds(true);
     const now = FEED.news && FEED.news.generated;
-    if (now && now !== before){ FEED.cloud = "已更新（" + now + "）"; fetchHyper(); fetchBtc(); fetchFng(); render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news") render(); }, 8000); return; }
+    if (now && now !== before){
+      FEED.cloud = "已更新（" + now + "）";
+      if (!auto){ fetchHyper(); fetchBtc(); fetchFng(); fetchSer(); fetchTrump(); }     // 自動嗰次淨係新聞；撳「重新整理」係全部更新
+      render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news") render(); }, 8000); return;
+    }
     if (Date.now() - t0 > 5 * 60e3){ FEED.cloud = "雲端仲未更新完，遲啲再撳"; render(); return; }
     FEED.cloud = `雲端更新中（約 1–2 分鐘）… ${Math.round((Date.now() - t0) / 1e3)} 秒`; render();
     setTimeout(tick, 15e3);
@@ -2207,7 +2214,7 @@ function commodCard(){
           ${x.impact ? `<p style="margin:3px 0"><b>對股市：</b>${esc(x.impact)}</p>` : ""}${x.watch ? `<p style="margin:3px 0"><b>之後留意：</b>${esc(x.watch)}</p>` : ""}</details>`).join("")}
         ${A.cg ? `<p style="margin:4px 0"><b>銅金比率：</b>${esc(A.cg)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}</div>`
       : `<details class="exp small"><summary>每樣商品點影響股市（AI 分析未有，暫時顯示基本解釋）</summary>${C.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(CMEAN[r.sym] || "")}</p>`).join("")}</details>`}
-    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），跟新聞每 15–30 分鐘更新。AI 分析每日 2 次上網搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。只係宏觀背景，唔改 V2.7 規則。</p></div>`;
+    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），${FULL_AT}更新。AI 分析大約每日 2 次上網搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。只係宏觀背景，唔改 V2.7 規則。</p></div>`;
 }
 
 // 業績（2026-10-02 用戶）：持倉 + 排名頭 15 嘅下次業績日期同 AI 業績重點（scanner/earnings.py）。只係資訊。
@@ -2408,7 +2415,7 @@ function viewNews(){
   if (!S.ghToken) h += `<p class="small muted">提示：喺「設定」填 GitHub token，開 app 嗰陣新聞超過 15 分鐘就會自動更新。</p>`;
   if (FEED.err) h += `<div class="alert"><b>讀唔到新聞數據</b><p class="small">${esc(FEED.err)}</p></div>`;
   if (!FEED.news || !FEED.econ) return h + (FEED.err ? "" : `<p class="muted">載入中…</p>`);
-  const D = FEED.news.digest;           // AI「今日重點」（2026-10-20 起 Claude Opus 5.5 優先）（scanner/ai.py，GitHub 每 30 分鐘；冇 key 就冇）
+  const D = FEED.news.digest;           // AI「今日重點」（2026-10-20 起 Claude Opus 5.5 優先）（scanner/ai.py，跟新聞更新、最少隔 45 分鐘；冇 key 就冇）
   if (D && (D.points || []).length){
     const sn = (D.snap || []).map(x => `<span>${esc(x.name)} <b class="${x.chg >= 0 ? "up" : "dn"}">${x.unit === "bp" ? (x.chg >= 0 ? "+" : "") + x.chg.toFixed(1) + " 基點" : pct(x.chg / 100, 2)}</b></span>`).join("");
     const fc = D.checked ? ((D.warn || []).length ? `<div class="alert small"><b>事實核對：有 ${D.warn.length} 處同實際數字唔符</b>${D.warn.map(w => `<div>· ${esc(w)}</div>`).join("")}</div>`
@@ -3200,8 +3207,8 @@ function bind(){
   document.querySelectorAll("[data-rsec]").forEach(b => b.onclick = () => { RSEC = b.dataset.rsec; try { localStorage.setItem("rsec", RSEC); } catch(e){} render(); window.scrollTo(0, 0); });
   on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
-  on("#serReload", () => { fetchSer(); });
-  on("#trReload", () => { fetchTrump(); });
+  on("#serReload", () => { fetchSer(); if (S.ghToken) cloudRefresh(); });      // 2026-10-24：Serenity、Trump 淨係全部更新排程，撳「重新整理」即刻叫雲端更新
+  on("#trReload", () => { fetchTrump(); if (S.ghToken) cloudRefresh(); });
   on("#cmGo", () => { const cap = +$("#cmCap").value, d = $("#cmStart").value, wb = Math.min(100, Math.max(0, +$("#cmWb").value)), lev = +$("#cmLev").value;
     if (!(cap > 0)){ alert("請填本金（美元）"); return; }
     if (!d || d < "2017-01-05"){ alert("開始日期要喺 2017-01-05 之後"); return; }
@@ -3308,11 +3315,12 @@ fetchSer();
 fetchTrump();
 fetchFeeds();                 // 2026-10-15：一開 app 就讀新聞，超過 15 分鐘就自動叫雲端更新（autoRefresh）
 fetchBtc(); fetchFng(); fetchHyper();
-setInterval(() => { if (document.visibilityState === "visible"){ fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(); } }, 5 * 60e3);   // fetchFeeds：app 開住都會每 5 分鐘檢查，新聞超過 15 分鐘就自動更新
+// 2026-10-24 老師：「唔建議更新得咁密，淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」：
+// 定時淨係讀新聞（app 開住每 5 分鐘檢查，新聞超過 15 分鐘就自動叫雲端更新新聞）；之前加密、恐慌貪婪、巨鯨每 5 分鐘、盤中每 1 分鐘都讀，已經拎走
+setInterval(() => { if (document.visibilityState === "visible") fetchFeeds(); }, 5 * 60e3);
 fetchLev();
-setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
-// 2026-10-24（老師：「今日要做淨係開市前就得」）：app 喺背景放咗一晚，朝早打開時掃描同模型可能仲係尋日 → 舊過 20 分鐘就重讀，開市前睇到嘅一定係新一日
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchLive(); fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); } } });
+// 返前景：新聞照讀；其他排程數據（掃描、模型、盤中、加密）舊過 20 分鐘先重讀（「今日要做淨係開市前就得」：app 喺背景放咗一晚，朝早開都係新一日）
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); fetchLive(); fetchBtc(); fetchFng(); fetchHyper(); } } });
 </script>
 </body>
 </html>

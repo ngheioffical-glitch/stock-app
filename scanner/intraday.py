@@ -5,7 +5,7 @@
 GitHub 定時同 Yahoo 準唔準。
 
 用法：python scanner/intraday.py 輸出資料夾 [上次 intraday.json 網址或檔案] [--date YYYY-MM-DD 重播]
-GitHub Actions 開市期間每 5 分鐘跑，推去 live 分支；app「今日」分頁讀 live/intraday.json。
+GitHub Actions 開市期間每個鐘跑（2026-10-24 起；之前每 15 分鐘），推去 live 分支；app「今日」分頁讀 live/intraday.json。
 """
 from __future__ import annotations
 

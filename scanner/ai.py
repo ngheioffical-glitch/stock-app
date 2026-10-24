@@ -47,6 +47,9 @@ def ai_to(n):
 
 
 GAP = int(os.environ.get("AI_GAP_MIN", os.environ.get("GEMINI_GAP_MIN", "45")))   # 分鐘：今日重點最少隔幾耐先再寫
+# 2026-10-24 老師：「淨係新聞密就得，其他全部淨係排程」：feeds.yml 淨係新聞嗰次（FEEDS_FULL=0）只做翻譯、經濟數據解讀、聯儲局、今日重點；
+# 宏觀思考、加密重點、大額轉帳分析、商品分析（extras）留返全部更新（排程或者 app 撳「重新整理」）先寫
+FULL = os.environ.get("FEEDS_FULL", "1").strip() != "0"
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
 
@@ -994,6 +997,54 @@ def crypto_digest(key, N, H, PH, out, now, force=False):
             f"加密重點 {len(pts)} 點（{model}）")
 
 
+def extras(key, N, P, out, now, manual, errs):
+    """新聞以外嘅 AI（只喺全部更新做）：宏觀思考、加密重點、加密宏觀思考、大額轉帳分析、商品分析。錯誤加入 errs，失敗沿用上一份。"""
+    # 3b. AI 宏觀思考：每 6 個鐘；債息異動或者轉燈就即刻寫；失敗沿用上一份
+    try:
+        d, msg = think(key, N, P, now, force=manual)
+        N["think"] = d or P.get("think")
+        print("[ai] " + msg)
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 宏觀思考失敗：{e}")
+        errs.append(f"宏觀思考：{str(e)[:300]}")
+        if P.get("think"):
+            N["think"] = P["think"]
+    # 4. 加密重點（hyper.json 嘅 ai）
+    H = load(out / "hyper.json")
+    if H is not None:
+        PH = prev("hyper.json")
+        try:
+            d, msg = crypto_digest(key, N, H, PH, out, now, force=manual)
+            if d:
+                H["ai"] = d
+            print("[ai] " + msg)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 加密重點失敗：{e}")
+            errs.append(f"加密重點：{str(e)[:300]}")
+            if PH.get("ai"):
+                H["ai"] = PH["ai"]
+        try:                                                      # 加密宏觀思考：每 6 個鐘；BTC 轉燈、加密恐慌指數去到極端就即刻寫
+            d, msg = think_crypto(key, N, H, PH, now, force=manual)
+            H["think"] = d or PH.get("think")
+            print("[ai] " + msg)
+        except Exception as e:  # noqa: BLE001
+            print(f"[ai] 加密宏觀思考失敗：{e}")
+            errs.append(f"加密宏觀思考：{str(e)[:300]}")
+            if PH.get("think"):
+                H["think"] = PH["think"]
+        (out / "hyper.json").write_text(json.dumps(H, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    try:                                                          # 大額轉帳分析：每 6 個鐘，大流向／大筆即刻寫（2026-10-05）
+        print("[ai] " + walert_ai(key, now, force=manual))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 大額轉帳分析失敗：{e}")
+        errs.append(f"大額轉帳分析：{str(e)[:300]}")
+    try:                                                          # 商品點影響股市：每 6 個鐘，有異動即刻寫（2026-10-05）
+        print("[ai] " + commod_ai(key, N, now, force=manual))
+    except Exception as e:  # noqa: BLE001
+        print(f"[ai] 商品分析失敗：{e}")
+        errs.append(f"商品分析：{str(e)[:300]}")
+
+
 def main():
     global OUTDIR
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "feeds_out"
@@ -1109,50 +1160,11 @@ def main():
             errs.append(f"重點：{str(e)[:300]}")
             if P.get("digest"):
                 N["digest"] = P["digest"]
-    # 3b. AI 宏觀思考：每 6 個鐘；債息異動或者轉燈就即刻寫；失敗沿用上一份
-    try:
-        d, msg = think(key, N, P, now, force=manual)
-        N["think"] = d or P.get("think")
-        print("[ai] " + msg)
-    except Exception as e:  # noqa: BLE001
-        print(f"[ai] 宏觀思考失敗：{e}")
-        errs.append(f"宏觀思考：{str(e)[:300]}")
-        if P.get("think"):
-            N["think"] = P["think"]
-    # 4. 加密重點（hyper.json 嘅 ai）
-    H = load(out / "hyper.json")
-    if H is not None:
-        PH = prev("hyper.json")
-        try:
-            d, msg = crypto_digest(key, N, H, PH, out, now, force=manual)
-            if d:
-                H["ai"] = d
-            print("[ai] " + msg)
-        except Exception as e:  # noqa: BLE001
-            print(f"[ai] 加密重點失敗：{e}")
-            errs.append(f"加密重點：{str(e)[:300]}")
-            if PH.get("ai"):
-                H["ai"] = PH["ai"]
-        try:                                                      # 加密宏觀思考：每 6 個鐘；BTC 轉燈、加密恐慌指數去到極端就即刻寫
-            d, msg = think_crypto(key, N, H, PH, now, force=manual)
-            H["think"] = d or PH.get("think")
-            print("[ai] " + msg)
-        except Exception as e:  # noqa: BLE001
-            print(f"[ai] 加密宏觀思考失敗：{e}")
-            errs.append(f"加密宏觀思考：{str(e)[:300]}")
-            if PH.get("think"):
-                H["think"] = PH["think"]
-        (out / "hyper.json").write_text(json.dumps(H, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    try:                                                          # 大額轉帳分析：每 6 個鐘，大流向／大筆即刻寫（2026-10-05）
-        print("[ai] " + walert_ai(key, now, force=manual))
-    except Exception as e:  # noqa: BLE001
-        print(f"[ai] 大額轉帳分析失敗：{e}")
-        errs.append(f"大額轉帳分析：{str(e)[:300]}")
-    try:                                                          # 商品點影響股市：每 6 個鐘，有異動即刻寫（2026-10-05）
-        print("[ai] " + commod_ai(key, N, now, force=manual))
-    except Exception as e:  # noqa: BLE001
-        print(f"[ai] 商品分析失敗：{e}")
-        errs.append(f"商品分析：{str(e)[:300]}")
+    if FULL:
+        extras(key, N, P, out, now, manual, errs)
+    else:
+        N["think"] = P.get("think")
+        print("[ai] 淨係更新新聞：宏觀思考、加密重點、大額轉帳、商品分析沿用上一份（全部更新先寫）")
     if errs:
         N["ai_err"] = "；".join(errs)
     N["ai_status"] = dict(llm.status(), at=now.isoformat(timespec="seconds"))
