@@ -54,6 +54,12 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}           # 2026-10-21：AI 用 Gemini（免費）；llm.py 預設 AI_PROVIDER=gemini
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: scan                                     # 跨流程 AI 用量帳本（llm.py）
+      - name: 名人交易（2026-10-25：眾議院議員官方交易報告 + SEC Form 4 內部人；只係資訊；失敗唔影響其他）
+        run: python scanner/people.py docs
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          PYTHONIOENCODING: utf-8
       - name: 發佈前檢查（2026-10-24：scan.json、model_cont.json 格式唔啱就還原返上一份，最尾報錯）
         id: chk
         run: |
@@ -69,6 +75,7 @@ jobs:
           git add docs/scan.json docs/model_cont.json docs/lev2x.json docs/valuation.json scanner/universe.txt scanner/sectors.json
           if [ -d docs/events ]; then git add docs/events; fi     # 事件線（步驟出錯冇 folder 都唔好拖累其他數據）
           if [ -f docs/ai_usage_scan.json ]; then git add docs/ai_usage_scan.json; fi   # 收錢 AI（DeepSeek）用量帳本
+          if [ -f docs/people.json ]; then git add docs/people.json; fi           # 名人交易（議員、內部人）
           if git diff --cached --quiet; then echo "冇新數據"; else git commit -m "每日掃描 $(date -u +%F)" && git push; fi
       - name: 數據檢查唔過就報錯（其他數據照樣 commit 咗；GitHub 會寄 email）
         if: steps.chk.outputs.bad != ''

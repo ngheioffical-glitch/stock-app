@@ -85,6 +85,7 @@ main>*{min-width:0;max-width:100%}
 [data-sersym]{cursor:pointer}
 .t-ser{color:#c9a2ff;background:rgba(170,120,255,.12);border-color:rgba(170,120,255,.4)}
 .t-tr{color:#ffb38a;background:rgba(255,120,60,.12);border-color:rgba(255,120,60,.45)}
+.t-pe{color:#c9b8ff;background:rgba(150,120,255,.12);border-color:rgba(150,120,255,.45);cursor:pointer}   /* 名人交易（議員、內部人） */
 [data-trsym]{cursor:pointer}
 .t-dim{color:var(--muted);background:rgba(120,200,255,.06);border-color:var(--line)}
 .price{font-family:var(--mono);font-size:34px;font-weight:700;line-height:1.1;color:var(--cyan);text-shadow:0 0 18px rgba(0,229,255,.35)}
@@ -283,6 +284,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rs-tick .st i{font-style:normal;color:var(--rt);letter-spacing:1px;font-size:14px}
 .rs-pills{display:flex;flex-wrap:wrap;gap:2px;margin-top:7px}   /* 2026-10-24：擺唔落就摺行，唔左右滑 */
 .rs-pills button{flex:none;border:0!important;background:none!important;color:#a5a5af!important;font-weight:600!important;font-size:14.5px;padding:5px 13px!important;border-radius:999px!important}
+@media (max-width:420px){.rs-pills button{font-size:14px;padding:5px 8px!important}}   /* 2026-10-25：加咗「名人」變 6 個，手機一行擺得落 */
 .rs-pills button.on{background:#f3f3f5!important;color:#101014!important;font-weight:800!important}
 .rs-sec{padding:24px 16px 4px;scroll-margin-top:calc(116px + env(safe-area-inset-top,0px))}
 .rs-sec+.rs-sec{border-top:1px solid var(--rl);margin-top:18px}
@@ -1369,7 +1371,7 @@ async function fetchLev(){
 const levOf = sym => (LEV && LEV[sym]) || [];
 const levNote = sym => { const L = levOf(sym); return L.length ? `<p class="small muted"><span class="tag t-dim">2 倍 ETF</span> ${L.slice(0, 2).join("／")}：唔借錢加槓桿，升跌約正股 2 倍（每日重設，長揸會有耗損）。規則冇用，買唔買自己決定；買入價同止蝕照睇正股。</p>` : ""; };
 const levInd = sym => { const L = levOf(sym); return L.length ? ` · 2倍 ${L[0]}` : ""; };
-const serTag = sym => { const o = SER && SER.by[sym]; return (o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : "") + trTag(sym) + cryTag(sym); };
+const serTag = sym => { const o = SER && SER.by[sym]; return (o ? ` <span class="tag t-ser" data-sersym="${sym}" role="button" title="Serenity 近 30 日提過 ${o.n} 次：撳落去睇全部">S·${o.n}</span>` : "") + trTag(sym) + peTag(sym) + cryTag(sym); };
 // 加密相關股（scan.py crypto_info）：過去 120 日同 BTC 相關 ≥ 0.5；顯示 BTC 燈號（> 365 日線）。回測：BTC 紅燈唔買冇穩定幫助（LAB_CRYPTOSTK.md），只作提醒
 const cryTag = sym => { const X = SCAN && SCAN.crypto, r = X && X.corr && X.corr[sym]; if (r == null) return "";
   return ` <span class="tag ${X.green ? "t-buy" : "t-stop"}" title="過去 120 日同 BTC 相關 ${r}；BTC ${X.green ? "高過" : "低過"} 365 日線">₿${r.toFixed(2)} · BTC ${X.green ? "綠" : "紅"}</span>`; };
@@ -1412,7 +1414,7 @@ const GROUPS = {
   today: [["today", "今日"]],
   strat: [["model", "策略"]],
   stocks: [["pick", "揀股"], ["rank", "排名"], ["res", "研究"], ["theme", "題材"]],
-  info: [["news", "新聞"], ["fx", "外匯"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],   // 2026-10-25：外匯（老師揀放資訊）
+  info: [["news", "新聞"], ["fx", "外匯"], ["people", "名人交易"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],   // 2026-10-25：外匯、名人交易（議員、內部人）
   cry: [["crypto", "加密"], ["drop", "空投"], ["proj", "項目"], ["meme", "Meme"]],
 };
 const navOf = t => Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === t)) || t;
@@ -1475,6 +1477,42 @@ const pickModel = () => { MODEL = MCONT; };
 let VAL = null;
 async function fetchVal(){
   try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "valuation.json") + "?t=" + Date.now(), {cache: "no-store"}); if (r.ok){ VAL = await r.json(); render(); } } catch(e){}
+}
+// 名人交易（2026-10-25 老師：「1同2先做，用官方，3第二期」）：scanner/people.py → docs/people.json（每日）。
+// 眾議院議員交易（官方 PTR，淨係股票）+ 公司內部人公開市場買賣（SEC Form 4，代碼 P／S；授股、行權、送贈唔計）。只係資訊，唔改規則；有冇用第二期先研究
+let PPLX = null;
+async function fetchPeople(){
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "people.json") + "?t=" + Math.floor(Date.now() / 600e3), {cache: "no-store"}); if (r.ok){ PPLX = await r.json(); render(); } } catch(e){}
+}
+const PE_DAYS = 30;
+function peOf(sym, days = PE_DAYS){
+  if (!PPLX) return null;
+  const cut = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  const c = (PPLX.congress || []).filter(t => t.sym === sym && t.filed >= cut), i = (PPLX.insider || []).filter(t => t.sym === sym && t.filed >= cut);
+  if (!c.length && !i.length) return null;
+  const n = (a, k) => a.filter(t => t.type === k).length;
+  return {c, i, cb: n(c, "買"), cs: n(c, "賣"), ib: n(i, "買"), is: n(i, "賣")};
+}
+const peTag = sym => { const p = peOf(sym); if (!p) return "";
+  const part = (b, s) => [b && `買${b}`, s && `賣${s}`].filter(Boolean).join(" ");
+  return (p.c.length ? ` <span class="tag t-pe" data-stock="${sym}" data-sec="ppl" role="button" title="眾議院議員近 ${PE_DAYS} 日申報嘅交易（按申報日；交易本身可能早 45 日）">議員${part(p.cb, p.cs)}</span>` : "")
+    + (p.i.length ? ` <span class="tag t-pe" data-stock="${sym}" data-sec="ppl" role="button" title="公司董事、高層、大股東近 ${PE_DAYS} 日公開市場買賣（SEC Form 4）">內部人${part(p.ib, p.is)}</span>` : ""); };
+const usd0 = v => v == null ? "—" : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`;
+const peCg = t => `<div class="news"><div class="row spread"><span><b class="${t.type === "買" ? "up" : "dn"}">${t.type}</b> ${symB(t.sym)} · ${esc(t.member)}<span class="muted">（${esc(t.state)}）</span></span><span class="small muted">${esc(t.filed.slice(5))} 申報</span></div>
+  <span class="small muted">交易 ${esc(t.traded)} · ${esc(t.amount)}${t.owner && t.owner !== "本人" ? ` · ${esc(t.owner)}` : ""} · <a href="${esc(t.url)}" target="_blank" rel="noopener">官方原文</a></span></div>`;
+const peIn = t => `<div class="news"><div class="row spread"><span><b class="${t.type === "買" ? "up" : "dn"}">${t.type}</b> ${symB(t.sym)} · ${esc(t.name)}<span class="muted">（${esc(t.role)}）</span></span><span class="small muted">${esc(t.filed.slice(5))} 申報</span></div>
+  <span class="small muted">交易 ${esc(t.traded)} · ${(t.shares || 0).toLocaleString()} 股${t.price ? ` × $${t.price}` : ""} = ${usd0(t.value)}${t.plan ? " · 預先計劃（10b5-1）" : ""} · <a href="${esc(t.url)}" target="_blank" rel="noopener">SEC 原文</a></span></div>`;
+function viewPeople(){
+  let h = topbar() + `<div class="row spread"><h2>名人交易</h2><span class="small muted">${PPLX ? esc(PPLX.generated) : ""}</span></div>`;
+  if (!PPLX) return h + `<div class="card"><p class="small muted">載入緊…（雲端每日美股收市後更新；第一次要等下一次每日掃描）</p></div>`;
+  const cut = new Date(Date.now() - PE_DAYS * 864e5).toISOString().slice(0, 10);
+  const cg = (PPLX.congress || []).filter(t => t.filed >= cut), ins = (PPLX.insider || []).filter(t => t.filed >= cut);
+  h += `<div class="card"><b>國會議員（眾議院）近 ${PE_DAYS} 日</b><span class="small muted">按申報日，淨係股票，${cg.length} 筆</span>
+    ${cg.length ? moreList(cg.map(peCg), 12) : `<p class="small muted">冇</p>`}</div>`;
+  h += `<div class="card"><b>公司內部人近 ${PE_DAYS} 日</b><span class="small muted">留意清單（模型持倉、排名頭 15、候選、研究）${(PPLX.watch || []).length} 隻；公開市場買賣，${ins.length} 筆</span>
+    ${ins.length ? moreList(ins.map(peIn), 12) : `<p class="small muted">冇</p>`}</div>`;
+  return h + `<p class="small muted">來源：眾議院書記處官方交易報告（PTR；議員交易後最遲 45 日先申報，金額只有區間，配偶、聯名交易都要報；紙本掃描嗰啲讀唔到）、SEC Form 4（董事、高層、10% 大股東，一般 2 個工作日內申報；淨係計公開市場買賣，授股、行權、送贈、扣稅唔計；「預先計劃」係 10b5-1 計劃自動賣，參考價值低啲）。參議院要另外同意使用條款，暫時未有。
+    只係資訊，唔係買賣訊號，唔改 V2.7 規則；跟住議員或者內部人買有冇用，第二期先研究。數據公開，自己用。</p>`;
 }
 const VALC = {"偏平": "up", "好平": "up", "偏低": "up", "歷史好低": "up", "偏貴": "dn", "好貴": "dn", "偏高": "dn", "歷史好高": "dn"};
 const valOf = s => VAL && VAL.stocks && VAL.stocks[s];
@@ -1980,6 +2018,7 @@ function healthCard(){
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
   fresh("估值（每日）", VAL && VAL.generated, 36 * 60, "每日美股收市後", VAL && VAL.errs);
+  fresh("名人交易（議員、內部人）", PPLX && PPLX.generated, 36 * 60, "每日美股收市後", PPLX && PPLX.errs);
   const AS = aiState();     // 只睇新聞（最新）；雷達嘅錯誤可能係幾個鐘前
   add("AI 額度同 key", !AS || AS.kind === "time", !AS ? "正常" : AS.kind === "quota" ? "額度用晒" : AS.kind === "key" ? "key 失效" : AS.kind === "time" ? "正常（今次時間唔夠，下次補）" : "部分出錯", AS ? AS.text : "");
   const bad = H.filter(x => !x.ok).length;
@@ -2772,7 +2811,7 @@ async function openEv(key){
 }
 // ───────── 統一股票詳情頁（2026-10-24 界面第二期；/codex 兩邊同意）：結論／走勢大事／研究／估值／業績。
 // 各處撳股票代號（data-stock）、個股「走勢」、頂欄搜尋都嚟呢度；用研究頁同一個外框（#rs），返回鍵同手機返回都得
-const ST_SECS = [["sum", "結論"], ["ev", "走勢大事"], ["res", "研究"], ["val", "估值"], ["earn", "業績"]];
+const ST_SECS = [["sum", "結論"], ["ev", "走勢大事"], ["res", "研究"], ["val", "估值"], ["earn", "業績"], ["ppl", "名人"]];
 const normSym = s => String(s || "").trim().toUpperCase().replace(/^\$/, "");
 function stSpark(c){
   if (!c || c.length < 2) return "";
@@ -2799,6 +2838,12 @@ function stockPage(sym){
   if (sn || tn) L.push([sn && `Serenity 近 30 日提過 ${sn.n} 次`, tn && `Trump 近 30 日提過 ${tn.n} 次`].filter(Boolean).join("、"));
   const lastAi = M ? M.events.filter(e => e.ai).slice(-1)[0] : null;
   if (lastAi) L.push(`最近大事：${esc(lastAi.d)} ${esc(lastAi.label)}${lastAi.chg != null ? " " + chg(lastAi.chg) : ""}`);
+  const pe = peOf(sym), pe90 = peOf(sym, 90);
+  const bs = (b, s) => [b && `買 ${b} 筆`, s && `賣 ${s} 筆`].filter(Boolean).join("、");
+  if (pe && pe.c.length) L.push(`國會議員近 ${PE_DAYS} 日申報${bs(pe.cb, pe.cs)}（${esc([...new Set(pe.c.map(t => t.member))].slice(0, 2).join("、"))}）`);
+  if (pe && pe.i.length) L.push(`公司內部人近 ${PE_DAYS} 日${bs(pe.ib, pe.is)}${pe.i.some(t => t.plan) ? "（有預先計劃交易）" : ""}`);
+  const pplSec = pe90 ? `${pe90.c.length ? `<p class="rs-meta">國會議員（眾議院，近 90 日）</p>${pe90.c.map(peCg).join("")}` : ""}${pe90.i.length ? `<p class="rs-meta" style="margin-top:10px">公司內部人（近 90 日，公開市場買賣）</p>${pe90.i.map(peIn).join("")}` : ""}`
+    : `<p class="rs-meta">${PPLX ? `近 90 日冇議員（眾議院）或者內部人公開市場買賣紀錄${(PPLX.watch || []).includes(sym) ? "" : "（內部人淨係追蹤持倉、排名頭 15、候選同研究清單）"}。` : "載入緊…"}</p>`;
   const g4 = [["收市", px != null ? f2(px) : "—", st ? "" : "（掃描冇呢隻）"], ["今日", d1 != null ? chg(d1) : "—", ""],
     ["vs 200 日線", st && st.sma200 ? chg(st.close / st.sma200 - 1) : "—", ""], ["RSI（14 日）", rsiOf(sym) != null ? String(Math.round(rsiOf(sym))) : "—", rsiOf(sym) >= 70 ? "超買" : rsiOf(sym) != null && rsiOf(sym) <= 30 ? "超賣" : ""]];
   const evSec = M ? `<div class="rs-hero" id="stHero" data-evkey="${esc(sym)}"></div>${evLegend()}<div class="evl">${evRows(M, sym, 12)}</div>`
@@ -2832,7 +2877,8 @@ function stockPage(sym){
     <section class="rs-sec" id="rs-ev" data-sec="ev"><h3 class="rs-h">走勢大事</h3>${evSec}</section>
     <section class="rs-sec" id="rs-res" data-sec="res"><h3 class="rs-h">研究</h3>${resSec}</section>
     <section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3>${valSec}</section>
-    <section class="rs-sec" id="rs-earn" data-sec="earn"><h3 class="rs-h">業績</h3>${earnSec}
+    <section class="rs-sec" id="rs-earn" data-sec="earn"><h3 class="rs-h">業績</h3>${earnSec}</section>
+    <section class="rs-sec" id="rs-ppl" data-sec="ppl"><h3 class="rs-h">名人交易</h3>${pplSec}
       <p class="rs-meta" style="margin-top:18px">只係資訊，唔係買賣訊號；買唔買你自己決定。</p></section></div>`;
 }
 function stockBind(sym){
@@ -3231,7 +3277,7 @@ function render(anim){
   if (TAB === "radar") TAB = "proj";                  // 2026-10-24 之前嘅「雷達」分頁拆開咗
   if (TAB === "ppl") TAB = pplTab();
   const rs = k => () => viewRadarSec(k);
-  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, fx:viewFx, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
+  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, fx:viewFx, people:viewPeople, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
     theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme"), drop:rs("drop")}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
   if (GROUPS[navOf(TAB)]) try { localStorage.setItem(KEY + "-g-" + navOf(TAB), TAB); } catch(e){}   // 每個大分頁記住上次睇邊個細分頁
@@ -3374,6 +3420,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 fetchScan();
 fetchModel();
 fetchVal();
+fetchPeople();
 fetchResIndex();
 fetchEvIndex();
 fetchLive();
@@ -3386,7 +3433,7 @@ fetchBtc(); fetchFng(); fetchHyper();
 setInterval(() => { if (document.visibilityState === "visible") fetchFeeds(); }, 5 * 60e3);
 fetchLev();
 // 返前景：新聞照讀；其他排程數據（掃描、模型、盤中、加密）舊過 20 分鐘先重讀（「今日要做淨係開市前就得」：app 喺背景放咗一晚，朝早開都係新一日）
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); fetchLive(); fetchBtc(); fetchFng(); fetchHyper(); } } });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); fetchLive(); fetchBtc(); fetchFng(); fetchHyper(); fetchPeople(); } } });
 </script>
 </body>
 </html>
