@@ -1,0 +1,24 @@
+name: 測試
+# 2026-10-24 老師：「將測試搬入 stock-app repo」。改 scanner 程式、測試或者 app 就自動跑 tests/run_all.py（Python 測試 + app JS 語法）；
+# 假 AI、假數據、封鎖上網，唔用任何 Secret（冇 key、唔使錢）。失敗 GitHub 會寄 email。
+on:
+  push:
+    branches: [main]
+    paths: ["scanner/*.py", "tests/**", docs/index.html, docs/sw.js, .github/workflows/tests.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r scanner/requirements.txt
+      - name: 跑測試（Python + app JS 語法）
+        run: python tests/run_all.py
+        env:
+          PYTHONIOENCODING: utf-8
