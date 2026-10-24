@@ -85,6 +85,23 @@ check(h["hit"] and h["n"] == 3 and "可能反映避險需求" in h["text"] and "
 PX["^NDX"] = series(20000, 0.0, [20000, 20000, 20000, 20000, 20000, 20400])
 check(not run([150, 150, 150, 150, 150, 148])["haven"]["hit"], "納指升：唔算避險")
 
+# 4b. 跨資產一齊郁（老師：要主動分析黃金、日圓、瑞郎、美債同納指一齊升一齊跌）：初步標籤
+def pat(g, jpy_w, chf_w, y10_w, ndx_tail):
+    (OUT / "commod.json").write_text(json.dumps({"rows": [{"sym": "GC=F", "name": "黃金", "d": g, "w": g, "m": g}]}), encoding="utf-8")
+    (OUT / "rates.json").write_text(json.dumps({"rows": [{"name": "10 年", "d": y10_w, "w": y10_w, "m": y10_w}]}), encoding="utf-8")
+    PX["CHF=X"] = series(0.80, 0.0, [0.80] * 25 + [0.80 * (1 + chf_w)])
+    PX["^NDX"] = series(20000, 0.0, [20000] * 25 + [20000 * (1 + ndx_tail)])
+    return {c["win"]: c for c in run([150] * 25 + [150 * (1 + jpy_w)])["cross"]}
+
+
+c = pat(0.02, -0.02, -0.01, -10, -0.03)
+check(c["5 日"]["pattern"].startswith("避險") and c["5 日"]["yen"] > 0 and c["5 日"]["chf"] > 0, f"金升、日圓升、瑞郎升、債息跌、納指跌 → 避險（{c['5 日']}）")
+check(pat(-0.02, 0.02, 0.01, 10, 0.03)["5 日"]["pattern"].startswith("追風險"), "避險資產全跌、納指升 → 追風險")
+check(pat(0.02, -0.02, -0.01, -10, 0.03)["1 個月"]["pattern"] == "全部一齊升", "避險資產同納指一齊升 → 全部一齊升")
+check(pat(-0.02, 0.02, 0.01, 10, -0.03)["1 日"]["pattern"] == "全部一齊跌", "全部一齊跌（例如搶現金）")
+check(pat(0.02, 0.02, -0.01, 10, -0.03)["5 日"]["pattern"] == "各走各路", "兩升兩跌 → 各走各路")
+PX["CHF=X"], PX["^NDX"] = series(0.80, 0.0), series(20000, 0.0, [20000, 20000, 20000, 20000, 20000, 19400])
+
 # 5. 金價 5 日升 ≥ 4%（commod.py）
 G = [100.0] * 255 + [100, 101, 102, 103, 104.1]
 commod.chart = lambda s: (G if s == "GC=F" else [50.0] * 260, "10-24 05:00")
@@ -101,6 +118,7 @@ import ai  # noqa: E402
 ai.OUTDIR = OUT
 (OUT / "commod.json").write_text(json.dumps({"rows": [{"sym": "GC=F", "name": "黃金", "px": 2400.0, "d": 0.01, "m": 0.03, "yr": 0.2, "w": 0.05}],
                                              "alert": ["金價 5 日急升 5.0%"]}), encoding="utf-8")
+(OUT / "rates.json").write_text(json.dumps({"rows": [{"name": "10 年", "d": -2.0, "w": -8.0, "m": -15.0}]}), encoding="utf-8")
 PX["^NDX"] = series(20000, 0.0, [20000, 20000, 20000, 20000, 20000, 19400])
 run([150, 150, 150, 150, 150, 150 * 0.969])
 ca = ai.commod_alert()
@@ -108,4 +126,7 @@ check(ca and "金價 5 日急升 5.0%" in ca["alert"] and any("日圓 5 日急�
       and "外匯" not in ca["detail"][:2] and "美元兌日圓" in ca["detail"], f"今日重點異動：商品 + 外匯 + 避險跡象一齊（{len(ca['alert'])} 條）")
 t = ai.fx_text()
 check("美元兌日圓 145.35" in t and "同納指相關" in t and "日圓升✓" in t, f"AI 睇到外匯價、相關同避險跡象：{t[:120]}…")
+check("跨資產（黃金／日圓／瑞郎／10 年債息／納指 100）：1 日" in t and "初步：" in t and "5 日" in t and "1 個月" in t, "AI 睇到跨資產 1 日、5 日、1 個月同初步標籤")
+src = (T.parent / "scanner" / "ai.py").read_text(encoding="utf-8")
+check('\\"cross\\": \\"跨資產主動分析' in src and "唔好套模板" in src and "初步標籤只係起點，可以唔同意" in src, "AI 每次要主動分析跨資產，唔係套模板")
 print(f"\n全部 {ok} 項通過")

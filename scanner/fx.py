@@ -6,6 +6,7 @@
 alert（門檻同研究 stock-strategy/LAB_FX.md 同一條公式）：美元兌日圓 5 個交易日跌 ≥ 3%（日圓急升）、美元指數 20 個交易日升或跌 ≥ 3%；
 haven = 過去 5 日避險跡象：黃金升、日圓升、瑞郎升、10 年債息跌（債價升）有幾多樣同時發生，而納指跌 → 「可能反映避險需求」
       （讀同一次 workflow 嘅 out/commod.json、out/rates.json；價格同步唔等於資金流向，只寫「可能」）。
+cross = 1 日／5 日／1 個月：黃金、日圓、瑞郎、10 年債息、納指點一齊郁 + 初步標籤；AI 每次主動分析（唔係死板模板）。
 AI 分析同商品合併（scanner/ai.py commod_ai，寫入 commod.json 嘅 ai）。跟 feeds 全部更新排程（唔係新聞，唔密）。
 用法：python scanner/fx.py out
 """
@@ -90,6 +91,26 @@ def haven(by, ndx5, out):
     return dict(signs=signs, n=n, ndx5=None if ndx5 is None else round(ndx5, 4), hit=hit, text=text)
 
 
+def cross(by, nc, out):
+    """跨資產一齊郁（2026-10-25 老師：「分析埋黃金、日圓、瑞郎、美債同納指一齊升一齊跌呢啲情況，唔係死板，係要主動分析」）：
+    1 日、5 日、1 個月：黃金、日圓、瑞郎（對美元）、10 年美債息（基點；跌 = 債價升）、納指 100 嘅變化，同一個「似邊種」初步標籤。
+    標籤只係俾 AI 同你參考嘅起點（避險／追風險／全部一齊升／全部一齊跌／各走各路），點解讀由 AI 每次睇新聞主動分析（ai.py commod_ai）。"""
+    C = {r["sym"]: r for r in _load(Path(out) / "commod.json").get("rows", [])}
+    R = {r["name"]: r for r in _load(Path(out) / "rates.json").get("rows", [])}
+    inv = lambda x: None if x is None else round(1 / (1 + x) - 1, 4)          # 美元兌日圓升 = 日圓跌
+    rows = []
+    for lab, k, n in (("1 日", "d", 1), ("5 日", "w", 5), ("1 個月", "m", 21)):
+        g, yen, chf = C.get("GC=F", {}).get(k), inv((by.get("JPY=X") or {}).get(k)), inv((by.get("CHF=X") or {}).get(k))
+        y = R.get("10 年", {}).get(k)
+        nx = round(nc[-1] / nc[-1 - n] - 1, 4) if len(nc) > n else None
+        hv = [v for v in (g, yen, chf, None if y is None else -y) if v is not None]
+        up, dn = sum(1 for v in hv if v > 0), sum(1 for v in hv if v < 0)
+        pat = ("數據唔夠" if len(hv) < 3 or nx is None else "避險（避險資產升、股市跌）" if up >= 3 and nx < 0 else "追風險（避險資產跌、股市升）" if dn >= 3 and nx > 0
+               else "全部一齊升" if up >= 3 and nx > 0 else "全部一齊跌" if dn >= 3 and nx < 0 else "各走各路")
+        rows.append(dict(win=lab, gold=g, yen=yen, chf=chf, y10=y, ndx=nx, pattern=pat))
+    return rows
+
+
 def main(out):
     rows, errs, alert = [], [], []
     try:
@@ -124,10 +145,12 @@ def main(out):
     hv = haven(by, ndx5, out)
     if not rows:
         raise SystemExit(f"[fx] 全部攞唔到：{errs}")
-    res = dict(generated=datetime.now(HK).strftime("%Y-%m-%d %H:%M HKT"), rows=rows, alert=alert or None, haven=hv, errs=errs)
+    cr = cross(by, nc, out)
+    res = dict(generated=datetime.now(HK).strftime("%Y-%m-%d %H:%M HKT"), rows=rows, alert=alert or None, haven=hv, cross=cr, errs=errs)
     Path(out).mkdir(parents=True, exist_ok=True)
     (Path(out) / "fx.json").write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
-    print(f"[fx] {len(rows)} 樣；alert：{alert or '冇'}；避險跡象 {hv['n']}／4{'（可能避險）' if hv['hit'] else ''}；錯誤：{errs or '冇'}")
+    print(f"[fx] {len(rows)} 樣；alert：{alert or '冇'}；避險跡象 {hv['n']}／4{'（可能避險）' if hv['hit'] else ''}；"
+          f"跨資產：{'、'.join(c['win'] + ' ' + c['pattern'] for c in cr)}；錯誤：{errs or '冇'}")
 
 
 if __name__ == "__main__":

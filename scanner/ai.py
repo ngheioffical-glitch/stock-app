@@ -392,10 +392,13 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
         lc_txt += (f"重要：商品或者外匯有大變動：{'；'.join(ca['alert'])}（{ca['detail']}）。"
                    "points 要有一點講：根據下面新聞，點解會咁郁（例如中東局勢、OPEC、美元、日圓、央行買金、經濟預期），同埋對通脹、減息預期同股市（科技股、能源股）有咩影響；"
                    "日圓急升唔好一口咬定係套利平倉，冇新聞證據就講「可能」。" + NL)
+    XF = (load(OUTDIR / "fx.json") if OUTDIR else None) or {}             # 2026-10-25：跨資產一齊升跌（老師：要主動分析）
     base = (f"你係美股市場助手，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
-            f"{lc_txt}"
+            + (f"{cross_text(XF)}。如果黃金、日圓、瑞郎、美債同納指有明顯一齊升、一齊跌或者避險／追風險，而且同今日新聞有關，points 可以用一點主動講點解（唔使硬講，唔好套模板）。\n"
+               if XF.get("cross") else "")
+            + f"{lc_txt}"
             "根據下面最近 18 小時嘅新聞標題、Trump 貼文（如有，只揀對市場有影響嘅，例如關稅、公司、聯儲局、股市）、"
             "Serenity 推文（如有，佢係 X 上面嘅美股分析師，講邊隻股同點解；有重要觀點就寫一點，註明係 Serenity 嘅睇法）同已公佈經濟數據，寫：\n"
             "1. points：3–6 點今日最重要嘅事，每點一句講「發生咩 → 對美股／科技股可能有咩影響」；有提到佢留意嘅股就講埋；\n"
@@ -501,7 +504,17 @@ def fx_text(X=None):
     hv = X.get("haven") or {}
     if hv.get("signs"):
         t += "；過去 5 日：" + "、".join(f"{k}{'✓' if v else '✗' if v is not None else '？'}" for k, v in hv["signs"].items())
+    if X.get("cross"):
+        t += "；" + cross_text(X)
     return t or "（冇）"
+
+
+def cross_text(X):
+    """跨資產一齊郁（fx.py cross）：1 日／5 日／1 個月 黃金、日圓、瑞郎、10 年債息、納指 + 初步標籤（只係起點，AI 要自己判斷）。"""
+    p = lambda v: "—" if v is None else f"{v * 100:+.1f}%"
+    bp = lambda v: "—" if v is None else f"{v:+.0f} 基點"
+    return "跨資產（黃金／日圓／瑞郎／10 年債息／納指 100）：" + "；".join(
+        f"{c['win']} {p(c['gold'])}／{p(c['yen'])}／{p(c['chf'])}／{bp(c['y10'])}／{p(c['ndx'])}（初步：{c['pattern']}）" for c in X.get("cross") or [])
 
 
 def commod_text(C=None):
@@ -527,9 +540,10 @@ def commod_ai(key, N, now, force=False):
         return "冇商品同外匯數據"
     old = C.get("ai") or {}
     hv = X.get("haven") or {}
-    trig = json.dumps((C.get("alert") or []) + (X.get("alert") or []) + (["避險"] if hv.get("hit") else []), ensure_ascii=False)
+    pats = [c["pattern"] for c in X.get("cross") or [] if c["win"] != "1 日"]          # 5 日、1 個月跨資產情況變咗都即刻重寫
+    trig = json.dumps((C.get("alert") or []) + (X.get("alert") or []) + (["避險"] if hv.get("hit") else []) + pats, ensure_ascii=False)
     last = datetime.fromisoformat(old["at"]) if old.get("at") else None
-    if not force and last and now - last < timedelta(hours=COMMOD_GAP_H) and old.get("trig") == trig and old.get("fx"):
+    if not force and last and now - last < timedelta(hours=COMMOD_GAP_H) and old.get("trig") == trig and old.get("cross"):
         return f"外匯同商品分析：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
     R = load(OUTDIR / "rates.json") or {}
     rates = "；".join(f"{r['name']} {r['y']:.2f}%（1 週 {r['w']:+.0f}、1 個月 {r['m']:+.0f} 基點）" for r in R.get("rows", []) if r["name"] in ("2 年", "10 年", "30 年")) or "（冇）"
@@ -549,12 +563,16 @@ def commod_ai(key, N, now, force=False):
               + "用 Google 搜尋查證最新原因。回覆 JSON：{\"summary\": \"而家外匯、商品同股市嘅關係（2–3 句，有數字）\", "
               + "\"fx\": [{\"name\": \"美元指數／日圓／歐元／人民幣／瑞郎\", \"why\": \"最近點解咁郁（具體原因，例如息差、央行、貿易）\", \"impact\": \"對美股、科技股有咩影響\", \"watch\": \"之後要留意乜（有日期就寫，例如日本央行、聯儲局會議）\"}], "
               + "\"items\": [{\"name\": \"原油／黃金／白銀／銅\", \"why\": \"最近點解咁郁\", \"impact\": \"對股市、邊啲板塊有咩影響\", \"watch\": \"之後要留意乜\"}], "
-              + "\"haven\": \"避險跡象（黃金、日圓、瑞郎、美債同股市點郁）：一至兩句；價格同時郁唔等於資金流向，只可以講「可能」\", "
+              + "\"cross\": \"跨資產主動分析（3–5 句）：睇上面「跨資產」1 日、5 日、1 個月黃金、日圓、瑞郎、美債（債息跌 = 債價升）同納指點樣一齊郁，"
+              + "自己判斷而家似邊種情況（避險：避險資產升股市跌；追風險：相反；全部一齊升：例如減息預期、美元轉弱、資金泛濫；全部一齊跌：例如搶現金、加息或者債息急升、美元急升；"
+              + "各走各路；或者其他你見到嘅情況），初步標籤只係起點，可以唔同意；用新聞講點解，講唔同時間長度有冇矛盾，對納指同佢嘅規則有咩意思，"
+              + "同埋要見到乜先會改變睇法。唔好套模板，價格同時郁唔等於資金流向，冇證據就講『可能』\", "
+              + "\"haven\": \"一句總結而家有冇避險跡象（可以空字串）\", "
               + "\"cg\": \"銅金比率而家代表市場點睇經濟（一句）\", \"for_you\": \"對佢嘅規則同科技股持倉有咩意思（一句，唔好叫人買賣）\"}。"
               + "日圓急升唔好一口咬定係套利交易平倉，要有新聞證據。只用提供或者搜尋到嘅數字，唔好作。")
     res, model = ask_search(key, prompt)
-    if not res.get("items") and not res.get("fx"):
-        raise RuntimeError(f"外匯同商品分析冇 items／fx：{json.dumps(res, ensure_ascii=False)[:160]}")
+    if not res.get("items") and not res.get("fx") and not res.get("cross"):
+        raise RuntimeError(f"外匯同商品分析冇 items／fx／cross：{json.dumps(res, ensure_ascii=False)[:160]}")
     C["ai"] = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
                    generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
     f.write_text(json.dumps(C, ensure_ascii=False), encoding="utf-8")

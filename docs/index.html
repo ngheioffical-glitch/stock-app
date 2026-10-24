@@ -2212,6 +2212,7 @@ function crossAi(){
       ${x.impact ? `<p style="margin:3px 0"><b>對股市：</b>${esc(x.impact)}</p>` : ""}${x.watch ? `<p style="margin:3px 0"><b>之後留意：</b>${esc(x.watch)}</p>` : ""}</details>`).join("")}` : "";
   return `<div class="small" style="margin-top:6px"><b>AI：外匯、商品同股市</b> ${mdl(A.model)}<span class="muted"> · ${esc(A.generated || "")}</span>
     ${A.summary ? `<p style="margin:4px 0">${esc(A.summary)}</p>` : ""}
+    ${A.cross ? `<p style="margin:4px 0"><b>跨資產點睇：</b>${esc(A.cross)}</p>` : ""}
     ${A.haven ? `<p style="margin:4px 0"><b>避險跡象：</b>${esc(A.haven)}</p>` : ""}
     ${li(A.fx, (A.fx || []).length ? "外匯" : "")}${li(A.items, (A.fx || []).length ? "商品" : "")}
     ${A.cg ? `<p style="margin:4px 0"><b>銅金比率：</b>${esc(A.cg)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}</div>`;
@@ -2233,7 +2234,12 @@ function fxCard(){
     ${X.rows.map(r => `<tr><td>${esc(r.name)}</td><td class="r mono"><b>${fx(r, r.px)}</b></td><td class="r mono">${chg(r.d, 2)}</td><td class="r mono">${chg(r.m, 1)}</td>
       <td class="r mono hide-sm">${r.pos52 == null ? "—" : Math.round(r.pos52 * 100) + "%"}</td><td class="r mono">${cr(r.corr)}</td></tr>`).join("")}</table></div>
     <details class="exp small"><summary>每樣點睇、點影響股市</summary>${X.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(FXMEAN[r.sym] || "")}</p>`).join("")}</details>
-    ${Object.keys(S).length ? `<p class="small" style="margin-top:6px"><b>過去 5 日避險跡象</b>（${H.n || 0}／4）：${Object.entries(S).map(([k, v]) => `${esc(k)} ${v ? "✓" : v === false ? "✗" : "？"}`).join("、")}${H.ndx5 != null ? `；納指 ${chg(H.ndx5, 1)}` : ""}${H.hit ? `<br><span class="tag t-warn">可能反映避險需求</span> 價格同時郁唔等於資金流向，原因睇 AI 同新聞` : ""}</p>` : ""}
+    ${(X.cross || []).length ? `<p class="small" style="margin:8px 0 4px"><b>跨資產一齊郁</b>（黃金、日圓、瑞郎、美債同納指）</p>
+    <div class="tablewrap"><table><tr><th>期間</th><th class="r">黃金</th><th class="r">日圓</th><th class="r">瑞郎</th><th class="r">美債息</th><th class="r">納指</th></tr>
+    ${X.cross.map(c => `<tr><td>${esc(c.win)}</td><td class="r mono">${chg(c.gold, 1)}</td><td class="r mono">${chg(c.yen, 1)}</td><td class="r mono">${chg(c.chf, 1)}</td>
+      <td class="r mono">${c.y10 == null ? "—" : `<span class="${c.y10 > 0 ? "dn" : c.y10 < 0 ? "up" : "muted"}">${c.y10 > 0 ? "+" : ""}${c.y10.toFixed(0)}</span>`}</td><td class="r mono">${chg(c.ndx, 1)}</td></tr>`).join("")}</table></div>
+    <p class="small" style="margin:4px 0">初步：${X.cross.map(c => `${esc(c.win)} <b>${esc(c.pattern)}</b>`).join("；")}${H.hit ? ` <span class="tag t-warn">可能反映避險需求</span>` : ""}</p>
+    <p class="small muted" style="margin:0">日圓、瑞郎 = 對美元升跌；美債息單位基點，綠 = 債息跌（債價升）。「初步」只係按升跌方向分類（避險：避險資產升、股市跌；追風險：相反；全部一齊升；全部一齊跌；各走各路），真正點解讀睇下面 AI「跨資產點睇」，佢每次會睇新聞主動分析；價格同時郁唔等於資金流向。</p>` : ""}
     <p class="small muted">「同納指」= 近 1 年每星期升跌同納指 100 嘅相關（+1 一齊郁、−1 相反、0 冇關係）；關係會變，唔係規則。Yahoo 價，${FULL_AT}更新。
       異動提示：日圓 5 日急升（美元兌日圓 5 日跌 ≥ 3%）、美元指數 20 日升或跌 ≥ 3%、金價 5 日升 ≥ 4%（喺商品卡）。只係資訊，唔改 V2.7 規則。</p></div>`;
 }
@@ -2504,6 +2510,19 @@ async function fetchResIndex(){
   if (["res", "rank", "model"].includes(TAB)) render();
 }
 const resItem = sym => RS.index && (RS.index.items || []).find(x => x.sym === sym && !x.dry);
+// 2026-10-25 老師：「如果個研究係1個月前就未必最新」→ 公允價係研究嗰陣（AI + 公式）計；「現價 ÷ 公允價」同星級用今日收市重計（程式計，唔使 AI、唔使錢），寫明報告幾多日前。
+// 業務分析每星期或者業績後 AI 先重寫（scanner/research.py）。RES_BANDS 要同 scanner/research.py 嘅 BANDS 一樣
+const RES_BANDS = {"低": [0.80, 0.95, 1.05, 1.25], "中": [0.70, 0.90, 1.10, 1.35], "高": [0.60, 0.85, 1.20, 1.55], "非常高": [0.50, 0.80, 1.30, 1.80], "極高": [0.35, 0.70, 1.50, 2.25]};
+function resLive(sym, it){
+  if (!it || !it.fv) return null;
+  const st = SCAN && SCAN.stocks && SCAN.stocks[sym], M = EVC[sym];
+  const px = st && st.close != null ? st.close : M && M.chart && M.chart.c.length ? M.chart.c[M.chart.c.length - 1] : null;
+  const pd = st ? SCAN.date : M && M.chart ? M.chart.d[M.chart.d.length - 1] : null;
+  const r = px != null ? px / it.fv : null, b = RES_BANDS[it.uncertainty];
+  const age = it.date ? Math.max(0, Math.round((Date.now() - Date.parse(it.date + "T12:00:00Z")) / 864e5)) : null;
+  return {px, pd, pfv: r, stars: r != null && b ? (r <= b[0] ? 5 : r <= b[1] ? 4 : r <= b[2] ? 3 : r <= b[3] ? 2 : 1) : null, age};
+}
+const resAge = a => a == null ? "" : a === 0 ? "今日" : `${a} 日前`;
 const stars = n => n ? "★".repeat(n) : "";
 const stars5 = n => n ? "★".repeat(n) + `<span style="opacity:.28">${"★".repeat(5 - n)}</span>` : "";
 const resTag = sym => { const it = resItem(sym); return it ? ` <span class="tag t-res" data-ressym="${esc(sym)}" role="button" title="撳落去睇 AI 個股研究">研究${it.stars ? " " + stars(it.stars) : ""}</span>` : ""; };
@@ -2785,8 +2804,10 @@ function stockPage(sym){
   const evSec = M ? `<div class="rs-hero" id="stHero" data-evkey="${esc(sym)}"></div>${evLegend()}<div class="evl">${evRows(M, sym, 12)}</div>`
     : evHas(sym) ? `<p class="rs-meta">載入緊走勢…</p>`
     : stSpark(cs) + `<p class="rs-meta">呢隻未有事件線（只有模型持倉、排名頭 15 同研究清單先有）；上面係最近 10 日收市。</p>`;
-  const resSec = ri ? `<div class="rs-g4"><div><span>星級</span><b>${stars(ri.stars) || "—"}</b></div><div><span>公允價</span><b>${ri.fv ? f2(ri.fv) : "—"}</b></div>
-      <div><span>現價 ÷ 公允價</span><b>${ri.p_fv ? (+ri.p_fv).toFixed(2) : "—"}</b></div><div><span>研究日</span><b>${esc(ri.date || "—")}</b></div></div>
+  const lv = resLive(sym, ri), lvOk = lv && lv.pfv != null;
+  const resSec = ri ? `<div class="rs-g4"><div><span>星級${lvOk ? "（今日價）" : ""}</span><b>${stars(lvOk ? lv.stars : ri.stars) || "—"}</b></div><div><span>公允價</span><b>${ri.fv ? f2(ri.fv) : "—"}</b></div>
+      <div><span>現價 ÷ 公允價</span><b>${lvOk ? lv.pfv.toFixed(2) : ri.p_fv ? (+ri.p_fv).toFixed(2) : "—"}</b></div><div><span>研究日</span><b>${esc(ri.date || "—")}</b><em>${lv ? resAge(lv.age) : ""}</em></div></div>
+      ${lvOk ? `<p class="rs-meta">公允價係 ${esc(ri.date)} 研究嗰陣計；「現價 ÷ 公允價」同星級用 ${esc(lv.pd || "")} 收市 ${f2(lv.px)} 重計（報告嗰陣 ${ri.p_fv ? (+ri.p_fv).toFixed(2) : "—"}、${stars(ri.stars) || "—"}）。業務分析每星期或者業績後 AI 先重寫。</p>` : ""}
       ${ri.one_liner ? `<p class="rs-plain">${esc(ri.one_liner)}</p>` : ""}<p><button class="primary" data-openres="${esc(sym)}">睇完整研究報告</button></p>`
     : `<p class="rs-meta">未有 AI 研究報告。</p>${S.ghToken ? `<p><button data-resgen="${esc(sym)}">叫雲端生成（大約 10 分鐘）</button></p>` : `<p class="rs-meta">喺「設定」填 GitHub token 先可以叫雲端生成。</p>`}`;
   const vf = x => x == null ? "—" : `${(+x).toFixed(1)} 倍`;
@@ -2921,6 +2942,7 @@ function rsSum(r){
   return `<section class="rs-sec" id="rs-sum" data-sec="sum" style="padding-top:6px">
     <div class="rs-hero" id="rsHero"></div>
     <p class="rs-meta">個股研究報告 · 資料日期 ${zhDate(r.price_date)}收市（研究日 ${zhDate(r.research_date)}）</p>
+    ${(lv => lv && lv.pfv != null ? `<div class="rs-card" style="margin-top:8px"><span class="bh">今日價重計</span>報告係 <b>${resAge(lv.age)}</b>寫嘅。用 ${esc(lv.pd || "")} 收市 <b class="num">${f2(lv.px)}</b>：現價 ÷ 公允價 <b class="num">${lv.pfv.toFixed(2)}</b>（報告嗰陣 ${V.p_fv != null ? (+V.p_fv).toFixed(2) : "—"}）→ <b class="rs-stars">${stars(lv.stars) || "—"}</b>。公允價、業務、護城河係研究嗰陣嘅分析；每星期或者業績後 AI 會重寫。</div>` : "")(resLive(r.sym, {fv: V.ok ? V.fv : null, uncertainty: R0.uncertainty, date: r.research_date}))}
     <div style="margin-top:12px">${rsLogo(r.sym, 58)}</div>
     <h2 class="rs-name">${esc(r.sym)}-${esc(r.name)}</h2>
     <p class="rs-sub">${esc(r.name_zh && r.name_zh !== r.name ? r.name_zh + " · " : "")}${esc(r.exchange || "")}${r.one_liner ? " · " + esc(r.one_liner) : ""}</p>
@@ -3190,13 +3212,14 @@ function viewRes(){
     <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ AI 上網搜尋（有 Claude 用 Claude；冇就免費 Gemini 搜尋 + Mistral 分析）→ 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
   if (RS.err) h += `<div class="alert small">讀唔到研究清單：${esc(RS.err)}</div>`;
   if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : RS.err ? "暫時讀唔到清單，請撳重新整理。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
-  h += items.map(it => `<div class="card rsl" data-ressym="${esc(it.sym)}" role="button">${rsLogo(it.sym, 44)}
+  h += items.map(it => { const lv = resLive(it.sym, it), px = lv && lv.px != null ? lv.px : it.price, sn = lv && lv.stars ? lv.stars : it.stars, pf = lv && lv.pfv != null ? lv.pfv : it.p_fv;
+    return `<div class="card rsl" data-ressym="${esc(it.sym)}" role="button">${rsLogo(it.sym, 44)}
       <div class="m"><b class="mono">${esc(it.sym)}</b><span class="z">${esc(it.name_zh || it.name || "")}</span>${it.sample ? ` <span class="tag t-warn">樣本</span>` : ""}
-        <p>${esc(it.one_liner || "")}</p><p>研究日 ${esc(it.date || "")}${it.moat ? ` · 護城河 ${esc(it.moat)}` : ""}${it.uncertainty ? ` · 不確定性 ${esc(it.uncertainty)}` : ""}</p></div>
-      <div class="r"><b>${f2(it.price)}</b><span>${it.stars ? stars(it.stars) : "未能估值"}</span>${it.p_fv ? `<p class="small ${it.p_fv <= 1 ? "up" : "dn"}" style="margin:0">${it.p_fv <= 1 ? "低" : "高"}過公允 ${pc0(Math.abs(1 - it.p_fv))}</p>` : ""}</div></div>`).join("");
+        <p>${esc(it.one_liner || "")}</p><p>研究日 ${esc(it.date || "")}${lv && lv.age != null ? `（${resAge(lv.age)}）` : ""}${it.moat ? ` · 護城河 ${esc(it.moat)}` : ""}${it.uncertainty ? ` · 不確定性 ${esc(it.uncertainty)}` : ""}</p></div>
+      <div class="r"><b>${f2(px)}</b><span>${sn ? stars(sn) : "未能估值"}</span>${pf ? `<p class="small ${pf <= 1 ? "up" : "dn"}" style="margin:0">${pf <= 1 ? "低" : "高"}過公允 ${pc0(Math.abs(1 - pf))}</p>` : ""}${lv && lv.px != null ? `<p class="small muted" style="margin:0">今日價計</p>` : ""}</div></div>`; }).join("");
   h += `<div class="card"><b>生成新報告</b>${!RES_GEN ? `<p class="small muted">暫時停用：研究報告要用 Claude（Opus 5.5），而家 app 用緊 Gemini（2026-10-21 決定暫時唔用 Opus）。開返 Claude 之後先可以生成；上面嘅報告照睇得。</p>`
       : S.ghToken ? `<div class="row" style="flex-wrap:nowrap"><input id="resSym" placeholder="美股代號，例如 NVDA" autocapitalize="characters" style="flex:1"><button id="resGo" class="primary">生成</button></div>
-      <p class="small muted">雲端大約 10 分鐘寫好一份：${aiProv() === "deepseek" ? "而家用 DeepSeek（收錢但好平，同其他 AI 功能共用每日上限；用晒就轉免費 Gemini）。" : "而家冇開 Claude，用免費 AI（唔使錢；額度爆咗會失敗，遲啲再撳）。"}開咗 Claude 先會用多啲錢（約 US$1–1.5 一份）；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。模型持倉、排名頭 5 同清單入面嘅股票每星期同業績後自動更新（每日最多 2 份）。</p>`
+      <p class="small muted">雲端大約 10 分鐘寫好一份：${aiProv() === "deepseek" ? "而家用 DeepSeek（收錢但好平，大約 US$0.03 一份；同其他 AI 功能共用每日上限；用晒就轉免費 Gemini）。" : "而家冇開 Claude，用免費 AI（唔使錢；額度爆咗會失敗，遲啲再撳）。"}開咗 Claude 先會用多啲錢（約 US$1–1.5 一份）；本月研究已用 US$${spent.toFixed(2)}／上限 US$${RS.index && RS.index.month_budget ? RS.index.month_budget : 40}。模型持倉、排名頭 5 同清單入面嘅股票每星期同業績後自動更新（每日最多 2 份）。</p>`
       : `<p class="small muted">喺「設定」填 GitHub token 先可以喺度叫雲端生成。</p>`}${RS.msg ? `<p class="small" style="color:var(--cyan)">${esc(RS.msg)}</p>` : ""}</div>`;
   return h;
 }
