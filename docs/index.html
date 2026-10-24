@@ -518,6 +518,8 @@ details.sig[open] .more{display:none}
 .todo-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .symlink{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}   /* 撳股票代號 → 統一股票詳情頁 */
 .rs-sh .chips button{margin:0 6px 6px 0}
+details.moreold>summary{cursor:pointer;padding:8px 0;list-style:none} details.moreold>summary::-webkit-details-marker{display:none}
+details.moreold>summary::before{content:"▸ "} details.moreold[open]>summary::before{content:"▾ "}
 </style>
 </head>
 <body>
@@ -584,6 +586,8 @@ const pct = (x, d=1) => (x == null || !isFinite(x)) ? "—" : (x >= 0 ? "+" : ""
 // 升 = 綠、跌 = 紅（用戶要求：app 入面所有升跌都咁顯示）
 const chg = (x, d=1) => (x == null || !isFinite(x)) ? "" : `<span class="${x > 0 ? "up" : x < 0 ? "dn" : "muted"}">${x > 0 ? "▲" : x < 0 ? "▼" : ""}${pct(Math.abs(x), d).replace("+", "")}</span>`;
 const dayChg = sym => { const c = SCAN?.stocks?.[sym]?.c10; return c && c.length > 1 ? c[c.length - 1] / c[c.length - 2] - 1 : null; };
+// 2026-10-24 界面第二期：長列表淨係顯示頭 n 個，其餘撳「睇多」先出（影片做法：按需展開；之前加密頁 11 版長）
+const moreList = (arr, n) => arr.slice(0, n).join("") + (arr.length > n ? `<details class="moreold"><summary class="small muted">睇多 ${arr.length - n} 個</summary>${arr.slice(n).join("")}</details>` : "");
 // RSI（2026-10-18 用戶：以前測過對策略冇幫助，但需要呢個資訊）：14 日 RSI，≥ 70 超買、≤ 30 超賣；scan.py 每日計
 const rsiOf = s => { const v = (SCAN && SCAN.stocks && SCAN.stocks[s] && SCAN.stocks[s].rsi); return v == null ? null : v; };
 const rsiTxt = v => v == null ? "" : `RSI ${Math.round(v)}${v >= 70 ? ` <b class="dn">超買</b>` : v <= 30 ? ` <b class="up">超賣</b>` : ""}`;
@@ -798,9 +802,9 @@ function whaleCard(){
   if (!HYP || !HYP.whales) return "";
   const ag = (HYP.agg || []).slice(0, 8).map(g => `<tr><td class="mono"><b>${esc(g.coin)}</b></td><td class="r mono up">${usdM(g.long)}<span class="ind">${g.n_long} 個</span></td>
       <td class="r mono dn">${usdM(g.short)}<span class="ind">${g.n_short} 個</span></td><td class="r mono ${g.net >= 0 ? "up" : "dn"}">${g.net >= 0 ? "+" : "−"}${usdM(Math.abs(g.net))}</td></tr>`).join("");
-  const ev = (HYP.events || []).slice(0, 15).map(e => `<div class="news"><div><b class="${/多/.test(e.act) ? "up" : "dn"}">${esc(e.act)}</b> <b class="mono">${esc(e.coin)}</b> ${usdM(e.usd)}
+  const ev = moreList((HYP.events || []).slice(0, 15).map(e => `<div class="news"><div><b class="${/多/.test(e.act) ? "up" : "dn"}">${esc(e.act)}</b> <b class="mono">${esc(e.coin)}</b> ${usdM(e.usd)}
       <span class="small muted">· 而家倉位 ${usdM(e.pos_usd)}${e.lev ? ` · ${e.lev} 倍` : ""} · 價 ${e.px >= 100 ? f0(e.px) : (+e.px).toPrecision(4)}</span></div>
-      <div class="meta"><a href="https://hypurrscan.io/address/${esc(e.addr)}" target="_blank" rel="noopener">${esc(e.who)}</a><span>${ago(e.t)}</span></div></div>`).join("");
+      <div class="meta"><a href="https://hypurrscan.io/address/${esc(e.addr)}" target="_blank" rel="noopener">${esc(e.who)}</a><span>${ago(e.t)}</span></div></div>`), 4);
   return `<div class="card"><div class="lbl">Hyperliquid 巨鯨（歷史盈利頭 25 + 上月頭 10，共 ${HYP.whales.length} 個）</div>
     ${ag ? `<div class="tablewrap"><table><tr><th>幣</th><th class="r">多倉</th><th class="r">空倉</th><th class="r">淨</th></tr>${ag}</table></div>` : `<p class="small muted">巨鯨而家冇倉</p>`}
     <div class="lbl" style="margin-top:8px">最近倉位變動（≥ $250K）</div>
@@ -1068,15 +1072,15 @@ function walertCard(){
       ${A.caution ? `<p class="muted" style="margin:4px 0">${esc(A.caution)}</p>` : ""}</div>` : ""}
     ${net.length ? `<div class="tablewrap"><table><tr><th>24 小時</th><th class="r">入交易所</th><th class="r">出交易所</th><th class="r">淨流入</th></tr>${net.map(([k, v]) => `<tr><td><b>${esc(k)}</b><span class="ind">${v.n} 筆${v.mint ? ` · 印發淨 ${m(v.mint)}` : ""}</span></td>
       <td class="r mono">$${(v.in / 1e6).toFixed(0)}M</td><td class="r mono">$${(v.out / 1e6).toFixed(0)}M</td><td class="r mono ${v.net > 0 ? "dn" : v.net < 0 ? "up" : ""}">${m(v.net)}</td></tr>`).join("")}</table></div>` : ""}
-    ${W.items.slice(0, 12).map(x => `<div class="news"><div><span class="tag ${kc(x.kind)}">${esc(x.kind)}</span> <b class="mono">${esc(x.amt)} ${esc(x.sym)}</b> <span class="small muted">（$${(x.usd / 1e6).toFixed(0)}M）</span></div>
-      <div class="meta"><span>${esc(x.frm || "")}${x.frm || x.to ? " → " : ""}${esc(x.to || "")}</span><span>${ago(new Date(x.ts * 1000).toISOString())}</span>${x.link ? `<a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">詳情</a>` : ""}</div></div>`).join("")}
+    ${moreList(W.items.slice(0, 12).map(x => `<div class="news"><div><span class="tag ${kc(x.kind)}">${esc(x.kind)}</span> <b class="mono">${esc(x.amt)} ${esc(x.sym)}</b> <span class="small muted">（$${(x.usd / 1e6).toFixed(0)}M）</span></div>
+      <div class="meta"><span>${esc(x.frm || "")}${x.frm || x.to ? " → " : ""}${esc(x.to || "")}</span><span>${ago(new Date(x.ts * 1000).toISOString())}</span>${x.link ? `<a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">詳情</a>` : ""}</div></div>`), 4)}
     <p class="small muted">Whale Alert 官方 X（大約 1,000 萬美元以上），每 15–30 分鐘更新。紅「入交易所」= 可能準備賣；綠「出交易所」= 可能長揸；穩定幣淨流入交易所 = 有新錢準備買。<b>只係線索，唔係買賣訊號</b>：轉入交易所可能只係內部調動或者託管，錢包身份多數唔知；你嘅 BTC 100 日線規則唔會因此改變。想知錢包係邊個，可以自己用 Arkham 查（要註冊）。</p></div>`;
 }
 function cryptoNewsCard(){
   const L = FEED.news ? FEED.news.items.filter(x => x.cat === "加密").slice(0, 15) : [];
   if (!L.length) return "";
-  return `<div class="card" style="gap:0"><div class="lbl" style="margin-bottom:4px">加密快訊</div>${L.map(x => `<div class="news"><a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
-      <div class="meta"><span>${esc(x.src)}</span><span>${ago(x.t)}</span>${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`).join("")}
+  return `<div class="card" style="gap:0"><div class="lbl" style="margin-bottom:4px">加密快訊</div>${moreList(L.map(x => `<div class="news"><a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
+      <div class="meta"><span>${esc(x.src)}</span><span>${ago(x.t)}</span>${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`), 5)}
     <p class="small muted">CoinDesk、Cointelegraph、Decrypt、The Block，每 5 分鐘更新；新聞頁「加密」分類有更多。</p></div>`;
 }
 function viewCrypto(){
@@ -1421,7 +1425,7 @@ function viewTrList(){
   const top = Object.entries(TR.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
   let h = search + (top.length ? `<div class="card"><span class="small muted">近 30 日提過嘅公司（撳落去睇 2022 年起全部）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-tr"}" data-trsym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>` : "");
   const L = TR.recent.filter(t => t.text && t.text.length > 3).slice(0, 60);
-  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px"><span class="small muted" style="padding-top:8px">最新貼文（近 3 日）</span>` + (L.length ? L.map(t => trPost(t, cand)).join("") : `<p class="muted" style="padding:10px 0">暫時冇</p>`) + `</div>`;
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px"><span class="small muted" style="padding-top:8px">最新貼文（近 3 日）</span>` + (L.length ? moreList(L.map(t => trPost(t, cand)), 10) : `<p class="muted" style="padding:10px 0">暫時冇</p>`) + `</div>`;   // 2026-10-24：頭 10 條（貼文長）
   return h + `<p class="small muted">Trump 嘅 Truth Social（佢喺 X 大多只轉片）。來源：trumpstruth.org 為主、X @TrumpTruthOnX 後備（兩邊互相補漏）、2022 起公開存檔；每 5 分鐘更新，AI 即時翻譯。只列有文字嘅貼文；公司用名稱對照代號，可能有漏或者誤判。只供參考，唔係買入訊號。</p>`;
 }
 function viewTrHist(cand){
@@ -2265,7 +2269,7 @@ function fedCard(){
   const F = (FEED.news && FEED.news.fed) || [];
   if (!F.length) return "";
   return `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>聯儲局文件總結</b> <span class="small muted">· 最近 ${F.length} 份</span></summary>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${F.slice(0, 8).map((f, i) => fedDoc(f, i === 0)).join("")}</div></details>`;
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${F.slice(0, 8).map(f => fedDoc(f, false)).join("")}</div></details>`;   // 2026-10-24：逐份預設收埋，撳標題先睇
 }
 function fedFor(r){           // 經濟數據行：議息／會議紀錄／主席講話 → 同日（前後一日）嘅聯儲局文件
   const F = (FEED.news && FEED.news.fed) || [];
@@ -2300,18 +2304,24 @@ function viewEcon(){
   const nowHK = parts(HK, new Date()).date;
   let h = `<div class="chips"><button data-eall="0" aria-pressed="${!EALL}">重要數據</button><button data-eall="1" aria-pressed="${EALL}">全部</button></div>
     <p class="small muted">香港時間（括號係美東）· 來源 ${esc(E.src)} · 更新 ${esc(E.generated)}</p><button class="todayfab" id="goToday" aria-label="跳去今日">今日</button><div class="card" style="gap:0;padding-top:4px">`;
-  let last = "", nextMarked = false;
+  // 2026-10-24 界面第二期：前 2 日到後 4 日照列，之前同之後收埋（之前成個月攤開，約 7 版長）
+  const cut = parts(HK, new Date(Date.now() - 2 * 86400e3)).date, cut2 = parts(HK, new Date(Date.now() + 4 * 86400e3)).date;
+  const B = {old: {h: "", last: "", n: 0}, cur: {h: "", last: ""}, later: {h: "", last: "", n: 0}};
+  let nextMarked = false;
   for (const r of rows){
     const hk = r.d ? parts(HK, r.d) : {date: r.t.slice(0,10), time: "全日"};
-    if (hk.date !== last){ h += `<div class="dayhd ${hk.date === nowHK ? "now" : ""}">${dayLabel(hk.date)}${hk.date === nowHK ? " · 今日" : ""}</div>`; last = hk.date; }
+    const b = hk.date < cut ? B.old : hk.date > cut2 ? B.later : B.cur; if (b.n != null) b.n++;
+    if (hk.date !== b.last){ b.h += `<div class="dayhd ${hk.date === nowHK ? "now" : ""}">${dayLabel(hk.date)}${hk.date === nowHK ? " · 今日" : ""}</div>`; b.last = hk.date; }
     const done = r.actual != null;
     const soon = !done && !nextMarked && r.d && r.d > new Date() && (nextMarked = true);
     const cmp = done && r.forecast ? (() => { const a = parseFloat(String(r.actual).replace(/[^\d.-]/g,"")), f = parseFloat(String(r.forecast).replace(/[^\d.-]/g,"")); return isFinite(a) && isFinite(f) && a !== f ? (a > f ? "高過預測" : "低過預測") : (isFinite(a) && a === f ? "同預測一樣" : ""); })() : "";
-    h += `<div class="ev ${done ? "done" : ""}${soon ? " next" : ""}"><div class="tm">${hk.time}<br><small>(${r.t.length > 10 ? r.t.slice(11) : "—"})</small></div>
+    b.h += `<div class="ev ${done ? "done" : ""}${soon ? " next" : ""}"><div class="tm">${hk.time}<br><small>(${r.t.length > 10 ? r.t.slice(11) : "—"})</small></div>
       <div class="nm"><span class="imp i${r.imp || 1}"><i></i><i></i><i></i></span>${esc(r.zh || r.name)}${soon ? ` <span class="tag t-warn">下一個</span>` : ""}${cmp ? ` <span class="tag t-dim">${cmp}</span>` : ""}${r.zh ? `<span class="en">${esc(r.name)}</span>` : ""}</div>
       <div class="vals"><div>實際<b class="act">${esc(r.actual ?? "未公佈")}</b></div><div>預測<b>${esc(r.forecast ?? "—")}</b></div><div>上次<b>${esc(r.previous ?? "—")}</b></div></div>${econNote(r, cmp)}</div>`;
   }
-  return h + (rows.length ? "" : `<p class="muted">冇數據</p>`) + `</div>`;
+  return h + (B.old.n ? `<details class="moreold"><summary class="small muted">之前嘅數據（${B.old.n} 項，撳開睇）</summary>${B.old.h}</details>` : "") + B.cur.h
+    + (B.later.n ? `<details class="moreold"><summary class="small muted">之後嘅數據（${B.later.n} 項，撳開睇）</summary>${B.later.h}</details>` : "")
+    + (rows.length ? "" : `<p class="muted">冇數據</p>`) + `</div>`;
 }
 
 function viewNewsList(){
@@ -2323,11 +2333,11 @@ function viewNewsList(){
   const seen = new Set();
   list = list.filter(x => { const k = x.title + (NCAT === "買入訊號股" ? "" : x.sym || ""); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 80);
   let h = `<div class="chips">${cats.map(c => `<button data-ncat="${c}" aria-pressed="${c === NCAT}">${c}</button>`).join("")}</div>`;
-  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (list.length ? list.map(x => {
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (list.length ? moreList(list.map(x => {    // 2026-10-24：頭 25 條，其餘撳先出（之前 80 條攤開，約 12 版）
     const syms = NCAT === "買入訊號股" ? N.filter(y => y.title === x.title && y.sym && mine.has(y.sym)).map(y => y.sym) : [];
     return `<div class="news"><a href="${esc(safeUrl(x.link))}" target="_blank" rel="noopener">${esc(x.zh || x.title)}</a>${x.zh ? `<span class="small muted">${esc(x.title)}</span>` : ""}
       <div class="meta">${syms.map(s => `<span class="tag t-cyan">${s}</span>`).join("")}${x.imp >= 3 ? `<span class="tag t-stop">高影響</span>` : x.imp === 2 ? `<span class="tag t-warn">中影響</span>` : ""}<span>${esc(x.src)}</span><span>${ago(x.t)}</span>${NCAT === "全部" ? `<span class="tag t-dim">${esc(x.cat)}</span>` : ""}${x.zm ? `<span class="zm">譯：${esc(String(x.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`;
-  }).join("") : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
+  }), 25) : `<p class="muted" style="padding:10px 0">暫時冇新聞</p>`) + `</div>`;
   return h + `<p class="small muted">更新 ${esc(FEED.news.generated)} · 標題係原文，撳標題開原文。快訊來自 ForexFactory（影響評級係 FF 嘅）。</p>`;
 }
 
@@ -2354,8 +2364,8 @@ function viewSerList(){
   if (SERSYM) return search + viewSerHist(cand);
   const top = Object.entries(SER.by).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
   let h = search + `<div class="card"><span class="small muted">近 30 日提得最多（青色 = V2.2 候選股；撳落去睇全部講法）</span><div class="row">${top.map(([s, o]) => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s} ${o.n}</span>`).join("")}</div></div>`;
-  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
-    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span>${t.zm ? `<span class="zm">譯：${esc(String(t.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`).join("") : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;
+  h += `<div class="card" style="gap:0;padding-top:2px;padding-bottom:2px">` + (SER.list.length ? moreList(SER.list.slice(0, 80).map(t => `<div class="news"><a href="https://x.com/aleabitoreddit/status/${t.id}" target="_blank" rel="noopener">${esc(t.zh || t.text)}</a>${t.zh ? `<span class="small muted">${esc(t.text)}</span>` : ""}
+    <div class="meta">${t.syms.map(s => `<span class="tag ${cand.has(s) ? "t-cyan" : "t-dim"}" data-sersym="${s}" role="button">${s}</span>`).join("")}<span>${t.reply ? "回覆" : "推文"}</span><span>${ago(new Date(t.ts * 1e3).toISOString())}</span>${t.zm ? `<span class="zm">譯：${esc(String(t.zm).replace(/^github:/, ""))}</span>` : ""}</div></div>`), 20) : `<p class="muted" style="padding:10px 0">近 30 日冇提過股票</p>`) + `</div>`;   // 2026-10-24：頭 20 條
   return h + `<p class="small muted">Serenity（X @aleabitoreddit）近 30 日有 cashtag 嘅推文。回測：佢提嘅時候技術面已經合格嘅股，之後 60 日平均好過 QQQ；唔合格嘅差過 QQQ。只供參考，唔係買入訊號。</p>`;
 }
 
