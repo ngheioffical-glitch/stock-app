@@ -24,6 +24,7 @@ NY = ZoneInfo("America/New_York")
 HK = ZoneInfo("Asia/Hong_Kong")
 MAX_CANDS = 10          # 最多 5 個空位 × 2 張單；手機先按自己持倉揀
 BAR = timedelta(minutes=5)
+FINAL_MIN = 60          # 收市後幾多分鐘內嗰次排程做最後一次掃描（GitHub 排程會遲）
 
 
 def load_prev(src):
@@ -80,13 +81,15 @@ def main():
     open_ny = now_ny.replace(hour=9, minute=30, second=0, microsecond=0)
     close_ny = now_ny.replace(hour=16, minute=0, second=0, microsecond=0)
     in_session = now_ny.weekday() < 5 and open_ny <= now_ny <= close_ny + timedelta(minutes=10)
+    # 2026-10-24：排程改咗每個鐘（:34）之後，最後一次開市時間掃描係 15:34，15:35–16:00 冇人睇 → 收市後 FINAL_MIN 分鐘內嗰次做埋最後一次（K 已經全部完成）
+    final = now_ny.weekday() < 5 and close_ny + timedelta(minutes=10) < now_ny <= close_ny + timedelta(minutes=FINAL_MIN)
     stale = scan.get("next_day") != str(day)
     cands = [r for r in scan.get("ranking", []) if r.get("status") == "候選"][:MAX_CANDS]
     res = {"day": str(day), "scan_date": scan.get("date"), "scan_next_day": scan.get("next_day"), "stale_scan": stale,
            "green": scan.get("green"), "in_session": in_session, "cands": [], "runs": runs}
     rec = {"run_utc": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "run_hk": now.astimezone(HK).strftime("%H:%M:%S")}
 
-    if (in_session or replay) and cands:
+    if (in_session or final or replay) and cands:
         t0 = time.time()
         B = bars([c["sym"] for c in cands], day)
         rec["fetch_s"] = round(time.time() - t0, 1)
@@ -125,7 +128,9 @@ def main():
             rec["delay_min"] = round((now_ny - last_end).total_seconds() / 60, 1)
         rec["n_ok"] = sum("last" in c for c in res["cands"])
     else:
-        rec["skip"] = "收市時間" if not in_session else "冇候選股"
+        rec["skip"] = "收市時間" if not (in_session or final) else "冇候選股"
+    if final and "skip" not in rec:
+        rec["final"] = True                             # 收市後補掃（app 照顯示「已收市」）
     if not replay:
         res["runs"] = (runs + [rec])[-120:]
     res["generated"] = now.astimezone(HK).strftime("%Y-%m-%d %H:%M:%S HKT")
