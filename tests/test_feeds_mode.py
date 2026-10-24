@@ -50,6 +50,15 @@ o = G.main("schedule", just, "7,22,37,52 * * * *")
 check(o["run"] == 0 and o["full"] == 0, f"新聞排程：1 分鐘前更新過就唔行（{o['why']}）")
 o = G.main("workflow_dispatch", just, "", "1")
 check(o["run"] == 1 and o["full"] == 0, "開 app 自動：一定行，淨係新聞")
+old_full = int(time.time()) - 15 * 3600
+o = G.main("schedule", just, "7,22,37,52 * * * *", "", old_full)
+check(o["run"] == 1 and o["full"] == 1 and "跳咗排程" in o["why"], f"GitHub 跳咗全部更新、上次全部更新 15 個鐘前：新聞排程嗰次升級做全部（{o['why']}）")
+o = G.main("schedule", just, "7,22,37,52 * * * *", "", int(time.time()) - 3 * 3600)
+check(o["run"] == 0 and o["full"] == 0, "上次全部更新 3 個鐘前：新聞排程照舊（1 分鐘前更新過就唔行）")
+o = G.main("workflow_dispatch", just, "", "1", old_full)
+check(o["full"] == 0, "開 app 自動嗰種唔會升級做全部（淨係排程或者自己撳重新整理先做全部）")
+o = G.main("schedule", just, "7,22,37,52 * * * *", "", 0)
+check(o["full"] == 0, "冇全部更新紀錄（攞唔到）：唔升級")
 
 # 3. feeds.yml 同閘門一致
 Y = (APP / ".github" / "workflows" / "feeds.yml").read_text(encoding="utf-8")
@@ -64,6 +73,8 @@ check("prev/$f" in step.group(2) and "curl" not in step.group(2) and "git fetch 
 gated = Y.count("if: needs.guard.outputs.full == '1'")
 check(gated == len(carry), f"抓其他數據嘅 {gated} 個步驟淨係全部更新先做")
 check("FEEDS_FULL: ${{ needs.guard.outputs.full }}" in Y and '"${{ github.event.schedule }}"' in Y, "ai.py 知道係唔係全部更新；閘門收到觸發嘅 cron")
+check('feeds/full_at.txt"' in Y and '"$full_at"' in Y and "date -u +%s > full_at.txt" in Y and "cp ../prev/full_at.txt" in Y and "git add full_at.txt" in Y,
+      "全部更新寫低時間（full_at.txt），淨係新聞抄返上一份；閘門讀佢")
 
 # 4. ai.py：淨係新聞嗰次唔寫宏觀思考、加密、大額轉帳、商品分析，沿用上一份宏觀思考
 import ai  # noqa: E402

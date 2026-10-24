@@ -3,6 +3,7 @@ name: 新聞同經濟數據
 # 2026-10-24 老師：「唔建議更新得咁密，淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」→ guard 輸出 full（scanner/feeds_gate.py）：
 #   full=1 全部做：下面標「全部」嘅排程（cron 字串要同 feeds_gate.py 嘅 FULL_CRONS 一樣）、app 撳「重新整理」、改呢個檔 push
 #   full=0 淨係新聞：其他排程、app 開嗰陣自動更新（relay=1）；其他檔沿用上一份
+#   GitHub 成日跳排程（10-24 19:41 嗰次全部更新冇跑）：任何排程，上次全部更新（feeds/full_at.txt）超過 14 個鐘就做全部
 on:
   schedule:
     - cron: "41 10,12 * * 1-5"    # 開市前新聞：香港 18:41、20:41（GitHub 每日嘅排程通常會行，只係遲，開市前試多幾次；2026-10-23 拎走 17:41 DeepSeek 繁忙時段）
@@ -47,7 +48,8 @@ jobs:
       - id: g
         run: |
           last=$(curl -sf -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ github.repository }}/commits/feeds" | python3 -c "import json,sys,datetime;d=json.load(sys.stdin);print(int(datetime.datetime.fromisoformat(d['commit']['committer']['date'].replace('Z','+00:00')).timestamp()))" || echo 0)
-          python3 scanner/feeds_gate.py "${{ github.event_name }}" "$last" "${{ github.event.schedule }}" "${{ github.event.inputs.relay }}"
+          full_at=$(curl -sf "https://raw.githubusercontent.com/${{ github.repository }}/feeds/full_at.txt" || echo 0)   # 上次全部更新（GitHub 跳咗全部更新排程時用）
+          python3 scanner/feeds_gate.py "${{ github.event_name }}" "$last" "${{ github.event.schedule }}" "${{ github.event.inputs.relay }}" "$full_at"
   feeds:
     needs: guard
     if: needs.guard.outputs.run == '1'
@@ -202,5 +204,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           [ -f ai_usage.json ] || curl -sfL -o ai_usage.json "https://raw.githubusercontent.com/${{ github.repository }}/feeds/ai_usage.json" || true   # 今次冇用 AI 都要保留 AI 用量帳本（收錢 AI 試用累計靠佢）
           git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json ai_usage.json 2>/dev/null)
+          if [ "${{ needs.guard.outputs.full }}" = "1" ]; then date -u +%s > full_at.txt; elif [ -f ../prev/full_at.txt ]; then cp ../prev/full_at.txt .; fi   # 上次全部更新時間（feeds_gate.py 用）
+          if [ -f full_at.txt ]; then git add full_at.txt; fi
           git commit -q -m "feeds $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" feeds

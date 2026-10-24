@@ -13,9 +13,11 @@
 全部定淨係新聞（2026-10-24 老師：「唔建議更新得咁密，淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」）：
   full=1（全部：加密、債息、商品、Trump、Serenity、業績、AI 宏觀思考等）只限 FULL_CRONS 排程、app 撳「重新整理」（workflow_dispatch 冇 relay）、
   改 workflow push；full 一定行（唔理 10 分鐘內更新過）。其他（15 分鐘排程、app 開嗰陣自動 relay=1）full=0，淨係新聞。
+  2026-10-24 晚：GitHub 跳咗 19:41 嗰次全部更新（成日跳排程）→ 任何一次排程，上次全部更新（feeds/full_at.txt）超過 FULL_MAX_H 個鐘就做全部；
+  app 開嗰陣自動嗰種唔會升級（老師：其他淨係排程，除非自己撳 refresh）。
 輸出（GITHUB_OUTPUT；冇就印出嚟）：run=0／1、why=原因、fut=期貨提示（冇就空）、fut_b=檔位（每 0.75% 一格，向零取整，例如 −1.6% → -2）、fut_d=參考收市日、
   pre=1／0（開市前時段）、fut_now=期貨而家由收市計郁幾多（收市後先有，唔理大細）、full=1／0。
-用法：python scanner/feeds_gate.py 事件名 上次更新（Unix 秒） [觸發嘅 cron] [relay]
+用法：python scanner/feeds_gate.py 事件名 上次更新（Unix 秒） [觸發嘅 cron] [relay] [上次全部更新（Unix 秒，冇就 0）]
 """
 from __future__ import annotations
 
@@ -32,7 +34,8 @@ MOVE = 0.0075          # 期貨再郁 0.75% 先算大郁（每 0.75% 一格）
 BASE_H, FAIL_H, DEDUPE_MIN = 4, 2, 10
 # 全部更新嘅排程（要同 feeds.yml 嘅 cron 字串一模一樣）：香港 06:29（每日，美股收市後）、19:41（每日，週末加密都更新）、21:11（平日開市前最後一次）
 FULL_CRONS = ("29 22 * * *", "41 11 * * *", "11 13 * * 1-5")
-UA ={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
+FULL_MAX_H = 14        # 上次全部更新超過幾多個鐘，排程嗰次就做全部（GitHub 成日跳排程；正常最長相隔 06:29 → 19:41 約 13 個鐘）
+UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
 
 
 def us_open(t):
@@ -91,9 +94,12 @@ def is_full(event, cron="", relay=""):
     return event == "push"
 
 
-def main(event, last_ts, cron="", relay=""):
+def main(event, last_ts, cron="", relay="", full_at=0):
     now = datetime.now(NY)
     full = is_full(event, cron, relay)
+    full_age_h = (time.time() - full_at) / 3600 if full_at else None
+    late = event == "schedule" and not full and full_age_h is not None and full_age_h >= FULL_MAX_H
+    full = full or late
     age_min = (time.time() - last_ts) / 60 if last_ts else 1e9
     fut, fut_b, fut_d, fut_now, f = "", "", "", "", None
     pre = pre_open(now)
@@ -109,6 +115,8 @@ def main(event, last_ts, cron="", relay=""):
         print(f"期貨攞唔到：{e}")
     if event != "schedule":
         run, why = 1, f"{event}：一定行"
+    elif late:
+        run, why = 1, f"上次全部更新已經 {full_age_h:.1f} 個鐘前（GitHub 跳咗排程）：今次做全部"
     elif full:
         run, why = 1, f"全部更新排程（{cron}）：一定行"
     elif age_min < DEDUPE_MIN:
@@ -134,5 +142,9 @@ def main(event, last_ts, cron="", relay=""):
 
 
 if __name__ == "__main__":
-    a = sys.argv[1:] + ["", "", ""]
-    main(a[0], int(a[1] or 0), a[2], a[3])
+    a = sys.argv[1:] + ["", "", "", ""]
+    try:
+        fa = int(a[4].strip() or 0)
+    except ValueError:                                   # 攞唔到（例如 GitHub 出錯頁）當冇紀錄，唔升級
+        fa = 0
+    main(a[0], int(a[1] or 0), a[2], a[3], fa)
