@@ -1,5 +1,5 @@
 // 離線快取：全部先試網絡（app 更新即刻見到），冇網先用上次嘅
-const CACHE = "signals-app-96";
+const CACHE = "signals-app-97";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 // 2026-10-24：新聞、加密等喺 raw.githubusercontent.com（feeds／radar／live 分支），之前跨網站唔理，冇網或者 GitHub 5xx 就成頁讀唔到
 const FEED_HOSTS = ["raw.githubusercontent.com"];

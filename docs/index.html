@@ -134,7 +134,7 @@ nav button[aria-current="page"]{color:var(--cyan);text-shadow:0 0 12px rgba(0,22
 nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7))}
 
 /* 新聞／經濟數據 */
-.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:2px}   /* 2026-10-24 老師：唔好左右滑，擺唔落就摺行（之前橫向捲動） */
 .chips button{flex:none;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--muted)}
 .chips button[aria-pressed="true"]{color:var(--bg);background:var(--cyan);border-color:var(--cyan);font-weight:700;box-shadow:0 0 14px rgba(0,229,255,.45)}
 .news{display:flex;flex-direction:column;gap:3px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -249,6 +249,12 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
   td.st,th.st{min-width:66px}
   td .ind{max-width:96px}
   td.mono:not(.r){white-space:normal;min-width:70px}   /* 股票名嗰格（代號 + Serenity 標記 + 升跌 + 行業）可以摺行；數字格（.r）照舊唔摺 */
+  /* 2026-10-24 老師：「有啲版面可以左右滑動，唔係一頁顯示哂」→ 標題同文字格可以摺行；數字格只喺空格摺（「56 · 39%」），數字本身唔斷 */
+  th,td,th.r,td.r{white-space:normal} th{vertical-align:bottom} td{overflow-wrap:anywhere} td.r{overflow-wrap:normal;word-break:keep-all}
+}
+/* 超窄機（320px 嗰類）：格再窄啲，表格都擺得落一頁 */
+@media (max-width:340px){
+  th,td{padding:6px 2px} td.st,th.st{min-width:0} td .ind{max-width:72px} td.small{min-width:6.5em} td.mono:not(.r){min-width:56px}
 }
 /* ───────── 個股研究頁（2026-10-20 用戶：「想複製佢個界面，真係幾正」— 跟影片：純黑底、白色大字、青色價錢、圓角卡、白色膠囊分頁） */
 .t-res{color:#9be3f2;background:rgba(125,211,232,.12);border-color:rgba(125,211,232,.45);cursor:pointer}
@@ -275,8 +281,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .rs-tick .px{font-family:var(--mono);font-size:17px;font-weight:700}
 .rs-tick .st{font-size:12px;color:var(--rm);font-weight:700;overflow:hidden;text-overflow:ellipsis}
 .rs-tick .st i{font-style:normal;color:var(--rt);letter-spacing:1px;font-size:14px}
-.rs-pills{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin-top:7px}
-.rs-pills::-webkit-scrollbar{display:none}
+.rs-pills{display:flex;flex-wrap:wrap;gap:2px;margin-top:7px}   /* 2026-10-24：擺唔落就摺行，唔左右滑 */
 .rs-pills button{flex:none;border:0!important;background:none!important;color:#a5a5af!important;font-weight:600!important;font-size:14.5px;padding:5px 13px!important;border-radius:999px!important}
 .rs-pills button.on{background:#f3f3f5!important;color:#101014!important;font-weight:800!important}
 .rs-sec{padding:24px 16px 4px;scroll-margin-top:calc(116px + env(safe-area-inset-top,0px))}
