@@ -40,7 +40,7 @@ jobs:
       fut_now: ${{ steps.g.outputs.fut_now }}
       full: ${{ steps.g.outputs.full }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: scanner/feeds_gate.py
           sparse-checkout-cone-mode: false
@@ -55,8 +55,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - run: echo "T0=$(date +%s)" >> "$GITHUB_ENV"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: 攞上一份 feeds 分支（2026-10-24：用 git，唔經 raw.githubusercontent 約 5 分鐘快取；AI 用量帳本放入 out 俾 llm.py 接住計）
