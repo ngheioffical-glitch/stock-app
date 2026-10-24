@@ -1,9 +1,9 @@
 name: 新聞同經濟數據
-# 新聞同經濟日曆密啲更新；其他（加密、債息、商品、Trump、Serenity、業績、AI 宏觀思考等）淨係全部更新排程先做；推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
+# 新聞同經濟日曆密啲更新；其他（加密、債息、商品、外匯、Trump、Serenity、業績、AI 宏觀思考等）淨係全部更新排程先做；推去 feeds 分支（每次覆蓋，唔留歷史）；app 由 raw.githubusercontent.com 讀
 # 2026-10-24 老師：「唔建議更新得咁密，淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」→ guard 輸出 full（scanner/feeds_gate.py）：
 #   full=1 全部做：下面標「全部」嘅排程（cron 字串要同 feeds_gate.py 嘅 FULL_CRONS 一樣）、app 撳「重新整理」、改呢個檔 push
 #   full=0 淨係新聞：其他排程、app 開嗰陣自動更新（relay=1）；其他檔沿用上一份
-#   GitHub 成日跳排程（10-24 19:41 嗰次全部更新冇跑）：任何排程，上次全部更新（feeds/full_at.txt）超過 14 個鐘就做全部
+#   GitHub 成日跳排程（10-24 19:41 嗰次全部更新遲咗 3 個鐘）：任何排程，上次全部更新（feeds/full_at.txt）超過 14 個鐘就做全部
 on:
   schedule:
     - cron: "41 10,12 * * 1-5"    # 開市前新聞：香港 18:41、20:41（GitHub 每日嘅排程通常會行，只係遲，開市前試多幾次；2026-10-23 拎走 17:41 DeepSeek 繁忙時段）
@@ -74,7 +74,7 @@ jobs:
       - name: 淨係新聞：其他檔沿用上一份（推去 feeds 分支係成個覆蓋，唔抄返就會唔見）
         if: needs.guard.outputs.full != '1'
         run: |
-          for f in serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json; do
+          for f in serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json fx.json walert.json earnings.json macro_src.json; do
             if [ -f "prev/$f" ]; then cp "prev/$f" "out/$f"; fi
           done
       - name: Serenity 近 3 日（全部更新先抓；失敗就沿用上一份，唔影響新聞）
@@ -141,6 +141,15 @@ jobs:
         timeout-minutes: 2
         env:
           PYTHONIOENCODING: utf-8
+      - name: 外匯（美元指數、日圓、歐元、人民幣、瑞郎；2026-10-25；全部更新先做；失敗就沿用上一份）
+        if: needs.guard.outputs.full == '1'
+        run: |
+          if [ -f prev/fx.json ]; then cp prev/fx.json out/; fi
+          python scanner/fx.py out
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          PYTHONIOENCODING: utf-8
       - name: 大額轉帳（Whale Alert X；全部更新先做；失敗就沿用上一份）
         if: needs.guard.outputs.full == '1'
         run: |
@@ -203,7 +212,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           [ -f ai_usage.json ] || curl -sfL -o ai_usage.json "https://raw.githubusercontent.com/${{ github.repository }}/feeds/ai_usage.json" || true   # 今次冇用 AI 都要保留 AI 用量帳本（收錢 AI 試用累計靠佢）
-          git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json ai_usage.json 2>/dev/null)
+          git add news.json econ.json $(ls serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json fx.json walert.json earnings.json macro_src.json ai_usage.json 2>/dev/null)
           if [ "${{ needs.guard.outputs.full }}" = "1" ]; then date -u +%s > full_at.txt; elif [ -f ../prev/full_at.txt ]; then cp ../prev/full_at.txt .; fi   # 上次全部更新時間（feeds_gate.py 用）
           if [ -f full_at.txt ]; then git add full_at.txt; fi
           git commit -q -m "feeds $(date -u +%FT%H:%MZ)"

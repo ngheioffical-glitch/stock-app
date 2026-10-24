@@ -2,7 +2,8 @@
 
 來源：Yahoo 期貨日線（1 年）同最新價：紐約原油 CL=F、布蘭特原油 BZ=F、黃金 GC=F、白銀 SI=F、銅 HG=F。
 輸出 <out>/commod.json：每樣最新價、當日／1 週／1 個月／1 年升跌、52 週高低；銅金比率（銅 ÷ 金，經濟訊號，走勢通常似 10 年債息）同佢 3 個月變化；
-alert = 油價單日 ±5% 或者 1 個月 ≥ +20%、金價／銀價創 52 週新高、銅單日 ±4% → AI 今日重點要解釋（scanner/ai.py commod_alert）。
+alert = 油價單日 ±5% 或者 1 個月 ≥ +20%、金價／銀價創 52 週新高、金價 5 日升 ≥ 4%（2026-10-25）、銅單日 ±4% → AI 今日重點要解釋（scanner/ai.py commod_alert）。
+外匯喺 scanner/fx.py（fx.json）；AI「外匯、商品同股市」分析合併寫入呢度嘅 ai（ai.py commod_ai）。
 用法：python scanner/commod.py out
 """
 from __future__ import annotations
@@ -68,6 +69,9 @@ def main(out):
         r = by.get(s)
         if r and r["px"] >= r["hi52"] * 0.998:
             alert.append(f"{r['name']} {r['px']:,.2f} 創 52 週新高（一年 {r['yr'] * 100:+.0f}%）")
+    r = by.get("GC=F")                         # 2026-10-25：同研究（stock-strategy/LAB_FX.md）同一條公式：黃金 5 個交易日升 ≥ 4%
+    if r and r["w"] is not None and r["w"] >= 0.04:
+        alert.append(f"金價 5 日急升 {r['w'] * 100:.1f}% 至 {r['px']:,.2f}（可能反映避險需求、美元轉弱或者減息預期）")
     r = by.get("HG=F")
     if r and r["d"] is not None and abs(r["d"]) >= 0.04:
         alert.append(f"銅價單日{'急升' if r['d'] > 0 else '急跌'} {abs(r['d']) * 100:.1f}%（經濟預期變化）")

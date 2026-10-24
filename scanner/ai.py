@@ -389,8 +389,9 @@ def digest(key, N, E, P, now, force=False, T=None, Sr=None):
         lc_txt += (f"重要：{fa['text']}（美股已經收市，呢個係期貨價）。points 第一點一定要講：根據下面新聞，收市後發生咗咩事令期貨咁郁"
                    "（邊單新聞、業績、數據或者事件最有關），同埋對下一個交易日開市、科技股同 TQQQ 可能有咩影響；唔好估未發生嘅事。" + NL)
     if ca:
-        lc_txt += (f"重要：商品有大變動：{'；'.join(ca['alert'])}（{ca['detail']}）。"
-                   "points 要有一點講：根據下面新聞，點解會咁郁（例如中東局勢、OPEC、美元、央行買金、經濟預期），同埋對通脹、減息預期同股市（科技股、能源股）有咩影響。" + NL)
+        lc_txt += (f"重要：商品或者外匯有大變動：{'；'.join(ca['alert'])}（{ca['detail']}）。"
+                   "points 要有一點講：根據下面新聞，點解會咁郁（例如中東局勢、OPEC、美元、日圓、央行買金、經濟預期），同埋對通脹、減息預期同股市（科技股、能源股）有咩影響；"
+                   "日圓急升唔好一口咬定係套利平倉，冇新聞證據就講「可能」。" + NL)
     base = (f"你係美股市場助手，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶睇新聞。{STYLE}\n"
             f"大市燈號而家係{light}；佢留意嘅股（排名頭 15 同模型帳戶持倉，唔一定係佢自己持有，唔好寫「你持有」）：{', '.join(watch) or '（冇）'}。\n"
             f"今日市場實際數字（最近一個交易日，最新 vs 上日收市）：{snap_text(sn)}。\n"
@@ -479,14 +480,28 @@ def rates_alert():
 
 
 def commod_alert():
-    """商品異動（2026-10-05 用戶：油價、貴金屬都影響股市）：油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創新高、銅單日 ±4%。scanner/commod.py 寫嘅 commod.json。"""
+    """商品同外匯異動（2026-10-05 用戶：油價、貴金屬都影響股市；2026-10-25 加外匯）：油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創新高、
+    金價 5 日升 ≥ 4%、銅單日 ±4%（commod.json）；日圓 5 日急升、美元指數 20 日 ±3%、避險跡象（fx.json）。"""
     try:
-        C = load(OUTDIR / "commod.json") if OUTDIR else None
-        if not C or not C.get("alert"):
+        C = (load(OUTDIR / "commod.json") if OUTDIR else None) or {}
+        X = (load(OUTDIR / "fx.json") if OUTDIR else None) or {}
+        al = (C.get("alert") or []) + (X.get("alert") or []) + ([X["haven"]["text"]] if (X.get("haven") or {}).get("hit") else [])
+        if not al:
             return None
-        return dict(alert=C["alert"], detail=commod_text(C))
+        return dict(alert=al, detail=commod_text(C) + "；" + fx_text(X))
     except Exception:  # noqa: BLE001
         return None
+
+
+def fx_text(X=None):
+    """外匯（scanner/fx.py 寫嘅 fx.json）俾 AI 睇：每樣價、今日、1 個月、近 1 年同納指相關；避險跡象。"""
+    X = X if X is not None else ((load(OUTDIR / "fx.json") if OUTDIR else None) or {})
+    t = "；".join(f"{r['name']} {r['px']:.{r.get('dp', 2)}f}（今日 {(r['d'] or 0) * 100:+.2f}%、1 個月 {(r['m'] or 0) * 100:+.1f}%"
+                 + (f"、近 1 年每星期同納指相關 {r['corr']:+.2f}" if r.get("corr") is not None else "") + "）" for r in X.get("rows", []))
+    hv = X.get("haven") or {}
+    if hv.get("signs"):
+        t += "；過去 5 日：" + "、".join(f"{k}{'✓' if v else '✗' if v is not None else '？'}" for k, v in hv["signs"].items())
+    return t or "（冇）"
 
 
 def commod_text(C=None):
@@ -503,37 +518,47 @@ COMMOD_GAP_H = 12
 
 
 def commod_ai(key, N, now, force=False):
-    """商品點影響股市（2026-10-05 用戶：唔想係寫死嘅解釋，要定時 AI 分析）：每 6 個鐘，有商品異動即刻寫；寫入 commod.json 嘅 ai。"""
+    """外匯、商品同股市（2026-10-05 用戶：唔想係寫死嘅解釋，要定時 AI 分析；2026-10-25 老師揀「同商品分析合併」加埋外匯同避險資產）：
+    每 12 個鐘，有商品／外匯異動即刻寫；寫入 commod.json 嘅 ai（app「資訊 → 外匯」同「經濟數據」都睇呢份）。"""
     f = OUTDIR / "commod.json"
     C = load(f) or {}
-    if not C.get("rows"):
-        return "冇商品數據"
+    X = load(OUTDIR / "fx.json") or {}
+    if not C.get("rows") and not X.get("rows"):
+        return "冇商品同外匯數據"
     old = C.get("ai") or {}
-    trig = json.dumps(C.get("alert") or [], ensure_ascii=False)
+    hv = X.get("haven") or {}
+    trig = json.dumps((C.get("alert") or []) + (X.get("alert") or []) + (["避險"] if hv.get("hit") else []), ensure_ascii=False)
     last = datetime.fromisoformat(old["at"]) if old.get("at") else None
-    if not force and last and now - last < timedelta(hours=COMMOD_GAP_H) and old.get("trig") == trig:
-        return f"商品分析：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
+    if not force and last and now - last < timedelta(hours=COMMOD_GAP_H) and old.get("trig") == trig and old.get("fx"):
+        return f"外匯同商品分析：上次 {int((now - last).total_seconds() // 60)} 分鐘前，沿用"
     R = load(OUTDIR / "rates.json") or {}
-    rates = "；".join(f"{r['name']} {r['y']:.2f}%（1 個月 {r['m']:+.0f} 基點）" for r in R.get("rows", []) if r["name"] in ("2 年", "10 年", "30 年")) or "（冇）"
-    kw = re.compile(r"oil|crude|OPEC|gold|silver|copper|commodit|油|金|銀|銅|商品", re.I)
+    rates = "；".join(f"{r['name']} {r['y']:.2f}%（1 週 {r['w']:+.0f}、1 個月 {r['m']:+.0f} 基點）" for r in R.get("rows", []) if r["name"] in ("2 年", "10 年", "30 年")) or "（冇）"
+    kw = re.compile(r"oil|crude|OPEC|gold|silver|copper|commodit|dollar|yen|euro|yuan|franc|forex|currenc|carry|BOJ|油|金|銀|銅|商品|美元|日圓|日元|歐元|人民幣|瑞郎|匯|央行", re.I)
     heads = [x.get("zh") or x["title"] for x in N["items"] if kw.search((x.get("title") or "") + (x.get("zh") or ""))
-             and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=48)][:25]
+             and datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > now - timedelta(hours=48)][:30]
     light, watch = context()
-    prompt = (f"你係宏觀市場分析員，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶，分析而家商品點樣影響股市。{STYLE}{NL}"
+    al = (C.get("alert") or []) + (X.get("alert") or [])
+    prompt = (f"你係宏觀市場分析員，幫一個做 Nasdaq 領導股 + 槓桿 ETF 策略（V2.7：35% 揀股、45% TQQQ 趨勢）嘅香港散戶，分析而家外匯、商品同避險資產點樣影響美股。{STYLE}{NL}"
               f"佢嘅規則（唔會因為你改變）：大市綠燈揸美股龍頭 + TQQQ，紅燈轉現金／債券；而家{light}。{NL}"
-              f"商品數據：{commod_text(C)}。{('異動：' + '；'.join(C['alert']) + '。') if C.get('alert') else ''}{NL}"
+              f"商品：{commod_text(C)}。{NL}外匯：{fx_text(X)}。{NL}"
+              f"{('異動：' + '；'.join(al) + '。' + NL) if al else ''}"
               f"美債息：{rates}；今日市場：{snap_text(snapshot())}。{NL}"
               "最近 48 小時相關新聞：" + NL + (NL.join(heads) or "（冇）") + NL
-              + "用 Google 搜尋查證最新原因。回覆 JSON：{\"summary\": \"而家商品同股市嘅關係（2–3 句，有數字）\", "
-              + "\"items\": [{\"name\": \"原油／黃金／白銀／銅\", \"why\": \"最近點解咁郁（具體原因）\", \"impact\": \"對股市、邊啲板塊有咩影響\", \"watch\": \"之後要留意乜（有日期就寫）\"}], "
-              + "\"cg\": \"銅金比率而家代表市場點睇經濟（一句）\", \"for_you\": \"對佢嘅規則同科技股持倉有咩意思（一句，唔好叫人買賣）\"}。只用提供或者搜尋到嘅數字，唔好作。")
+              + "背景（研究 2005–2026 每星期數據，只係事後統計）：外匯、金銀、債息加埋大約解釋到納指兩成嘅升跌；美元同股市嘅關係會變（2015–19 同方向、2020–24 反方向）；"
+              + "呢啲因素主要係同時發生，過往變化幾乎預測唔到之後回報。所以要講「而家」嘅關係同原因，唔好講死。" + NL
+              + "用 Google 搜尋查證最新原因。回覆 JSON：{\"summary\": \"而家外匯、商品同股市嘅關係（2–3 句，有數字）\", "
+              + "\"fx\": [{\"name\": \"美元指數／日圓／歐元／人民幣／瑞郎\", \"why\": \"最近點解咁郁（具體原因，例如息差、央行、貿易）\", \"impact\": \"對美股、科技股有咩影響\", \"watch\": \"之後要留意乜（有日期就寫，例如日本央行、聯儲局會議）\"}], "
+              + "\"items\": [{\"name\": \"原油／黃金／白銀／銅\", \"why\": \"最近點解咁郁\", \"impact\": \"對股市、邊啲板塊有咩影響\", \"watch\": \"之後要留意乜\"}], "
+              + "\"haven\": \"避險跡象（黃金、日圓、瑞郎、美債同股市點郁）：一至兩句；價格同時郁唔等於資金流向，只可以講「可能」\", "
+              + "\"cg\": \"銅金比率而家代表市場點睇經濟（一句）\", \"for_you\": \"對佢嘅規則同科技股持倉有咩意思（一句，唔好叫人買賣）\"}。"
+              + "日圓急升唔好一口咬定係套利交易平倉，要有新聞證據。只用提供或者搜尋到嘅數字，唔好作。")
     res, model = ask_search(key, prompt)
-    if not res.get("items"):
-        raise RuntimeError(f"商品分析冇 items：{json.dumps(res, ensure_ascii=False)[:160]}")
+    if not res.get("items") and not res.get("fx"):
+        raise RuntimeError(f"外匯同商品分析冇 items／fx：{json.dumps(res, ensure_ascii=False)[:160]}")
     C["ai"] = dict(res, model=model, at=now.isoformat(timespec="seconds"), trig=trig,
                    generated=now.astimezone(ZoneInfo("Asia/Hong_Kong")).strftime("%Y-%m-%d %H:%M HKT"))
     f.write_text(json.dumps(C, ensure_ascii=False), encoding="utf-8")
-    return f"商品分析：用 {model} 寫好"
+    return f"外匯同商品分析：用 {model} 寫好"
 
 
 def fut_alert():
@@ -739,7 +764,7 @@ def think(key, N, P, now, force=False):
     prompt = (f"你係一個有獨立思考嘅美股宏觀評論人，幫一個香港散戶從多個角度諗而家個市。{STYLE}{NL}"
               f"佢嘅策略（規則唔會因為你嘅分析改變）：V2.7：35% 領導股（成交額頭 50 按 RS 排名，升穿前高買，swing low 止蝕，紅燈清倉）+ 45% 趨勢腳（揸緊 TQQQ 時紅燈或 QQQ 20 日波幅 ≥ 35% 一次過轉 IEF；買返分 4 份：綠燈而且波幅低過 30%／27.5%／25%／22.5% 各買一份）+ 5% 低吸（綠燈而 NDX 2 日 RSI < 25 買 TQQQ，RSI > 70 或 10 日賣）+ 15% 輪動（每月揀 TQQQ／TMF／UGL／現金；紅燈或波幅 > 35% 唔揸 TQQQ）；加密睇 BTC 100 日線。"
               f"大市燈號而家係{light}；{tq}。{NL}"
-              f"市場數據：{'；'.join(mkt_perf())}；{breadth()}；美債息：{rates}；商品：{commod_text()}；{fng}。{NL}"
+              f"市場數據：{'；'.join(mkt_perf())}；{breadth()}；美債息：{rates}；商品：{commod_text()}；外匯：{fx_text()}；{fng}。{NL}"
               f"今日實際數字：{snap_text(snapshot())}。{NL}"
               + (f"債息異動：{'；'.join(ra['alert'])}。{NL}" if ra else "") + (f"大市啱啱轉{lc['to']}。{NL}" if lc else "")
               + "最近 36 小時新聞標題：" + NL + NL.join(heads[:45]) + NL
@@ -923,7 +948,7 @@ def think_crypto(key, N, H, PH, now, force=False):
               f"而家燈號：{'綠燈' if M.get('hold') else '紅燈'}（{M.get('since') or ''} 起，BTC 距 100 日線 {(M.get('dist') or 0) * 100:+.1f}%）。{NL}"
               f"數據：BTC {b.get('px', 0):,.0f}（{pos(b)}）；ETH {e.get('px', 0):,.0f}（{pos(e)}）；{dom}；"
               f"加密恐慌貪婪 {cf}；MVRV {B.get('mvrv')}；BitMEX 資金費率 14 日年化 {((B.get('funding14') or {}).get('ann') or 0) * 100:+.1f}%；"
-              f"Hyperliquid 大戶淨倉：{whales}；美債息：{rates}；商品：{commod_text()}；今日實際：{snap_text(snapshot())}。{NL}"
+              f"Hyperliquid 大戶淨倉：{whales}；美債息：{rates}；商品：{commod_text()}；外匯：{fx_text()}；今日實際：{snap_text(snapshot())}。{NL}"
               + "最近 36 小時加密新聞：" + NL + NL.join(news) + NL
               + "加密知名人士喺 X 最近 36 小時嘅帖（原文）：" + xs + NL
               + "Polymarket 加密預測市場：" + pm + NL
@@ -1042,11 +1067,11 @@ def extras(key, N, P, out, now, manual, errs):
     except Exception as e:  # noqa: BLE001
         print(f"[ai] 大額轉帳分析失敗：{e}")
         errs.append(f"大額轉帳分析：{str(e)[:300]}")
-    try:                                                          # 商品點影響股市：每 6 個鐘，有異動即刻寫（2026-10-05）
+    try:                                                          # 外匯、商品同股市：每 12 個鐘，有異動即刻寫（2026-10-05；2026-10-25 加外匯）
         print("[ai] " + commod_ai(key, N, now, force=manual))
     except Exception as e:  # noqa: BLE001
-        print(f"[ai] 商品分析失敗：{e}")
-        errs.append(f"商品分析：{str(e)[:300]}")
+        print(f"[ai] 外匯同商品分析失敗：{e}")
+        errs.append(f"外匯同商品分析：{str(e)[:300]}")
 
 
 def main():

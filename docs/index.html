@@ -1412,7 +1412,7 @@ const GROUPS = {
   today: [["today", "今日"]],
   strat: [["model", "策略"]],
   stocks: [["pick", "揀股"], ["rank", "排名"], ["res", "研究"], ["theme", "題材"]],
-  info: [["news", "新聞"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],
+  info: [["news", "新聞"], ["fx", "外匯"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],   // 2026-10-25：外匯（老師揀放資訊）
   cry: [["crypto", "加密"], ["drop", "空投"], ["proj", "項目"], ["meme", "Meme"]],
 };
 const navOf = t => Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === t)) || t;
@@ -1967,6 +1967,7 @@ function healthCard(){
   if (FEED.news){
     fresh("美債息", FEED.rates && FEED.rates.generated, FM, FN, FEED.rates && FEED.rates.errs);
     fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, FM, FN, FEED.commod && FEED.commod.errs);
+    fresh("外匯（美元、日圓、歐元、人民幣、瑞郎）", FEED.fx && FEED.fx.generated, FM, FN, FEED.fx && FEED.fx.errs);
     fresh("業績", FEED.earn && FEED.earn.generated, FM, FN, FEED.earn && FEED.earn.errs);
     fresh("大額轉帳（Whale Alert）", FEED.walert && FEED.walert.generated, FM, FN, FEED.walert && FEED.walert.errs);
   }
@@ -2156,12 +2157,12 @@ async function fetchFeeds(force){
     const base = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/";
     const get = async f => { const r = await fetch(base + f + "?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
     const opt = async f => { try { return await get(f); } catch(e){ return null; } };
-    [FEED.news, FEED.econ, FEED.rates, FEED.earn, FEED.commod, FEED.walert] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json"), opt("commod.json"), opt("walert.json")]);
+    [FEED.news, FEED.econ, FEED.rates, FEED.earn, FEED.commod, FEED.walert, FEED.fx] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json"), opt("commod.json"), opt("walert.json"), opt("fx.json")]);
     FEED.err = null; FEED.at = Date.now();
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;
   autoRefresh();
-  if (TAB === "news" || TAB === "crypto" || TAB === "model" || TAB === "today") render();   // 2026-10-24：今日頁有 AI 重點
+  if (TAB === "news" || TAB === "fx" || TAB === "crypto" || TAB === "model" || TAB === "today") render();   // 2026-10-24：今日頁有 AI 重點
 }
 
 // AI 宏觀思考（2026-10-02 用戶：好似評論文章咁畀多啲角度；冇客觀答案）：scanner/ai.py think()，每日 2 次，債息異動／轉燈即刻寫
@@ -2204,22 +2205,59 @@ const CMEAN = {"CL=F": "油價升 → 通脹同債息壓力大、減息機會細
   "GC=F": "金價升 = 避險、擔心通脹或者美元轉弱、央行買金；同股市一齊升代表市場擔心貨幣貶值多過經濟。",
   "SI=F": "一半工業金屬（太陽能、電子）、一半似黃金，波幅大過黃金。",
   "HG=F": "「銅博士」：銅價升 = 環球經濟需求好，跌 = 經濟轉差；AI 數據中心、電網都要用大量銅。"};
-function commodCard(){
+// 2026-10-25（老師揀「同商品分析合併」）：AI「外匯、商品同股市」一份（scanner/ai.py commod_ai → commod.json 嘅 ai），經濟數據同外匯頁都用
+function crossAi(){
+  const A = FEED.commod && FEED.commod.ai; if (!A) return "";
+  const li = (a, ttl) => (a || []).length ? `${ttl ? `<p style="margin:6px 0 2px"><b>${ttl}</b></p>` : ""}${a.map(x => `<details class="exp"><summary><b>${esc(x.name || "")}</b>${x.why ? `<span class="ind">${esc(x.why)}</span>` : ""}</summary>
+      ${x.impact ? `<p style="margin:3px 0"><b>對股市：</b>${esc(x.impact)}</p>` : ""}${x.watch ? `<p style="margin:3px 0"><b>之後留意：</b>${esc(x.watch)}</p>` : ""}</details>`).join("")}` : "";
+  return `<div class="small" style="margin-top:6px"><b>AI：外匯、商品同股市</b> ${mdl(A.model)}<span class="muted"> · ${esc(A.generated || "")}</span>
+    ${A.summary ? `<p style="margin:4px 0">${esc(A.summary)}</p>` : ""}
+    ${A.haven ? `<p style="margin:4px 0"><b>避險跡象：</b>${esc(A.haven)}</p>` : ""}
+    ${li(A.fx, (A.fx || []).length ? "外匯" : "")}${li(A.items, (A.fx || []).length ? "商品" : "")}
+    ${A.cg ? `<p style="margin:4px 0"><b>銅金比率：</b>${esc(A.cg)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}</div>`;
+}
+// 外匯（2026-10-25 老師：「外匯要加…分析呢啲因素對股市影響幾大」）：scanner/fx.py → feeds/fx.json。只係資訊，唔改 V2.7 規則。
+const FXMEAN = {"DX-Y.NYB": "美元兌一籃子貨幣（歐元佔大半）。美元強，美國公司海外收入換返美元會少咗；近年同納指多數反方向（2015–19 年曾經同方向）。",
+  "JPY=X": "數字跌 = 日圓升。日圓急升有時係借日圓買資產嘅套利交易平倉（例如 2024 年 8 月），會同股市急跌同時發生；但唔係每次都係。",
+  "EURUSD=X": "數字升 = 美元弱、歐元強。美元指數入面歐元佔最大份。",
+  "CNY=X": "數字升 = 人民幣弱。反映中美關係、關稅同中國經濟（用在岸價；Yahoo 冇離岸價歷史）。",
+  "CHF=X": "數字跌 = 瑞郎升。瑞郎同日圓係傳統避險貨幣，市場驚嗰陣通常升。"};
+function fxCard(){
+  const X = FEED.fx; if (!X || !(X.rows || []).length) return `<div class="card"><p class="small muted">未有外匯數據：雲端${FULL_AT}更新，第一次要等下一輪（或者喺新聞頁撳「重新整理」）。</p></div>`;
+  const fx = (r, v) => v == null ? "—" : v.toFixed(r.dp);
+  const cr = v => v == null ? "—" : `<span class="${v >= 0.3 ? "up" : v <= -0.3 ? "dn" : "muted"}">${v > 0 ? "+" : ""}${v.toFixed(2)}</span>`;
+  const H = X.haven || {}, S = H.signs || {};
+  return `<div class="card"><div class="row spread"><b>外匯</b><span class="small muted">${esc(X.generated)}</span></div>
+    ${(X.alert || []).length ? `<div class="info small"><span class="tag t-warn">外匯異動</span> ${X.alert.map(esc).join("；")}。</div>` : ""}
+    <div class="tablewrap"><table><tr><th>貨幣</th><th class="r">價</th><th class="r">今日</th><th class="r">1 個月</th><th class="r hide-sm">52 週位置</th><th class="r">同納指</th></tr>
+    ${X.rows.map(r => `<tr><td>${esc(r.name)}</td><td class="r mono"><b>${fx(r, r.px)}</b></td><td class="r mono">${chg(r.d, 2)}</td><td class="r mono">${chg(r.m, 1)}</td>
+      <td class="r mono hide-sm">${r.pos52 == null ? "—" : Math.round(r.pos52 * 100) + "%"}</td><td class="r mono">${cr(r.corr)}</td></tr>`).join("")}</table></div>
+    <details class="exp small"><summary>每樣點睇、點影響股市</summary>${X.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(FXMEAN[r.sym] || "")}</p>`).join("")}</details>
+    ${Object.keys(S).length ? `<p class="small" style="margin-top:6px"><b>過去 5 日避險跡象</b>（${H.n || 0}／4）：${Object.entries(S).map(([k, v]) => `${esc(k)} ${v ? "✓" : v === false ? "✗" : "？"}`).join("、")}${H.ndx5 != null ? `；納指 ${chg(H.ndx5, 1)}` : ""}${H.hit ? `<br><span class="tag t-warn">可能反映避險需求</span> 價格同時郁唔等於資金流向，原因睇 AI 同新聞` : ""}</p>` : ""}
+    <p class="small muted">「同納指」= 近 1 年每星期升跌同納指 100 嘅相關（+1 一齊郁、−1 相反、0 冇關係）；關係會變，唔係規則。Yahoo 價，${FULL_AT}更新。
+      異動提示：日圓 5 日急升（美元兌日圓 5 日跌 ≥ 3%）、美元指數 20 日升或跌 ≥ 3%、金價 5 日升 ≥ 4%（喺商品卡）。只係資訊，唔改 V2.7 規則。</p></div>`;
+}
+function viewFx(){
+  const F = SCAN && SCAN.fear;
+  const vix = F && F.vix != null ? `<p class="small">VIX（恐慌指數，期權推算未來 30 日波幅）：<b class="mono">${F.vix.toFixed(1)}</b>${F.vix >= 30 ? " · 恐慌" : F.vix >= 20 ? " · 緊張" : " · 平靜"}</p>` : "";
+  const A = crossAi();
+  return topbar() + `<div class="row spread"><h2>外匯同跨市場</h2><button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`
+    + (FEED.cloud ? `<p class="small muted">${esc(FEED.cloud)}</p>` : "")
+    + fxCard() + (A ? `<div class="card">${A}${vix}</div>` : vix ? `<div class="card">${vix}</div>` : "") + commodCard(false) + ratesCard()
+    + `<p class="small muted">研究（2005–2026 每星期）：外匯、金銀、債息加埋大約解釋到納指兩成嘅升跌，而且主要係同時發生，過往變化預測唔到之後回報；所以呢頁係用嚟明白「點解郁」，唔係買賣訊號。</p>`;
+}
+function commodCard(ai = true){
   const C = FEED.commod; if (!C || !(C.rows || []).length) return "";
-  const cg = C.cg || {}, A = C.ai;
+  const cg = C.cg || {}, A = ai && C.ai;
   return `<div class="card"><div class="row spread"><b>商品</b><span class="small muted">${esc(C.generated)}</span></div>
     ${(C.alert || []).length ? `<div class="info small"><span class="tag t-warn">商品異動</span> ${C.alert.map(esc).join("；")}。點解會咁：睇上面 AI 今日重點。</div>` : ""}
     <div class="tablewrap"><table><tr><th>商品</th><th class="r">價</th><th class="r">今日</th><th class="r">1 週</th><th class="r">1 個月</th><th class="r">1 年</th><th class="r hide-sm">52 週高／低</th></tr>
     ${C.rows.map(r => `<tr><td>${esc(r.name)}<span class="ind">${esc(r.unit)}</span></td><td class="r mono"><b>${r.px >= 100 ? f0(r.px) : f2(r.px)}</b></td><td class="r mono">${chg(r.d, 1)}</td><td class="r mono">${chg(r.w, 1)}</td>
       <td class="r mono">${chg(r.m, 1)}</td><td class="r mono">${chg(r.yr, 0)}</td><td class="r mono hide-sm">${r.px >= 100 ? f0(r.hi52) : f2(r.hi52)}／${r.px >= 100 ? f0(r.lo52) : f2(r.lo52)}</td></tr>`).join("")}</table></div>
     ${cg.now != null ? `<p class="small"><b>銅金比率</b>（銅 ÷ 金，經濟溫度計）：3 個月 ${chg(cg.m3, 1)}、1 年 ${chg(cg.yr, 0)}。升 = 市場睇好經濟（通常債息都升）；跌 = 擔心經濟、資金避險。</p>` : ""}
-    ${A ? `<div class="small" style="margin-top:6px"><b>AI：商品點影響股市</b> ${mdl(A.model)}<span class="muted"> · ${esc(A.generated || "")}</span>
-        ${A.summary ? `<p style="margin:4px 0">${esc(A.summary)}</p>` : ""}
-        ${(A.items || []).map(x => `<details class="exp"><summary><b>${esc(x.name || "")}</b>${x.why ? `<span class="ind">${esc(x.why)}</span>` : ""}</summary>
-          ${x.impact ? `<p style="margin:3px 0"><b>對股市：</b>${esc(x.impact)}</p>` : ""}${x.watch ? `<p style="margin:3px 0"><b>之後留意：</b>${esc(x.watch)}</p>` : ""}</details>`).join("")}
-        ${A.cg ? `<p style="margin:4px 0"><b>銅金比率：</b>${esc(A.cg)}</p>` : ""}${A.for_you ? `<p style="margin:4px 0"><b>對你嘅規則：</b>${esc(A.for_you)}</p>` : ""}</div>`
-      : `<details class="exp small"><summary>每樣商品點影響股市（AI 分析未有，暫時顯示基本解釋）</summary>${C.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(CMEAN[r.sym] || "")}</p>`).join("")}</details>`}
-    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），${FULL_AT}更新。AI 分析大約每日 2 次上網搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。只係宏觀背景，唔改 V2.7 規則。</p></div>`;
+    ${A ? crossAi()
+      : `<details class="exp small"><summary>每樣商品點影響股市${ai ? "（AI 分析未有，暫時顯示基本解釋）" : ""}</summary>${C.rows.map(r => `<p style="margin:4px 0"><b>${esc(r.name)}：</b>${esc(CMEAN[r.sym] || "")}</p>`).join("")}</details>`}
+    <p class="small muted">Yahoo 期貨價（紐約原油、布蘭特原油、黃金、白銀、銅），${FULL_AT}更新。AI 分析（同外匯合併）大約每日 2 次上網搜尋最新新聞重寫；異動（油價單日 ±5% 或者 1 個月 ≥ +20%、金銀創 52 週新高、金價 5 日升 ≥ 4%、銅單日 ±4%）會即刻重寫，AI 今日重點都會解釋。黃金係傳統避險資產，但流動性危機時都會被賣（例如 2020 年 3 月）；白銀一半係工業金屬。只係宏觀背景，唔改 V2.7 規則。</p></div>`;
 }
 
 // 業績（2026-10-02 用戶）：持倉 + 排名頭 15 嘅下次業績日期同 AI 業績重點（scanner/earnings.py）。只係資訊。
@@ -3170,7 +3208,7 @@ function render(anim){
   if (TAB === "radar") TAB = "proj";                  // 2026-10-24 之前嘅「雷達」分頁拆開咗
   if (TAB === "ppl") TAB = pplTab();
   const rs = k => () => viewRadarSec(k);
-  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
+  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, fx:viewFx, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
     theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme"), drop:rs("drop")}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
   if (GROUPS[navOf(TAB)]) try { localStorage.setItem(KEY + "-g-" + navOf(TAB), TAB); } catch(e){}   // 每個大分頁記住上次睇邊個細分頁
