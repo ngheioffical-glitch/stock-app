@@ -17,8 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90            # 2026-10-20：Opus high + 上網搜尋每個分析 1–2.5 分鐘
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: 新項目雷達（純資訊；失敗就唔推，沿用上一份）
