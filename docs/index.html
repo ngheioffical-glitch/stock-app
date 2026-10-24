@@ -518,6 +518,7 @@ details.sig[open] .more{display:none}
 .todo-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
 .symlink{cursor:pointer;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}   /* 撳股票代號 → 統一股票詳情頁 */
 .rs-sh .chips button{margin:0 6px 6px 0}
+.btnlike{display:inline-flex;align-items:center;border-radius:12px;padding:8px 14px;background:var(--panel2);color:var(--ink);font-size:14px;font-weight:700;cursor:pointer}   /* 匯入設定（檔案揀選）扮成掣 */
 details.moreold>summary{cursor:pointer;padding:8px 0;list-style:none} details.moreold>summary::-webkit-details-marker{display:none}
 details.moreold>summary::before{content:"▸ "} details.moreold[open]>summary::before{content:"▾ "}
 </style>
@@ -569,7 +570,7 @@ function load(){
       acct: cur ? cur.acct : "", cm: cur ? cur.cm : null}).filter(([, v]) => v))};
   } catch(e){ return {...defaults}; }
 }
-function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch(e){ return false; } }   // 2026-10-24：回報成唔成功（設定頁儲存失敗會講）
 let S = load(), SCAN = null, TAB = "today", ERR = null;
 try { TAB = localStorage.getItem(KEY + "-tab") || "today"; } catch(e){}
 
@@ -2039,17 +2040,45 @@ function aiUseCard(){
     <p class="small muted" style="margin:0">呢度係程式按 DeepSeek 官方價估算；準確帳單同戶口餘額睇 <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener">platform.deepseek.com</a>。超過每日上限或者試用總額，AI 會自動轉用免費 Gemini（會標明）。</p></div>`;
 }
 
+// 設定備份／還原（2026-10-24 界面第二期；/codex 兩邊同意）：主設定 + 研究頁「我的部位」+ 一月提示；唔包 GitHub token（token 唔應該離開呢部手機）
+const BACKUP_KEYS = ["res-pos", "jan-done"];
+function exportSettings(){
+  const keep = {...S}; delete keep.ghToken;
+  const extra = {}; for (const k of BACKUP_KEYS){ try { const v = localStorage.getItem(k); if (v != null) extra[k] = v; } catch(e){} }
+  const blob = new Blob([JSON.stringify({app: "龍頭突破", ver: 1, at: new Date().toISOString(), settings: keep, extra}, null, 2)], {type: "application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `龍頭突破設定-${parts(HK, new Date()).date}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+function importSettings(file){
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const j = JSON.parse(rd.result);
+      if (j.app !== "龍頭突破" || !j.settings || typeof j.settings !== "object") throw new Error("唔係呢個 app 嘅設定檔");
+      const tok = S.ghToken; S = {...defaults, ...j.settings, ghToken: tok};          // token 照用呢部手機原本嗰個
+      for (const [k, v] of Object.entries(j.extra || {})) if (BACKUP_KEYS.includes(k)) localStorage.setItem(k, String(v));
+      if (!save()) throw new Error("瀏覽器唔俾寫入");
+      alert("還原咗設定，會重新載入 app。"); location.reload();
+    } catch(e){ alert("還原唔到：" + e.message); }
+  };
+  rd.readAsText(file);
+}
 function viewSet(){
-  return topbar() + `<h2>設定</h2>` + healthCard() + aiUseCard() + `
-  <div class="card"><div class="grid2">
+  // 2026-10-24 界面第二期：一般（資金、備份）放頂；系統健康、AI 用量照列；數據網址同 GitHub token 收入「進階」；策略規則同版本歷史收埋
+  return topbar() + `<h2>設定</h2>
+  <div class="card"><b>一般</b>
     <label>資金（美元，可以唔填；填咗先計股數）<input id="capital" type="number" step="any" inputmode="decimal" value="${S.capital || ""}" placeholder="例如 100000"></label>
+    <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div>
+    <p class="small muted" style="margin:6px 0 0"><b>設定備份</b>：換手機或者清咗瀏覽器資料之前匯出；新手機匯入就返晒（資金、跟單、加密模型倉、研究頁「我的部位」）。GitHub token 唔會匯出。</p>
+    <div class="row"><button id="expSet">匯出設定</button><label class="btnlike">匯入設定<input id="impSet" type="file" accept="application/json,.json" hidden></label></div></div>`
+  + healthCard() + aiUseCard() + `
+  <details class="card"><summary><b>進階</b> <span class="small muted">· 數據網址、GitHub token</span></summary><div class="grid2">
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
     <label>新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
     <label>盤中掃描網址<input id="liveUrl" value="${esc(S.liveUrl)}"></label>
     <label>GitHub token（建議填：開 app 嗰陣新聞超過 15 分鐘會自動叫雲端更新；撳「重新整理」即刻重寫 AI 重點）<input id="ghToken" type="password" autocomplete="off" value="${esc(S.ghToken || "")}" placeholder="github_pat_…（只揀 stock-app、Actions 讀寫）"></label></div>
-    <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。</p>
-    <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div></div>
-  <div class="card small muted"><p><b>V2.7（2026-10-12 起，模型用緊）：35% 揀領導股 + 65% ETF，唔用孖展。</b>資金分 4 部分，每月最後一個交易日之後調返 35／45／5／15（領導股部分只用現金調，唔會為咗比例賣股；stock-strategy/RULES_V2.md、LAB_LOSSMIN.md；每年 1 月重新驗證）：</p>
+    <p class="small muted">Token 只儲喺呢部手機，只會送去 api.github.com 觸發「新聞同經濟數據」更新；用 fine-grained token，Repository access 揀 stock-app，Permissions 只開 Actions: Read and write。改完撳上面「儲存」。</p></details>
+  <details class="card small muted"><summary><b>策略規則同版本歷史</b></summary><p><b>V2.7（2026-10-12 起，模型用緊）：35% 揀領導股 + 65% ETF，唔用孖展。</b>資金分 4 部分，每月最後一個交易日之後調返 35／45／5／15（領導股部分只用現金調，唔會為咗比例賣股；stock-strategy/RULES_V2.md、LAB_LOSSMIN.md；每年 1 月重新驗證）：</p>
     <p>① <b>領導股 35%</b>（V2.2 規則）：成交額頭 50 入面按 RS 排名；合格（收市 &gt; 200 日線、50 &gt; 200 日線、收市 ≥ 52 週高 × 0.75）而收市低過前高嘅股，升穿前高（buy-stop）就買。每隻用呢部分 20%（排第 1 用 30%），最多 5 隻。止蝕 = swing low − 0.2 ATR，升到 2R 推上成本，之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈 → 下一日開市賣。呢部分由高位跌 25% 就只揸 2 隻（排名跌出頭 6 就賣），返到高位 −12.5% 以內恢復。呢部分嘅現金：綠燈買短期國債（SGOV／BIL），紅燈買 IEF。</p>
     <p>② <b>趨勢腳 45%</b>：揸緊 TQQQ 時，收市大市轉紅燈或者 QQQ 20 日波幅 ≥ 35% → 下一個交易日收市前<b>一次過賣晒</b>轉 IEF。買返<b>分 4 份</b>：收市綠燈而且波幅低過 30%、27.5%、25%、22.5%，每過一個門檻買返一份（即係市況越靜買得越多；未買返嗰部分揸 IEF）。之前 V2.6 用單一 25% 門檻，測過改少少（22.5% 或 27.5%）結果就差好遠，即係撞啱；分 4 份平均就冇呢個問題。</p>
     <p>③ <b>低吸腳 5%</b>：綠燈而且 NDX 2 日 RSI &lt; 25（短線超賣）→ 下一日開市買 TQQQ；RSI &gt; 70（反彈完成）或者揸滿 10 個交易日（時間止蝕）→ 下一日開市賣。冇價錢止蝕，最多蝕呢 5%。</p>
@@ -2061,7 +2090,7 @@ function viewSet(){
     
     <p><b>V2.4（2026-10-09 一日）</b>：唔揀股，80% 趨勢腳 + 10% 低吸 + 10% 輪動（LAB_MAXRET 揀法 D）。事後 2000– 24.7%、−53%；冇偷睇 2006– 26.9%、−49%。</p>
     <p><b>V2.3（2026-10-02 → 10-08）</b>：上面 V2.2 用 60% 資金（注碼、剎車都按呢 60% 計）；另外 40% 係「TQQQ 腳」：上一日收市大市綠燈而且 QQQ 20 日波幅（年化）低過 35% 就揸 TQQQ，否則揸 IEF；收市決定，下一個交易日收市前轉。每月最後一個交易日只用現金調返 40%。唔用孖展。回測 2000–（事後）：V2.3 年化 24.5%、最大回撤 −36%（V2.2 20.4%、−35%；QQQ 8.7%、−83%）。冇偷睇（每年只用之前數據揀參數、產品、門檻）：年化約 20%、最大回撤約 −41%（LAB_STRICT.md、LAB_EXIT40.md）。黃燈 = 提示 TQQQ 就快要轉，唔改規則。</p>
-    <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></div>`;
+    <p>數據：Nasdaq 股票名單 + Yahoo 日線，每個交易日香港時間 06:30 更新。回測結果，唔係投資建議。</p></details>`;
 }
 
 // ───────────────────────── 新聞同經濟數據（GitHub Actions 每 30 分鐘更新 feeds 分支）
@@ -3148,7 +3177,11 @@ function bind(){
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on("#saveSet", () => { const c = +$("#capital").value; S.capital = isFinite(c) && c > 0 ? c : 0;
     S.dataUrl = $("#dataUrl").value.trim() || defaults.dataUrl; S.feedUrl = $("#feedUrl").value.trim() || defaults.feedUrl;
-    S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl; S.ghToken = $("#ghToken").value.trim(); save(); FEED.at = 0; fetchScan(); fetchLive(); });
+    S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl; S.ghToken = $("#ghToken").value.trim();
+    if (!save()) alert("儲存唔到：瀏覽器唔俾寫入（可能係私密瀏覽模式或者儲存空間滿）。今次改動關咗 app 就會冇。");
+    FEED.at = 0; fetchScan(); fetchLive(); });
+  on("#expSet", () => exportSettings());
+  const imp = $("#impSet"); if (imp) imp.onchange = () => { if (imp.files && imp.files[0] && confirm("用呢個檔還原設定？而家嘅設定會被取代（GitHub token 照留）。")) importSettings(imp.files[0]); imp.value = ""; };
   on("#reload", () => fetchScan());
   on("#feedReload", () => { cloudRefresh(); render(); });
   on("#goToday", () => jumpToday(true));
