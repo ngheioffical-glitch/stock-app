@@ -59,6 +59,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: 攞上一份 feeds 分支（2026-10-24：用 git，唔經 raw.githubusercontent 約 5 分鐘快取；AI 用量帳本放入 out 俾 llm.py 接住計）
+        run: |
+          mkdir -p prev out
+          if git fetch -q --depth 1 origin feeds; then
+            for f in $(git ls-tree --name-only FETCH_HEAD); do git show "FETCH_HEAD:$f" > "prev/$f"; done
+          fi
+          if [ -f prev/ai_usage.json ]; then cp prev/ai_usage.json out/; fi
       - run: python scanner/feeds.py out
         env:
           PYTHONIOENCODING: utf-8
@@ -66,7 +73,7 @@ jobs:
         if: needs.guard.outputs.full != '1'
         run: |
           for f in serenity_recent.json trump_recent.json btc.json fng.json hyper.json rates.json commod.json walert.json earnings.json macro_src.json; do
-            curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/feeds/$f" -o "out/$f" || rm -f "out/$f"
+            if [ -f "prev/$f" ]; then cp "prev/$f" "out/$f"; fi
           done
       - name: Serenity 近 3 日（全部更新先抓；失敗就沿用上一份，唔影響新聞）
         if: needs.guard.outputs.full == '1'
@@ -186,6 +193,7 @@ jobs:
           PREMARKET: ${{ needs.guard.outputs.pre }}
           FUT_NOW: ${{ needs.guard.outputs.fut_now }}
           FEEDS_FULL: ${{ needs.guard.outputs.full }}          # 2026-10-24：0 = 淨係新聞（ai.py 唔寫宏觀思考、加密、大額轉帳、商品分析）
+          FEEDS_PREV: prev                                     # 2026-10-24：上一份用 git 攞咗嘅（ai.py prev() 優先讀）
       - name: 推去 feeds 分支
         working-directory: out
         run: |

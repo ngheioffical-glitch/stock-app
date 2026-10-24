@@ -56,8 +56,11 @@ Y = (APP / ".github" / "workflows" / "feeds.yml").read_text(encoding="utf-8")
 crons = re.findall(r'cron:\s*"([^"]+)"', Y)
 check(set(G.FULL_CRONS) <= set(crons), f"FULL_CRONS 全部喺 feeds.yml 排程入面：{crons}")
 pushed = set(re.search(r"git add news\.json econ\.json \$\(ls ([^)]+?) 2>", Y).group(1).split()) - {"ai_usage.json"}
-carry = set(re.search(r"for f in ([^;]+); do", Y).group(1).split())
+step = re.search(r"淨係新聞：其他檔沿用上一份.*?for f in ([^;]+); do(.*?)done", Y, re.S)
+carry = set(step.group(1).split())
 check(pushed == carry, f"淨係新聞嗰次：推上去嘅其他檔全部沿用上一份（{sorted(pushed - carry) or '冇漏'}）")
+check("prev/$f" in step.group(2) and "curl" not in step.group(2) and "git fetch -q --depth 1 origin feeds" in Y,
+      "沿用上一份用 git 攞嘅 feeds 分支（唔經 raw CDN 快取）")
 gated = Y.count("if: needs.guard.outputs.full == '1'")
 check(gated == len(carry), f"抓其他數據嘅 {gated} 個步驟淨係全部更新先做")
 check("FEEDS_FULL: ${{ needs.guard.outputs.full }}" in Y and '"${{ github.event.schedule }}"' in Y, "ai.py 知道係唔係全部更新；閘門收到觸發嘅 cron")
@@ -72,6 +75,11 @@ out.mkdir(parents=True, exist_ok=True)
 (out / "econ.json").write_text(json.dumps({"rows": []}), encoding="utf-8")
 recent = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(timespec="seconds")
 P = {"think": {"q": "舊思考"}, "digest": {"hi": []}, "ai_at": recent}
+(out / "prev").mkdir()
+(out / "prev" / "news.json").write_text(json.dumps(P), encoding="utf-8")
+os.environ["FEEDS_PREV"] = str(out / "prev")
+check(ai.prev("news.json") == P, "ai.py 上一份優先讀 workflow 用 git 攞咗嘅（FEEDS_PREV）")
+os.environ.pop("FEEDS_PREV")
 llm.available = lambda: True
 llm.start = llm.finish = lambda *a, **k: None
 llm.status = lambda: {"provider": "test"}

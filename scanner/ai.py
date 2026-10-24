@@ -63,6 +63,10 @@ def ask(key, prompt, models_):
 
 
 def prev(f):
+    """feeds 分支上一份。workflow 用 git 攞咗就讀本機（FEEDS_PREV，2026-10-24：raw.githubusercontent 有約 5 分鐘快取，可能攞到舊嗰份）；冇先上網攞。"""
+    d = os.environ.get("FEEDS_PREV")
+    if d and (Path(d) / f).exists():
+        return load(Path(d) / f) or {}
     repo = os.environ.get("GITHUB_REPOSITORY", "ngheioffical-glitch/stock-app")
     try:
         return json.loads(urllib.request.urlopen(RAW.format(repo=repo, f=f), timeout=20).read())
