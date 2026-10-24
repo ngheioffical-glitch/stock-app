@@ -598,8 +598,9 @@ function signals(){
   const fs = (typeof MODEL !== "undefined" && MODEL) ? followState(MODEL) : null, base = fs && fs.val ? fs.val : S.capital;   // 有跟單帳戶就用帳戶值
   const list = SCAN.ranking.filter(r => r.status === "候選").slice(0, RULE.show).map(r => {
     const frac = RULE.frac * (r.sym === SCAN.rank1 ? RULE.boost : 1);
-    const lw = MCONT && MCONT.view && MCONT.view.legs && MCONT.view.legs.lead ? MCONT.view.legs.lead.w : 1;   // V2.5–V2.7：領導股部分只係帳戶 30–40%
-    return {...r, frac, shares: base > 0 ? Math.floor(base * lw * frac / r.pivot) : null};
+    // V2.5–V2.7：領導股部分只係帳戶 30–40%。2026-10-24 /codex 搵到：模型未讀到時之前當 100% 計，股數大咗約 2.86 倍 → 冇模型就唔計股數
+    const lw = MCONT && MCONT.view && MCONT.view.legs && MCONT.view.legs.lead ? MCONT.view.legs.lead.w : null;
+    return {...r, frac, shares: base > 0 && lw ? Math.floor(base * lw * frac / r.pivot) : null};
   });
   return {list, why: list.length ? "" : "今日冇合格嘅突破候選股"};
 }
@@ -888,7 +889,7 @@ function radarCard(){
     數據：DefiLlama 協議收入、CoinGecko 市值，每日 2 次更新（${esc(String(R.at || "").slice(5, 16).replace("T", " "))} UTC）${R.ai_pending ? `；仲有 ${R.ai_pending} 個未分析` : ""}。測過用收入揀幣（冇偷睇）2023 年起輸淨係揸 BTC 加 100 日線，所以只供觀察同學習，唔係買入建議；AI 都會錯，重要嘢自己核實。</p></div>`;
 }
 // 2026-10-04 用戶：雷達頁分三部分：前瞻敘事（RWA、代幣化、穩定幣、AI 代理支付…）｜項目雷達｜Meme（熱度 × 安全）
-let NARR = null, MEME = null;
+let NARR = null, MEME = null, DROP = null, DROP_ST = "";   // DROP：Perp DEX 同空投分析（2026-10-24，scanner/airdrop.py → radar/airdrop.json）
 // 2026-10-05：AI 額度用晒（429）時講清楚，唔好淨係空白
 const aiNote = errs => (errs || []).some(e => /429|Too Many/.test(e)) ? `<div class="alert small"><b>AI 分析暫停</b>：今次 AI 用唔到（Claude 繁忙或者預算用晒，後備 Gemini 免費額度都用晒），之後嘅更新（每日 2 次）會自動補返。數據同排名照常更新。</div>` : "";
 let RSEC = (() => { try { const v = localStorage.getItem("rsec"); return ["narr", "theme", "proj", "meme"].includes(v) ? v : "narr"; } catch(e){ return "narr"; } })();
@@ -897,7 +898,9 @@ async function fetchRadarAll(){
   await Promise.all([fetchRadar(),
     fetch(b + "narr.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) NARR = j; }).catch(() => {}),
     fetch(b + "meme.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) MEME = j; }).catch(() => {}),
-    fetch(b + "theme.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) THEME = j; }).catch(() => {})]);
+    fetch(b + "theme.json" + t, {cache: "no-store"}).then(r => r.ok ? r.json() : null).then(j => { if (j) THEME = j; }).catch(() => {}),
+    fetch(b + "airdrop.json" + t, {cache: "no-store"}).then(r => { DROP_ST = r.ok ? "" : r.status === 404 ? "未有" : "HTTP " + r.status; return r.ok ? r.json() : null; })
+      .then(j => { if (j) DROP = j; }).catch(e => { DROP_ST = "讀唔到"; })]);
   if (RADAR_LEAF.includes(TAB)) render();
 }
 const stageTag = s => !s ? "" : `<span class="tag ${/早期/.test(s) ? "t-cyan" : /升溫/.test(s) ? "t-buy" : /過熱/.test(s) ? "t-stop" : "t-dim"}">${esc(s)}</span>`;
@@ -1015,13 +1018,38 @@ function viewRadar(){
     + (RSEC === "narr" ? narrCard() : RSEC === "theme" ? themeCard() : RSEC === "meme" ? memeCard() : radarCard());
 }
 // 2026-10-24：雷達拆開放入三個大分頁（題材 → 股票、前瞻 → 資訊、項目／Meme → 加密），每部分自己一頁
-const RADAR_LEAF = ["theme", "narr", "proj", "meme"];
+const RADAR_LEAF = ["theme", "narr", "proj", "meme", "drop"];
 function viewRadarSec(k){
-  if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
+  if (!RADAR && !NARR && !MEME && !THEME && !DROP) fetchRadarAll();
   if (!BTC) fetchBtc();
-  RSEC = k;
-  return topbar() + `<div class="row spread"><h2>${{narr: "前瞻敘事", theme: "題材", proj: "項目雷達", meme: "Meme"}[k]}</h2><button id="radarReload" class="small">重新整理</button></div>`
-    + (k === "narr" ? narrCard() : k === "theme" ? themeCard() : k === "meme" ? memeCard() : radarCard());
+  if (k !== "drop") RSEC = k;
+  return topbar() + `<div class="row spread"><h2>${{narr: "前瞻敘事", theme: "題材", proj: "項目雷達", meme: "Meme", drop: "空投分析"}[k]}</h2><button id="radarReload" class="small">重新整理</button></div>`
+    + (k === "narr" ? narrCard() : k === "theme" ? themeCard() : k === "meme" ? memeCard() : k === "drop" ? dropCard() : radarCard());
+}
+// Perp DEX 同潛在空投分析（2026-10-24 老師：「好似佢（ChainLab）咁樣分析空投」）：重點 → 數據比較表 → 逐個項目 → 風險；狀態分五類，每項有來源
+const DROP_TAG = {"官方確認": "t-buy", "只有積分": "t-cyan", "傳聞": "t-warn", "已結束": "t-dim", "未核實": "t-dim"};
+function dropCard(){
+  const D = DROP;
+  if (!D) return `<div class="card"><p class="small muted">${DROP_ST === "未有" ? "未有空投分析：雲端每 7 日寫一次（香港 07:47／21:47，DeepSeek 非繁忙時段），第一份寫好就會出。" : DROP_ST ? `讀唔到（${esc(DROP_ST)}），撳「重新整理」再試。` : "載入緊…"}</p></div>`;
+  const P = D.platforms || [], usd = v => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${f0(v)}`;
+  const srcs = s => (s || []).length ? `<p class="small muted" style="margin:4px 0 0">來源：${s.map(x => `<a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">${esc(x.title || evHost(x.url))}</a>`).join("、")}</p>` : `<p class="small dn" style="margin:4px 0 0">冇來源：只當參考</p>`;
+  return `<div class="info small"><b>資訊，唔係投資建議</b>：空投要靠交易永續合約先賺積分，有槓桿、清算、手續費、資金費率風險；積分唔保證換到代幣。你嘅 BTC 100 日線規則唔受影響。</div>
+    <div class="card"><div class="row spread"><b>${esc(D.title || "Perp DEX 與潛在空投盤點")}</b><span class="small muted">${esc(D.day || "")}</span></div>
+      ${D.market ? `<p class="small" style="margin:0">${esc(D.market)}</p>` : ""}
+      ${(D.summary || []).length ? `<ul class="dlist">${D.summary.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+      ${srcs(D.src)}</div>
+    ${P.length ? `<div class="tablewrap"><table><tr><th>項目</th><th>空投狀態</th><th class="r">30 日交易量／TVL</th></tr>
+      ${P.map(p => `<tr><td><b>${esc(p.name)}</b><span class="ind">${esc(p.token || "")}</span></td><td><span class="tag ${DROP_TAG[p.status] || "t-dim"}">${esc(p.status)}</span></td>
+        <td class="r small">${esc(p.volume30d || "—")}<span class="ind">TVL ${p.tvl_llama ? usd(p.tvl_llama) : esc(p.tvl || "—")}</span></td></tr>`).join("")}</table></div>
+      <p class="small muted">TVL 有數字嘅係 DefiLlama 即時數（免費 API）；其他係 AI 上網搵到嘅數字，以來源為準。狀態：官方確認＝官方公布咗空投或者分配；只有積分＝有積分但冇講換代幣；傳聞＝社群或者媒體推測；未核實＝搵唔到可靠來源。</p>` : ""}
+    ${P.map(p => `<details class="card"><summary><b>${esc(p.name)}</b> <span class="tag ${DROP_TAG[p.status] || "t-dim"}">${esc(p.status)}</span> <span class="small muted">${esc(p.type || "")}</span></summary>
+      ${p.highlight ? `<p class="small"><b>背景／亮點：</b>${esc(p.highlight)}</p>` : ""}
+      ${p.volume30d || p.oi ? `<p class="small"><b>數據：</b>${[p.volume30d && "近 30 日交易量 " + p.volume30d, p.oi && "未平倉量 " + p.oi].filter(Boolean).map(esc).join("；")}</p>` : ""}
+      ${p.reward ? `<p class="small"><b>空投與獎勵：</b>${esc(p.reward)}</p>` : ""}
+      ${p.risk ? `<p class="small"><b>要留意：</b>${esc(p.risk)}</p>` : ""}
+      ${p.news_date ? `<p class="small muted">最新消息：${esc(p.news_date)}</p>` : ""}${srcs(p.src)}</details>`).join("")}
+    ${(D.risks || []).length ? `<div class="card"><b>參與前要注意</b><ul class="dlist">${D.risks.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+    <p class="small muted">每 7 日更新一次（上次 ${esc(String(D.at || "").slice(0, 10))}）。寫法參考 ChainLab 嘅 Perp DEX 空投盤點；唔放推薦連結。${(D.errs || []).length ? ` 今次有 ${D.errs.length} 個項目搵唔到資料。` : ""}</p>`;
 }
 // 大額轉帳（2026-10-05 用戶：追大戶工具清單 Whale Alert）：scanner/walert.py → feeds/walert.json；AI 分析 ai.py walert_ai
 function walertCard(){
@@ -1066,7 +1094,7 @@ function btc100Card(){
   return `<div class="card"><div class="row spread"><div class="light"><span class="orb ${M.hold ? "g" : "r"}"></span><div>
       <div class="status ${M.hold ? "up" : "dn"}" style="font-size:15px">BTC 100 日線 · ${M.hold ? "綠燈：可以揸 BTC／ETH" : "紅燈：轉現金"}</div>
       <div class="small muted">${M.since ? esc(M.since) + " 起" : ""} · BTC 收市 ${f0(b.px)}（${esc(b.date)}）· 100 日線 ${f0(b.ma["100"])}</div></div></div>
-      <span class="tag ${M.dist >= 0 ? "t-buy" : "t-stop"}">${M.dist >= 0 ? "高過" : "低過"} ${pct(Math.abs(M.dist), 1).replace("+", "")}</span></div>
+      <span class="tag ${M.stale ? "t-warn" : M.dist >= 0 ? "t-buy" : "t-stop"}">${M.stale ? "⚠ 舊數據" : `${M.dist >= 0 ? "高過" : "低過"} ${pct(Math.abs(M.dist), 1).replace("+", "")}`}</span></div>
     ${near ? `<div class="info small"><span class="tag t-warn">黃燈</span> <b>BTC 離 100 日線只差 ${pct(Math.abs(M.dist), 1).replace("+", "")}，就快${M.hold ? "轉紅" : "轉綠"}。</b>
       ${M.hold ? `如果收市跌穿 ${f0(b.ma["100"])}，下一個美股交易日收市前賣晒 BTC／ETH ETF 轉現金。` : `如果收市升穿 ${f0(b.ma["100"])}，下一個美股交易日收市前按你嘅比例買入 BTC／ETH ETF。`}單一條線喺附近會有假訊號（例如 2026-04-16 至 04-20 轉咗三次）。</div>` : ""}
     <div class="tablewrap"><table><tr><th>收市 vs 均線</th><th class="r">21 日</th><th class="r">50 日</th><th class="r">100 日</th><th class="r">200 日</th></tr>
@@ -1271,7 +1299,7 @@ function viewToday(){
   return topbar() + janCard() + dataAlert() + todayTodo() + lightCard() + mktTiles() + digestMini() + evMarketCard()
     + (n ? `<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>` : "");
 }
-// 股票 → 揀股（2026-10-24 由今日頁搬過嚟）：表 = 一行一隻；下面每隻預設收埋，撳先睇止蝕、RSI、估值、落單方法
+// 股票 → 揀股（2026-10-24 由今日頁搬過嚟）：表 = 一行一隻；下面每隻預設收埋，撳先睇止蝕、RSI、估值、幾時賣
 function viewPick(){
   let h = topbar();
   if (!SCAN) return h + dataAlert();
@@ -1297,9 +1325,7 @@ function viewPick(){
         ${rsiOf(r.sym) != null ? `<div><span>RSI（14 日）</span><b>${rsiTxt(rsiOf(r.sym))}</b></div>` : ""}
         <div><span>注碼${r.shares != null ? " · 股數" : ""}</span><b>${Math.round(r.frac * 100)}%${MCONT && MCONT.view && MCONT.view.legs && MCONT.view.legs.lead ? `（帳戶 ${(r.frac * MCONT.view.legs.lead.w * 100).toFixed(0)}%）` : ""}${r.shares != null ? ` · ${f0(r.shares)}` : ""}</b></div>
       </div>
-      <details><summary>落單方法</summary>
-        <p>買入：觸價市價單（MIT）· 買入 · 觸發價 <b>${f2(r.pivot)}</b> · 有效期「當日」</p>
-        <p>成交後：觸價市價單（MIT）· 賣出 · 觸發價 <b>${f2(r.stop)}</b> · 長期有效（GTC）</p>
+      <details><summary>幾時賣（規則）</summary>   <!-- 2026-10-24 老師：「app唔需要整埋點樣下單」→ 拎走 MIT／GTC 落單教學，淨係留規則 -->
         <p>收市升到 <b>${f2(r.be_trigger)}</b>（2R）之後，止蝕推上成本價；之後跟 swing low 上移。收市跌穿 200 日線、星期五排名跌出頭 15、大市紅燈就賣。</p></details>
     </details>`;
   }).join("");
@@ -1371,7 +1397,7 @@ const GROUPS = {
   strat: [["model", "策略"]],
   stocks: [["pick", "揀股"], ["rank", "排名"], ["res", "研究"], ["theme", "題材"]],
   info: [["news", "新聞"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],
-  cry: [["crypto", "加密"], ["proj", "項目"], ["meme", "Meme"]],
+  cry: [["crypto", "加密"], ["drop", "空投"], ["proj", "項目"], ["meme", "Meme"]],
 };
 const navOf = t => Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === t)) || t;
 const subNav = () => { const g = GROUPS[navOf(TAB)]; return g && g.length > 1 ? `<div class="chips mtabs subnav">${g.map(([k, l]) => `<button data-sub="${k}" aria-pressed="${TAB === k}">${l}</button>`).join("")}</div>` : ""; };
@@ -1457,7 +1483,7 @@ async function fetchModel(){
   try { MCONT = await get("model_cont.json"); MODEL_ERR = null; } catch(e){ MODEL_ERR = e.message; MCONT = null; }
   HCACHE = {}; BT00X = null;
   pickModel();
-  if (TAB === "model" || TAB === "today") render();
+  if (["model", "today", "pick"].includes(TAB)) render();   // 2026-10-24：揀股頁都要（股數靠模型比重；第一期搬頁時漏咗）
 }
 function setAcct(a){ S.acct = a; save(); pickModel(); HCACHE = {}; render("f"); }
 
@@ -1786,10 +1812,10 @@ function v24Todo(base){
     return `<div class="${out ? "alert" : "info"}"><b>${esc(zh(t.when))}：${esc(LEGN[t.leg] || "")} ${esc(t.side === "轉" || t.side === "調整" ? t.sym : t.side + " " + t.sym)}</b>
       ${t.trigger ? `<p class="small">掛突破單：<b class="num">${f2(t.trigger)}</b>（升到或高過呢個價先買）· 止蝕 <b class="num dn">${f2(t.stop)}</b></p>` : ""}
       ${t.frac != null ? `<p class="small">金額：佔帳戶 ${(t.frac * 100).toFixed(t.frac < 0.1 ? 1 : 0)}%${amt(t.frac)}${sh(t)}</p>` : ""}<p class="small">原因：${esc(zh(t.reason))}</p></div>`; });
-  const ups = ((v.actions || {}).stops || []).map(x => `<div class="info"><b>改止蝕：${esc(x.sym)}</b><p class="small">止蝕由 ${f2(x.old)} 推高到 <b class="num">${f2(x.new)}</b>${x.be ? "（已升過 2R，保本後跟 swing low 上移）" : ""}，記得改券商嘅止蝕單。</p></div>`);
+  const ups = ((v.actions || {}).stops || []).map(x => `<div class="info"><b>改止蝕：${esc(x.sym)}</b><p class="small">止蝕由 ${f2(x.old)} 推高到 <b class="num">${f2(x.new)}</b>${x.be ? "（已升過 2R，保本後跟 swing low 上移）" : ""}。</p></div>`);
   const nb = (v.todo || []).filter(t => t.trigger).length;
   return `<div class="todo-h"><h2>今日要做</h2><span class="small muted">${esc(v.ver)} · ${esc(v.next_day)}</span></div>` + ups.join("") + (it.length ? it.join("") + (nb > 1 ? `<p class="small muted">領導股突破單掛 ${nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。</p>` : "") +
-    `<p class="small muted">「開市」= 美股開市（香港 21:30，冬令 22:30）落開市單；「收市前」= 落收市價單（MOC），香港 04:00（冬令 05:00）收市。${base > 0 ? "" : "喺「策略」頁填本金就會計埋金額。"}</p>`
+    `<p class="small muted">「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${base > 0 ? "" : "喺「策略」頁填本金就會計埋金額。"}</p>`
     : `<div class="ok"><b>冇嘢要做：揸住就得</b></div>`);
 }
 // 趨勢腳：V2.7 分 4 份買返（T.vol_ins 每份門檻、T.n_on 而家幾多份揸 TQQQ）；舊版只得一份
@@ -1930,7 +1956,9 @@ function healthCard(){
   }
   if (!BTC) fetchBtc();
   if (!HYP) fetchHyper();
-  if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), Math.max(FM, 180), FN);
+  if (BTC && BTC.ma100 && BTC.ma100.stale) add("加密燈號（BTC 100 日線）", false, "舊數據",        // 2026-10-24：沿用上一份唔再當正常
+    `ETH 數據今次攞唔到，燈號沿用 ${BTC.ma100.btc ? BTC.ma100.btc.date : "上一份"} 嗰份；下次更新會自動補返`);
+  else if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), Math.max(FM, 180), FN);
   if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", Math.max(FM, 180), FN, Object.values(HYP.err || {}));
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
@@ -2979,7 +3007,7 @@ function render(anim){
   if (TAB === "ppl") TAB = pplTab();
   const rs = k => () => viewRadarSec(k);
   app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
-    theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme")}[TAB] || viewToday)();
+    theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme"), drop:rs("drop")}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
   if (GROUPS[navOf(TAB)]) try { localStorage.setItem(KEY + "-g-" + navOf(TAB), TAB); } catch(e){}   // 每個大分頁記住上次睇邊個細分頁
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === navOf(TAB) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
@@ -3082,11 +3110,12 @@ document.addEventListener("touchend", e => {
   }
 }, {passive:true});
 
+let DATA_AT = 0;                                        // 上次成功讀到每日掃描嘅時間（返前景時用嚟判斷要唔要重讀）
 async function fetchScan(){
   try {
     const r = await fetch(S.dataUrl + (S.dataUrl.includes("?")?"&":"?") + "t=" + Date.now(), {cache:"no-store"});
     if (!r.ok) throw new Error("HTTP " + r.status);
-    SCAN = await r.json(); ERR = null;
+    SCAN = await r.json(); ERR = null; DATA_AT = Date.now();
   } catch(e){ ERR = e.message; }
   render();
   splashDone();
@@ -3124,7 +3153,8 @@ fetchBtc(); fetchFng(); fetchHyper();
 setInterval(() => { if (document.visibilityState === "visible"){ fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(); } }, 5 * 60e3);   // fetchFeeds：app 開住都會每 5 分鐘檢查，新聞超過 15 分鐘就自動更新
 fetchLev();
 setInterval(() => { if (document.visibilityState === "visible") fetchLive(); }, 60e3);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchLive(); fetchFeeds(); } });
+// 2026-10-24（老師：「今日要做淨係開市前就得」）：app 喺背景放咗一晚，朝早打開時掃描同模型可能仲係尋日 → 舊過 20 分鐘就重讀，開市前睇到嘅一定係新一日
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchLive(); fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); } } });
 </script>
 </body>
 </html>

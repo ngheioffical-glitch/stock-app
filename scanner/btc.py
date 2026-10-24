@@ -174,11 +174,12 @@ def main(out):
     except Exception as ex:  # noqa: BLE001
         print("[btc] ETH 策略計唔到：", ex)
         o_eth = prev.get("eth")
+    # 2026-10-24 /codex 搵到：ETH 攞唔到時沿用上一份燈號，但 generated 寫而家，app 當係新 → 沿用嘅標 stale（app 顯示「舊數據」、系統健康 ⚠）
     try:
-        o_ma = ma100_block(d, e_cm) if e_cm is not None else prev.get("ma100")
+        o_ma = ma100_block(d, e_cm) if e_cm is not None else (dict(prev["ma100"], stale=True) if prev.get("ma100") else None)
     except Exception as ex:  # noqa: BLE001
         print("[btc] 100 日線燈號計唔到：", ex)
-        o_ma = prev.get("ma100")
+        o_ma = dict(prev["ma100"], stale=True) if prev.get("ma100") else None
     d["ma365"] = d.px.rolling(365).mean()
     d["wma200"] = d.px.rolling(1400).mean()
     d = d.dropna(subset=["ma365"])
