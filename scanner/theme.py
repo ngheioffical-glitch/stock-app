@@ -171,7 +171,7 @@ def main(out):
         data = "\n".join(f"{r['name']}（{r['etf']['sym']}）：5 日 {pc(r['etf']['r5'])}、21 日 {pc(r['etf']['r21'])}、成交 {r['etf']['vs'] or 0:.1f} 倍、熱度 {r['heat']}"
                          f"{'、爆發' if r['boom'] else ''}、新聞 {r['nnews']} 條；AI：{(AI.get(r['key']) or {}).get('stage', '')} {(AI.get(r['key']) or {}).get('why', '')[:120]}"
                          for r in rows)
-        g, m = A.ask(key, A.STYLE + GUIDE.format(data=data), A.MODELS_D)
+        g, m = A.ask(key, A.STYLE + GUIDE.format(data=data), A.MODELS_D, light=True)   # 2026-10-24：導讀係輕鬆嘢，先用 Gemini
         guide = dict(g, model=m, at=now.isoformat(timespec="seconds"))
     except Exception as ex:  # noqa: BLE001
         errs.append(f"導讀：{str(ex)[:80]}")

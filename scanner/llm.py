@@ -41,6 +41,9 @@ _DS_ON = bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
 PROVIDER = os.environ.get("AI_PROVIDER", "deepseek" if _DS_ON else "mistral" if _MIS_ON else "gemini").strip().lower()
 FALLBACK = [x.strip().lower() for x in os.environ.get("AI_FALLBACK", "gemini" if PROVIDER != "gemini" else "").split(",") if x.strip()]
 ORDER: list[str] | None = None   # 個別功能指定次序（例如研究報告要 Claude 起頭：research.py 設 ["claude", "gemini"]）
+# 2026-10-24 老師：「都用埋gemini，可以比輕鬆嘢佢做，唔好浪費」：輕鬆嘢（ask(light=True)：翻譯、經濟數據解讀、聯儲局總結、雷達／Meme／題材導讀）
+# 先用 Gemini（免費），出錯或者額度爆先轉主力（DeepSeek）。今日重點、上網搜尋、研究、退市／拆股查證照用主力。AI_LIGHT="" 就關咗
+LIGHT = os.environ.get("AI_LIGHT", "gemini").strip().lower()
 MODEL = os.environ.get("AI_MODEL", "claude-opus-5-5").strip()
 EFFORT = os.environ.get("AI_EFFORT", "high").strip()
 MAX_SEARCH = int(os.environ.get("AI_MAX_SEARCH", "5"))
@@ -131,10 +134,13 @@ def has_key(p):
                             "deepseek": "DEEPSEEK_API_KEY"}.get(p, "_"), "").strip())
 
 
-def _order():
+def _order(light=False):
     if ORDER:
         return list(ORDER)
-    return [PROVIDER] + [p for p in FALLBACK if p != PROVIDER]
+    base = [PROVIDER] + [p for p in FALLBACK if p != PROVIDER]
+    if light and LIGHT and has_key(LIGHT):                 # 輕鬆嘢：免費嗰個先，主力做後備
+        return [LIGHT] + [p for p in base if p != LIGHT]
+    return base
 
 
 def _why(err):
@@ -258,7 +264,8 @@ def status():
     if PROVIDER in PAID:
         d, a = paid_spent()
         return dict(provider=PROVIDER, model=f"DeepSeek（{DS_FAST}／{DS_SMART}）", spent=round(d, 2), budget=PAID_DAY_USD,
-                    total=round(a, 2), total_budget=PAID_TOTAL_USD, day=DAY, calls=len(USAGE))
+                    total=round(a, 2), total_budget=PAID_TOTAL_USD, day=DAY, calls=len(USAGE),
+                    light=LIGHT if LIGHT and has_key(LIGHT) else None)
     return dict(provider=PROVIDER, model=label_claude() if PROVIDER == "claude" else PROVIDER, spent=round(spent_today(), 2),
                 budget=BUDGET, day=DAY, calls=len(USAGE))
 
@@ -766,15 +773,16 @@ def _left_or_stop(deadline, p, timeout, errs):
     return left
 
 
-def ask(prompt, gem_models=None, timeout=None, schema=None, system=None, max_tokens=None, kind="ask"):
+def ask(prompt, gem_models=None, timeout=None, schema=None, system=None, max_tokens=None, kind="ask", light=False):
     """要一個 JSON object。返 (dict, 型號標籤)；用咗後備，標籤會寫「後備：原因」。全部失敗 raise RuntimeError（訊息有齊每個供應商嘅錯）。
-    schema：JSON Schema（Claude 用固定格式；後備寫入提示）。system：Claude 嘅 system 提示（預設淨係要求 JSON）。"""
+    schema：JSON Schema（Claude 用固定格式；後備寫入提示）。system：Claude 嘅 system 提示（預設淨係要求 JSON）。
+    light：輕鬆嘢，先用 LIGHT（Gemini，免費）。"""
     timeout = timeout or 300
     deadline, errs = time.time() + timeout, []
     other = prompt + schema_hint(schema) if schema else prompt
     if system:
         other = system + "\n\n" + other
-    for p in _order():
+    for p in _order(light):
         left = _left_or_stop(deadline, p, timeout, errs)
         if left is None:
             break

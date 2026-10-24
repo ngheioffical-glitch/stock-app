@@ -56,10 +56,10 @@ STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指�
 models, pick = llm.gem_models, llm.gem_pick          # 舊名保留俾其他模組用
 
 
-def ask(key, prompt, models_):
-    """叫 AI 要一個 JSON object（經 llm.py：用邊個 AI 由 AI_PROVIDER 決定，預設 Gemini；用咗後備標籤寫明）。
+def ask(key, prompt, models_, light=False):
+    """叫 AI 要一個 JSON object（經 llm.py：用邊個 AI 由 AI_PROVIDER 決定；用咗後備標籤寫明）。light=True：輕鬆嘢先用 Gemini（免費）。
     返 (dict, 型號標籤)；全部失敗 raise。key 參數只係保留舊介面。"""
-    return llm.ask(prompt, gem_models=models_, timeout=ai_to(300))
+    return llm.ask(prompt, gem_models=models_, timeout=ai_to(300), light=light)
 
 
 def prev(f):
@@ -110,7 +110,7 @@ def translate(key, N, S, P, PS, T=None, PT=None, allow=True):
               "回覆 JSON：{\"news\": [..], \"tweets\": [..], \"trump\": [..]}，每個陣列次序同數量同輸入一樣。\n"
               + json.dumps({"news": [x["title"] for x in todo_n], "tweets": [t["text"] for t in todo_s],
                             "trump": [t["text"][:900] for t in todo_t]}, ensure_ascii=False))
-    res, model = ask(key, prompt, MODELS_T)
+    res, model = ask(key, prompt, MODELS_T, light=True)            # 2026-10-24：翻譯係輕鬆嘢，先用 Gemini
     zn, zs, zt = res.get("news", []), res.get("tweets", []), res.get("trump", [])
     for t, z in zip(todo_t, zt):
         if isinstance(z, str) and z.strip():
@@ -252,7 +252,7 @@ def econ_ai(key, N, E, PE, now, light, watch):
               "公佈唔夠 15 分鐘就講明反應未明朗。只根據提供資料，唔好作新聞，唔好叫人買賣。\n"
               "回覆 JSON：{\"items\": [{\"i\": 編號, \"text\": \"..\"}]}。\n數據：\n" + "\n".join(lines)
               + "\n近 4 個鐘相關快訊：\n" + ("\n".join(heads) or "（冇）"))
-    res, model = ask(key, prompt, MODELS_D)
+    res, model = ask(key, prompt, MODELS_D, light=True)             # 2026-10-24：數據解讀係輕鬆嘢，先用 Gemini
     n = 0
     for it in res.get("items", []):
         try:
@@ -318,7 +318,7 @@ def fed_ai(key, N, P, now):
                   "\"change\": \"同上次比有咩唔同（文件冇講就寫空字串）\", \"impact\": \"對息口預期、美元、美股科技股嘅含意（一至兩句）\"}。"
                   "只根據文件內容，唔好加外面資料，唔好叫人買賣。\n文件標題：" + x["title"] + "\n全文：\n" + txt)
         try:
-            res, model = ask(key, prompt, MODELS_D)
+            res, model = ask(key, prompt, MODELS_D, light=True)     # 2026-10-24：照文件總結係輕鬆嘢，先用 Gemini（長文都得）
         except Exception as e:  # noqa: BLE001
             print(f"[ai] 聯儲局總結失敗：{e}")
             break

@@ -1938,7 +1938,7 @@ function healthCard(){
     if (AS){
       const who = {deepseek: "DeepSeek", claude: "Claude", gemini: "Gemini", mistral: "Mistral"}[AS.provider] || "AI", totOut = AS.total_budget != null && AS.total >= AS.total_budget;
       add("AI 供應商同今日用量", AS.spent < AS.budget && !totOut,
-        `${AS.model} · 今日約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}` + (AS.total_budget != null ? ` · 試用累計 US$${Number(AS.total).toFixed(2)}／US$${AS.total_budget}` : ""),
+        `${AS.model}${AS.light ? "（翻譯、數據解讀、導讀先用免費 Gemini）" : ""} · 今日約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}` + (AS.total_budget != null ? ` · 試用累計 US$${Number(AS.total).toFixed(2)}／US$${AS.total_budget}` : ""),
         totOut ? `${who} 試用總額用晒：之後嘅 AI 用 Gemini 後備（會標明）；要繼續用就加大 AI_PAID_TOTAL_USD（叫 Claude 改）`
           : AS.spent >= AS.budget ? `今日 ${who} 預算用晒：之後嘅 AI 用 Gemini 後備（會標明），香港時間零時重新計` : "");
     }

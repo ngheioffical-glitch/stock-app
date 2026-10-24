@@ -370,4 +370,42 @@ q.start(Path(tempfile.mkdtemp(dir=str(OUT))))
 check(asked == ["radar/ai_usage.json"] and len(q.usage_record(q._PREV)["calls"]) == 1, f"雷達開始時讀雷達自己嘅帳本：{asked}")
 for k in ("AI_LEDGER", "GITHUB_REPOSITORY"):
     os.environ.pop(k, None)
+
+# 16. 輕鬆嘢先用 Gemini（2026-10-24 老師：「都用埋gemini，可以比輕鬆嘢佢做，唔好浪費」）
+os.environ.update(DEEPSEEK_API_KEY="fake-ds", GEMINI_API_KEY="fake-gem")
+q = importlib.reload(llm)
+check(q._order(light=True) == ["gemini", "deepseek"] and q._order() == ["deepseek", "gemini"], f"輕鬆嘢 Gemini 先、主力後備；其他照 DeepSeek 先（{q._order(light=True)}）")
+hit = []
+q._gemini_ask = lambda p, m, t: (hit.append("gem") or ({"zh": "免費"}, "gemini-flash-lite"))
+q._ds_ask = lambda *a, **k: (hit.append("ds") or ({"zh": "收錢"}, "deepseek:deepseek-flash"))
+res, lab = q.ask("譯", timeout=60, light=True)
+check(res == {"zh": "免費"} and hit == ["gem"] and "後備" not in lab, f"輕鬆嘢：Gemini 做咗就唔使叫 DeepSeek（{lab}）")
+q._gemini_ask = lambda p, m, t: (_ for _ in ()).throw(RuntimeError("gemini：全部型號失敗（HTTP 429）"))
+hit.clear()
+res, lab = q.ask("譯", timeout=60, light=True)
+check(res == {"zh": "收錢"} and hit == ["ds"] and "後備：Gemini 繁忙／額度" in lab, f"Gemini 額度爆：轉 DeepSeek 並標明（{lab}）")
+hit.clear()
+res, lab = q.ask("今日重點", timeout=60)
+check(hit == ["ds"], "唔係輕鬆嘢：照用 DeepSeek")
+os.environ.pop("GEMINI_API_KEY")
+check(q._order(light=True) == ["deepseek", "gemini"], "冇 Gemini key：輕鬆嘢都照 DeepSeek 先")
+os.environ["GEMINI_API_KEY"] = "fake-gem"
+q.ORDER = ["claude", "gemini"]
+check(q._order(light=True) == ["claude", "gemini"], "功能指定咗次序（例如研究）：唔受輕鬆嘢影響")
+q.ORDER = None
+os.environ["AI_LIGHT"] = ""
+check(importlib.reload(llm)._order(light=True) == ["deepseek", "gemini"], "AI_LIGHT 留空：關咗輕鬆嘢分流")
+for k in ("AI_LIGHT", "DEEPSEEK_API_KEY", "GEMINI_API_KEY"):
+    os.environ.pop(k, None)
+import ast  # noqa: E402
+lights = {}
+for f in ("ai.py", "radar.py", "meme.py", "theme.py"):
+    tree = ast.parse((SC / f).read_text(encoding="utf-8"))
+    funcs = [x for x in ast.walk(tree) if isinstance(x, ast.FunctionDef)]
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call) and any(k.arg == "light" and isinstance(k.value, ast.Constant) and k.value.value is True for k in n.keywords):
+            fn = min((x for x in funcs if x.lineno <= n.lineno <= x.end_lineno), key=lambda x: x.end_lineno - x.lineno).name
+            lights.setdefault(f, set()).add(fn)
+check(lights == {"ai.py": {"translate", "econ_ai", "fed_ai"}, "radar.py": {"ai_guide"}, "meme.py": {"main"}, "theme.py": {"main"}},
+      f"邊啲係輕鬆嘢：翻譯、經濟數據解讀、聯儲局總結、雷達／Meme／題材導讀（{lights}）")
 print(f"\n全部 {ok} 項通過")

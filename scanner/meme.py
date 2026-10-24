@@ -207,7 +207,7 @@ def main(out):
         data = "\n".join(f"#{i + 1} {r['name']}（{r['sym']}，{r['chain']}）熱度 {r['heat']}、安全 {r['safe']}、24h {r['chg'] * 100:+.0f}%、成交 ${r['vol'] / 1e6:.1f}M；"
                          f"安全問題：{'、'.join(r['flags'][:3]) or '冇'}；AI：{(AI.get(r['key']) or {}).get('verdict', '')} {(AI.get(r['key']) or {}).get('reason', '')}"
                          for i, r in enumerate(top[:12] + bigtop[:5]))
-        g, m = A.ask(key, A.STYLE + GUIDE.format(btc=bt, data=data), A.MODELS_D)
+        g, m = A.ask(key, A.STYLE + GUIDE.format(btc=bt, data=data), A.MODELS_D, light=True)   # 2026-10-24：導讀係輕鬆嘢，先用 Gemini
         guide = dict(g, model=m, at=now.isoformat(timespec="seconds"))
     except Exception as e:  # noqa: BLE001
         errs.append(f"導讀：{str(e)[:80]}")

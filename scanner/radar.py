@@ -250,7 +250,7 @@ def ai_guide(R, hit):
     parts.append("[解鎖] " + "；".join(f"{u['name']} {u['date']} {u['pct'] * 100:.1f}%" for u in R["unlocks"]))
     xt = "\n".join(f"@{t['user']}：{t['text'][:250]}" for t in hit[:15]) or "冇"
     try:
-        return A.ask(key, A.STYLE + GUIDE_PROMPT.format(data="\n".join(parts), x=xt), A.MODELS_D)
+        return A.ask(key, A.STYLE + GUIDE_PROMPT.format(data="\n".join(parts), x=xt), A.MODELS_D, light=True)   # 2026-10-24：導讀係輕鬆嘢，先用 Gemini
     except Exception as e:  # noqa: BLE001
         return None, str(e)[:120]
 
