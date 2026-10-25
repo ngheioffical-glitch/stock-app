@@ -1103,6 +1103,30 @@ function viewCrypto(){
     + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + walertCard() + cryptoNewsCard();
 }
 
+// 加密名人持倉（2026-10-25 老師：「可以睇到名人持倉咩幣同埋個量」→ 免費版）：scanner/holders.py → feeds/holders.json（上市公司幣庫存，CoinGecko）。
+// Arkham 要錢；知名個人錢包公開地址得好少幣，唔追。只係資訊，唔改 BTC 100 日線規則
+const fmtN = (v, d = 0) => v == null ? "—" : Number(v).toLocaleString("en-US", {maximumFractionDigits: d});
+const usdB = v => v != null && Math.abs(v) >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : usd0(v);
+function viewHold(){
+  if (!FEED.news) fetchFeeds();
+  const X = FEED.hold;
+  let h = topbar() + `<div class="row spread"><h2>名人持倉</h2><span class="small muted">${X ? esc(X.generated) : ""}</span></div>`;
+  if (!X) return h + `<div class="card"><p class="small muted">未有數據：雲端${FULL_AT}更新，第一次要等下一輪（或者喺新聞頁撳「重新整理」）。</p></div>`;
+  const cut = new Date(Date.now() - 30 * 864e5).toISOString();
+  const ev = (X.events || []).filter(e => e.seen >= cut);
+  h += `<div class="card"><b>近 30 日加倉／減倉</b><span class="small muted">上市公司幣庫存，雲端每次全部更新比較（數據源更新有時差幾日）</span>
+    ${ev.length ? moreList(ev.map(e => `<div class="news"><div class="row spread"><span><b class="${e.delta > 0 ? "up" : "dn"}">${esc(e.kind)}</b> ${esc(e.coin)} · ${esc(e.name)}${e.sym ? ` <span class="muted">${esc(e.sym)}</span>` : ""}</span><span class="small muted">${esc(e.seen.slice(5, 10))} 見到</span></div>
+      <span class="small muted">${e.delta > 0 ? "+" : ""}${fmtN(e.delta, 2)} ${esc(e.coin)}${e.usd ? `（約 ${usdB(Math.abs(e.usd))}）` : ""} · 而家 ${fmtN(e.new, 2)}</span></div>`), 10) : `<p class="small muted">冇（第一次更新冇得比較）</p>`}</div>`;
+  for (const [c, v] of Object.entries(X.coins || {})){
+    h += `<div class="card"><div class="row spread"><b>${esc(c)} 上市公司持倉</b><span class="small muted">${v.n} 間 · 合共 ${fmtN(v.total)} ${esc(c)}${v.usd ? `（${usdB(v.usd)}）` : ""}</span></div>
+      <div class="tablewrap"><table><tr><th>公司</th><th class="r">持有</th><th class="r hide-sm">佔總量</th><th class="r">市值</th></tr>
+      ${(v.top || []).slice(0, 15).map(r => `<tr><td>${esc(r.name)} <span class="muted small">${esc(r.country)}</span></td><td class="r mono">${fmtN(r.hold)}</td>
+        <td class="r mono hide-sm">${r.pct == null ? "—" : Number(r.pct).toFixed(2) + "%"}</td><td class="r mono">${usdB(r.usd)}</td></tr>`).join("")}</table></div></div>`;
+  }
+  return h + `<p class="small muted">來源：CoinGecko 公開上市公司幣庫存（Strategy、Metaplanet、BitMine 等；數量係公司公佈，唔係即時鏈上）。Hyperliquid 巨鯨倉位喺「加密」頁。
+    Arkham 可以睇到個人錢包標籤，但要錢（月費 US$100 起），冇用；知名人士公開錢包（例如 Vitalik、孫宇晨）得好少幣，真正持倉睇唔到，所以唔追。只係資訊，唔係買賣訊號。</p>`;
+}
+
 // BTC 100 日線燈號（2026-10-02 用戶批准；冇偷睇：stock-strategy/LAB_CRYPTOMA.md、LAB_ETHBYBTC.md；scanner/btc.py ma100_block）
 function btc100Card(){
   const M = BTC && BTC.ma100; if (!M) return "";
@@ -1415,7 +1439,7 @@ const GROUPS = {
   strat: [["model", "策略"]],
   stocks: [["pick", "揀股"], ["rank", "排名"], ["res", "研究"], ["theme", "題材"]],
   info: [["news", "新聞"], ["fx", "外匯"], ["people", "名人交易"], ["ser", "Serenity"], ["trump", "Trump"], ["narr", "前瞻"]],   // 2026-10-25：外匯、名人交易（議員、內部人）
-  cry: [["crypto", "加密"], ["drop", "空投"], ["proj", "項目"], ["meme", "Meme"]],
+  cry: [["crypto", "加密"], ["hold", "名人持倉"], ["drop", "空投"], ["proj", "項目"], ["meme", "Meme"]],
 };
 const navOf = t => Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === t)) || t;
 const subNav = () => { const g = GROUPS[navOf(TAB)]; return g && g.length > 1 ? `<div class="chips mtabs subnav">${g.map(([k, l]) => `<button data-sub="${k}" aria-pressed="${TAB === k}">${l}</button>`).join("")}</div>` : ""; };
@@ -2027,6 +2051,7 @@ function healthCard(){
     fresh("美債息", FEED.rates && FEED.rates.generated, FM, FN, FEED.rates && FEED.rates.errs);
     fresh("商品（油、金、銀、銅）", FEED.commod && FEED.commod.generated, FM, FN, FEED.commod && FEED.commod.errs);
     fresh("外匯（美元、日圓、歐元、人民幣、瑞郎）", FEED.fx && FEED.fx.generated, FM, FN, FEED.fx && FEED.fx.errs);
+    fresh("加密名人持倉（上市公司幣庫存）", FEED.hold && FEED.hold.generated, FM, FN, FEED.hold && FEED.hold.errs);
     fresh("業績", FEED.earn && FEED.earn.generated, FM, FN, FEED.earn && FEED.earn.errs);
     fresh("大額轉帳（Whale Alert）", FEED.walert && FEED.walert.generated, FM, FN, FEED.walert && FEED.walert.errs);
   }
@@ -2217,12 +2242,12 @@ async function fetchFeeds(force){
     const base = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/";
     const get = async f => { const r = await fetch(base + f + "?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"}); if (!r.ok) throw new Error(f + " HTTP " + r.status); return r.json(); };
     const opt = async f => { try { return await get(f); } catch(e){ return null; } };
-    [FEED.news, FEED.econ, FEED.rates, FEED.earn, FEED.commod, FEED.walert, FEED.fx] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json"), opt("commod.json"), opt("walert.json"), opt("fx.json")]);
+    [FEED.news, FEED.econ, FEED.rates, FEED.earn, FEED.commod, FEED.walert, FEED.fx, FEED.hold] = await Promise.all([get("news.json"), get("econ.json"), opt("rates.json"), opt("earnings.json"), opt("commod.json"), opt("walert.json"), opt("fx.json"), opt("holders.json")]);
     FEED.err = null; FEED.at = Date.now();
   } catch(e){ FEED.err = e.message; }
   FEED.busy = false;
   autoRefresh();
-  if (TAB === "news" || TAB === "fx" || TAB === "crypto" || TAB === "model" || TAB === "today") render();   // 2026-10-24：今日頁有 AI 重點
+  if (TAB === "news" || TAB === "fx" || TAB === "crypto" || TAB === "hold" || TAB === "model" || TAB === "today") render();   // 2026-10-24：今日頁有 AI 重點
 }
 
 // AI 宏觀思考（2026-10-02 用戶：好似評論文章咁畀多啲角度；冇客觀答案）：scanner/ai.py think()，每日 2 次，債息異動／轉燈即刻寫
@@ -3298,7 +3323,7 @@ function render(anim){
   if (TAB === "radar") TAB = "proj";                  // 2026-10-24 之前嘅「雷達」分頁拆開咗
   if (TAB === "ppl") TAB = pplTab();
   const rs = k => () => viewRadarSec(k);
-  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, fx:viewFx, people:viewPeople, crypto:viewCrypto, ser:viewSer, trump:viewTrump, set:viewSet,
+  app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, fx:viewFx, people:viewPeople, crypto:viewCrypto, hold:viewHold, ser:viewSer, trump:viewTrump, set:viewSet,
     theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme"), drop:rs("drop")}[TAB] || viewToday)();
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
   if (GROUPS[navOf(TAB)]) try { localStorage.setItem(KEY + "-g-" + navOf(TAB), TAB); } catch(e){}   // 每個大分頁記住上次睇邊個細分頁
