@@ -54,12 +54,13 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}           # 2026-10-21：AI 用 Gemini（免費）；llm.py 預設 AI_PROVIDER=gemini
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: scan                                     # 跨流程 AI 用量帳本（llm.py）
-      - name: 名人交易（2026-10-25：眾議院議員官方交易報告 + SEC Form 4 內部人；只係資訊；失敗唔影響其他）
+      - name: 名人交易（2026-10-25：眾議院議員官方交易報告 + 參議院（FMP）+ SEC Form 4 內部人；只係資訊；失敗唔影響其他）
         run: python scanner/people.py docs
         continue-on-error: true
         timeout-minutes: 30          # 第一次（冇舊檔）要攞 90 日：本機試過 15 分鐘（120 份 PTR、695 份 Form 4）；之後每日只攞新嘅
         env:
           PYTHONIOENCODING: utf-8
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY || secrets.FMP_KEY || secrets.FMP_API || secrets.FMP }}   # 參議院（官方 eFD 擋程式）；老師開嘅 Secret 名未核實，幾個常見名都收
       - name: 發佈前檢查（2026-10-24：scan.json、model_cont.json 格式唔啱就還原返上一份，最尾報錯）
         id: chk
         run: |

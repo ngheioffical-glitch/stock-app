@@ -1479,7 +1479,7 @@ async function fetchVal(){
   try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "valuation.json") + "?t=" + Date.now(), {cache: "no-store"}); if (r.ok){ VAL = await r.json(); render(); } } catch(e){}
 }
 // 名人交易（2026-10-25 老師：「1同2先做，用官方，3第二期」）：scanner/people.py → docs/people.json（每日）。
-// 眾議院議員交易（官方 PTR，淨係股票）+ 公司內部人公開市場買賣（SEC Form 4，代碼 P／S；授股、行權、送贈唔計）。只係資訊，唔改規則；有冇用第二期先研究
+// 眾議院議員交易（官方 PTR，淨係股票）+ 參議院（FMP，整理自 eFD；官方網站擋程式）+ 公司內部人公開市場買賣（SEC Form 4，代碼 P／S；授股、行權、送贈唔計）。只係資訊，唔改規則；有冇用第二期先研究
 let PPLX = null;
 async function fetchPeople(){
   try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "people.json") + "?t=" + Math.floor(Date.now() / 600e3), {cache: "no-store"}); if (r.ok){ PPLX = await r.json(); render(); } } catch(e){}
@@ -1512,11 +1512,11 @@ function peOf(sym, days = PE_DAYS){
 }
 const peTag = sym => { const p = peOf(sym); if (!p) return "";
   const part = (b, s) => [b && `買${b}`, s && `賣${s}`].filter(Boolean).join(" ");
-  return (p.cb + p.cs ? ` <span class="tag t-pe" data-stock="${sym}" data-sec="ppl" role="button" title="眾議院議員近 ${PE_DAYS} 日申報、交易日喺近 ${PE_STALE} 日嘅買賣（同人同日同股合併計一次）">議員${part(p.cb, p.cs)}</span>` : "")
+  return (p.cb + p.cs ? ` <span class="tag t-pe" data-stock="${sym}" data-sec="ppl" role="button" title="國會議員（眾議院、參議院）近 ${PE_DAYS} 日申報、交易日喺近 ${PE_STALE} 日嘅買賣（同人同日同股合併計一次）">議員${part(p.cb, p.cs)}</span>` : "")
     + (p.ib + p.is ? ` <span class="tag t-pe" data-stock="${sym}" data-sec="ppl" role="button" title="公司董事、高層、大股東近 ${PE_DAYS} 日自主嘅公開市場買賣（唔計 10b5-1 預先計劃同 1 萬美元以下；同日同職位合併）">內部人${part(p.ib, p.is)}</span>` : ""); };
 const usd0 = v => v == null ? "—" : v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${Math.round(v / 1e3)}K` : `$${Math.round(v)}`;
 const peWho = e => esc(e.names.slice(0, 2).join("、")) + (e.names.length > 2 ? ` 等 ${e.names.length} 個` : "");
-const peCg = e => `<div class="news"><div class="row spread"><span><b class="${e.type === "買" ? "up" : "dn"}">${e.type}</b> ${symB(e.sym)} · ${peWho(e)}<span class="muted">（${esc(e.state)}）</span></span><span class="small muted">${esc(e.filed.slice(5))} 申報</span></div>
+const peCg = e => `<div class="news"><div class="row spread"><span><b class="${e.type === "買" ? "up" : "dn"}">${e.type}</b> ${symB(e.sym)} · ${peWho(e)}<span class="muted">（${e.chamber === "參議院" ? "參議員" : esc(e.state)}）</span></span><span class="small muted">${esc(e.filed.slice(5))} 申報</span></div>
   <span class="small muted">交易 ${esc(e.traded)}${lagD(e) > 45 ? ` <b class="dn">（遲 ${lagD(e)} 日先申報）</b>` : ""} · ${e.n > 1 ? `${e.n} 筆，每筆 ` : ""}${esc(e.amount)}${e.owner && e.owner !== "本人" ? ` · ${esc(e.owner)}` : ""} · <a href="${esc(e.url)}" target="_blank" rel="noopener">官方原文</a></span></div>`;
 const peIn = e => `<div class="news"><div class="row spread"><span><b class="${e.type === "買" ? "up" : "dn"}">${e.type}</b> ${symB(e.sym)} · ${peWho(e)}<span class="muted">（${esc(e.role)}）</span></span><span class="small muted">${esc(e.filed.slice(5))} 申報</span></div>
   <span class="small muted">交易 ${esc(e.traded)} · ${Math.round(e.shares).toLocaleString()} 股${e.shares ? ` × $${(e.value / e.shares).toFixed(2)}` : ""} = ${usd0(e.value)}${e.n > 1 ? `（${e.n} 份申報）` : ""}${e.plan ? " · 預先計劃（10b5-1）" : ""} · <a href="${esc(e.url)}" target="_blank" rel="noopener">SEC 原文</a></span></div>`;
@@ -1526,12 +1526,13 @@ function viewPeople(){
   const cut = dayAgo(PE_DAYS);
   const cg = peEvents((PPLX.congress || []).filter(t => t.filed >= cut), cgKey), ins = peEvents((PPLX.insider || []).filter(t => t.filed >= cut), inKey);
   const insD = ins.filter(e => !e.plan), insP = ins.filter(e => e.plan);
-  h += `<div class="card"><b>國會議員（眾議院）近 ${PE_DAYS} 日</b><span class="small muted">按申報日，淨係股票，${cg.length} 單（同人同日同股合併）</span>
+  const sn = PPLX.stats && PPLX.stats.senate;
+  h += `<div class="card"><b>國會議員（眾議院 + 參議院）近 ${PE_DAYS} 日</b><span class="small muted">按申報日，淨係股票，${cg.length} 單（同人同日同股合併）${sn && sn !== "ok" ? ` · <span class="dn">參議院：${esc(sn === "冇 FMP key" ? "未設定 FMP key，暫時冇" : sn)}</span>` : ""}</span>
     ${cg.length ? moreList(cg.map(peCg), 12) : `<p class="small muted">冇</p>`}</div>`;
   h += `<div class="card"><b>公司內部人近 ${PE_DAYS} 日（自主買賣）</b><span class="small muted">留意清單（模型持倉、排名頭 15、候選、研究）${(PPLX.watch || []).length} 隻；${insD.length} 單</span>
     ${insD.length ? moreList(insD.map(peIn), 12) : `<p class="small muted">冇</p>`}
     ${insP.length ? `<details class="exp small"><summary>預先計劃（10b5-1）嘅買賣 ${insP.length} 單（參考價值低）</summary>${insP.map(peIn).join("")}</details>` : ""}</div>`;
-  return h + `<p class="small muted">來源：眾議院書記處官方交易報告（PTR；議員交易後最遲 45 日先申報，金額只有區間，配偶、聯名交易都要報；紙本掃描嗰啲讀唔到）、SEC Form 4（董事、高層、10% 大股東，一般 2 個工作日內申報；淨係計公開市場買賣，授股、行權、送贈、扣稅唔計；「預先計劃」係 10b5-1 計劃自動賣，參考價值低啲）。參議院要另外同意使用條款，暫時未有。
+  return h + `<p class="small muted">來源：眾議院書記處官方交易報告（PTR；議員交易後最遲 45 日先申報，金額只有區間，配偶、聯名交易都要報；紙本掃描嗰啲讀唔到）、參議院經 FMP（整理自參議院 eFD；官方網站擋程式攞，同樣最遲 45 日先申報、金額只有區間）、SEC Form 4（董事、高層、10% 大股東，一般 2 個工作日內申報；淨係計公開市場買賣，授股、行權、送贈、扣稅唔計；「預先計劃」係 10b5-1 計劃自動賣，參考價值低啲）。
     只係資訊，唔係買賣訊號，唔改 V2.7 規則；跟住議員或者內部人買有冇用，第二期先研究。數據公開，自己用。</p>`;
 }
 const VALC = {"偏平": "up", "好平": "up", "偏低": "up", "歷史好低": "up", "偏貴": "dn", "好貴": "dn", "偏高": "dn", "歷史好高": "dn"};
@@ -2862,8 +2863,8 @@ function stockPage(sym){
   const bs = (b, s) => [b && `買 ${b} 筆`, s && `賣 ${s} 筆`].filter(Boolean).join("、");
   if (pe && pe.cb + pe.cs) L.push(`國會議員近 ${PE_DAYS} 日申報${bs(pe.cb, pe.cs)}（${esc([...new Set(pe.c.map(t => t.member))].slice(0, 2).join("、"))}）`);
   if (pe && (pe.ib + pe.is || pe.ip)) L.push(`公司內部人近 ${PE_DAYS} 日${pe.ib + pe.is ? "自主" + bs(pe.ib, pe.is) : ""}${pe.ip ? `${pe.ib + pe.is ? "，" : ""}另外預先計劃交易 ${pe.ip} 單` : ""}`);
-  const pplSec = pe90 ? `${pe90.c.length ? `<p class="rs-meta">國會議員（眾議院，近 90 日）</p>${pe90.c.map(peCg).join("")}` : ""}${pe90.i.length ? `<p class="rs-meta" style="margin-top:10px">公司內部人（近 90 日，公開市場買賣）</p>${pe90.i.map(peIn).join("")}` : ""}`
-    : `<p class="rs-meta">${PPLX ? `近 90 日冇議員（眾議院）或者內部人公開市場買賣紀錄${(PPLX.watch || []).includes(sym) ? "" : "（內部人淨係追蹤持倉、排名頭 15、候選同研究清單）"}。` : "載入緊…"}</p>`;
+  const pplSec = pe90 ? `${pe90.c.length ? `<p class="rs-meta">國會議員（近 90 日）</p>${pe90.c.map(peCg).join("")}` : ""}${pe90.i.length ? `<p class="rs-meta" style="margin-top:10px">公司內部人（近 90 日，公開市場買賣）</p>${pe90.i.map(peIn).join("")}` : ""}`
+    : `<p class="rs-meta">${PPLX ? `近 90 日冇議員或者內部人公開市場買賣紀錄${(PPLX.watch || []).includes(sym) ? "" : "（內部人淨係追蹤持倉、排名頭 15、候選同研究清單）"}。` : "載入緊…"}</p>`;
   const g4 = [["收市", px != null ? f2(px) : "—", st ? "" : "（掃描冇呢隻）"], ["今日", d1 != null ? chg(d1) : "—", ""],
     ["vs 200 日線", st && st.sma200 ? chg(st.close / st.sma200 - 1) : "—", ""], ["RSI（14 日）", rsiOf(sym) != null ? String(Math.round(rsiOf(sym))) : "—", rsiOf(sym) >= 70 ? "超買" : rsiOf(sym) != null && rsiOf(sym) <= 30 ? "超賣" : ""]];
   const evSec = M ? `<div class="rs-hero" id="stHero" data-evkey="${esc(sym)}"></div>${evLegend()}<div class="evl">${evRows(M, sym, 12)}</div>`

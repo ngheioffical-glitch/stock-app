@@ -137,4 +137,48 @@ pdfs = [c for c in calls if c.endswith(".pdf")]
 new = [t for t in o["congress"] if t["doc"] == "20000004"]
 check(pdfs == [P.HOUSE_PDF.format(y=today.year, doc="20000004")] and not any(c.endswith(".xml") for c in calls), "第二次：見過嘅 PTR、Form 4 唔再下載，淨係攞新嗰份")
 check(new and not new[0]["backfill"] and new[0]["seen"] > new[0]["filed"] and len(o["congress"]) == 4, "新紀錄記低雲端第一次攞到嘅時間（seen），唔係 backfill")
+check(o["stats"]["senate"] == "冇 FMP key" and not any("financialmodelingprep" in c for c in calls), "參議院：冇 FMP key 就唔攞、照行")
+
+# 參議院（FMP 最新申報；官方 eFD 擋程式）
+KEY = "TESTKEY123"
+os.environ["FMP_API_KEY"] = KEY
+d1, d_old = (today - timedelta(days=2)).isoformat(), (today - timedelta(days=200)).isoformat()
+SEN = [dict(symbol="NVDA", disclosureDate=d1, transactionDate=d1, firstName="Jane", lastName="Roe", office="Jane Roe", owner="Spouse",
+            assetDescription="NVIDIA", assetType="Stock", type="Purchase", amount="$15,001 - $50,000", link="https://efdsearch.senate.gov/search/view/ptr/11111111-2222-3333-4444-555555555555/"),
+       dict(symbol="CM", disclosureDate=d1, transactionDate=d1, firstName="Jane", lastName="Roe", owner="Self", assetType="Corporate Bond",
+            type="Sale", amount="$1,001 - $15,000", link="x"),
+       dict(symbol="AAPL", disclosureDate=d1, transactionDate=d1, firstName="Jane", lastName="Roe", owner="Self", assetType="Stock Option",
+            type="Purchase", amount="$1,001 - $15,000", link="y"),
+       dict(symbol="MSFT", disclosureDate=d_old, transactionDate=d_old, firstName="Old", lastName="One", owner="Self", assetType="Stock",
+            type="Sale (Partial)", amount="$1,001 - $15,000", link="z")]
+fmp = []
+
+
+def fake_get2(url, **k):
+    if "financialmodelingprep" in url:
+        fmp.append(url)
+        return json.dumps(SEN if "page=0" in url else []).encode()
+    return fake_get(url, **k)
+
+
+P.get = fake_get2
+P.main(out)
+txt = (out / "people.json").read_text(encoding="utf-8")
+o = json.loads(txt)
+sen = [t for t in o["congress"] if t["chamber"] == "參議院"]
+check(len(sen) == 1 and sen[0]["sym"] == "NVDA" and sen[0]["type"] == "買" and sen[0]["owner"] == "配偶" and sen[0]["member"] == "Jane Roe" and sen[0]["backfill"],
+      "參議院：淨係股票（債券、期權唔要）、200 日前唔要；第一次攞到標 backfill")
+check(len([t for t in o["congress"] if t["chamber"] == "眾議院"]) == 4 and fmp == [P.FMP_SEN.format(p=0, key=KEY)], "眾議院紀錄冇重複；FMP 頭一頁已經舊過 90 日就唔再翻頁")
+SEN.append(dict(SEN[0], symbol="AMD", assetDescription="AMD"))
+P.main(out)
+o = json.loads((out / "people.json").read_text(encoding="utf-8"))
+sen = [t for t in o["congress"] if t["chamber"] == "參議院"]
+check(len(sen) == 2 and [t for t in sen if t["sym"] == "AMD"][0]["backfill"] is False and o["stats"]["senate_new"] == 1, "參議院第二次：見過嘅唔重複，新嗰筆記 seen、唔係 backfill")
+P.get = lambda url, **k: (_ for _ in ()).throw(RuntimeError("boom " + url)) if "financialmodelingprep" in url else fake_get(url, **k)
+P.main(out)
+txt = (out / "people.json").read_text(encoding="utf-8")
+o = json.loads(txt)
+check(KEY not in txt and o["stats"]["senate"] == "攞唔到" and len([t for t in o["congress"] if t["chamber"] == "參議院"]) == 2,
+      "FMP 出錯：沿用舊紀錄；錯誤訊息唔會寫出 key")
+del os.environ["FMP_API_KEY"]
 print(f"\n全部 {ok} 項通過")

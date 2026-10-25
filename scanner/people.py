@@ -3,7 +3,8 @@
 ① 國會議員（眾議院）：官方書記處每年 ZIP 索引（FilingType P = 交易報告 PTR）→ 每份電子申報 PDF 拆出每筆交易：
    議員、州／選區、資產（淨係股票 [ST] 有代號先入標籤；國債、私人公司等只記類型）、買（P）／賣（S、S (partial)）、交易日、通知日、
    金額區間、擁有人（配偶 SP／聯名 JT／子女 DC／本人）、申報日。掃描紙本（冇文字）略過，記數。
-   參議院（eFD）要撳同意使用條款先入到，未問老師，暫時唔做。
+   參議院（2026-10-25 老師：「我要求要埋參議院嗰啲」）：官方 eFD 程式同真瀏覽器撳同意條款都被 Akamai 防機械人擋，唔繞過；
+   改用 FMP「Latest Senate Financial Disclosures」（整理自 eFD；免費版有限量；GitHub Secret FMP_API_KEY，冇就略過）。淨係股票（assetType Stock）。
    唔用 Capitol Trades（佢 robots.txt 禁 AI 爬蟲同程式攞 /_next/data）。
 ② 公司內部人（SEC Form 4，EDGAR 官方免費，一般 2 個工作日內申報）：留意清單（模型持倉、排名頭 15、候選、研究）每隻嘅 Form 4；
    淨係計公開市場買入（代碼 P）同賣出（S）——授股、行權、送贈、扣稅唔計；記低係咪 10b5-1 預先計劃交易。
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import re
 import sys
 import time
@@ -37,7 +39,10 @@ SEC_TICK = "https://www.sec.gov/files/company_tickers.json"
 SEC_SUB = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 SEC_DOC = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
 SEC_IDX = "https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/"
+FMP_SEN = "https://financialmodelingprep.com/stable/senate-latest?page={p}&limit=100&apikey={key}"
 OWNER = {"SP": "配偶", "JT": "聯名", "DC": "子女"}
+SEN_OWNER = {"Self": "本人", "Spouse": "配偶", "Joint": "聯名", "Child": "子女", "Dependent Child": "子女", "Dependent child": "子女"}
+SEN_TYPE = {"Purchase": "買", "Sale": "賣", "Sale (Full)": "賣", "Sale (Partial)": "賣", "Exchange": "交換"}
 ETF = {"TQQQ", "IEF", "TMF", "UGL", "SGOV", "BIL", "QQQ", "SPY"}
 TX = re.compile(r"(?<![A-Za-z])(P|S \(partial\)|S|E)\s+(\d{2}/\d{2}/\d{4})\s+(\d{2}/\d{2}/\d{4})\s+(Over \$[\d,]+|\$[\d,]+\s*-\s*\$[\d,]+|\$[\d,]+)")
 KIND = re.compile(r"\[([A-Z]{2})\]")
@@ -108,7 +113,7 @@ def pdf_text(b):
 def house(prev, cut, now_iso, first, errs):
     """新嘅 PTR 先攞（docs 快取：見過嘅 DocID 唔再下載）。返 (交易, 快取, 新 PTR 數)。"""
     docs = dict(prev.get("house_docs") or {})
-    trades = [t for t in prev.get("congress") or [] if t["filed"] >= cut]
+    trades = [t for t in prev.get("congress") or [] if t["filed"] >= cut and t.get("chamber") != "參議院"]   # 參議院由 senate() 管
     today = date.today()
     idx = [r for r in house_index(sorted({today.year, (today - timedelta(days=DAYS)).year})) if r["filed"] >= cut]
     new = [r for r in idx if r["doc"] not in docs]
@@ -127,6 +132,53 @@ def house(prev, cut, now_iso, first, errs):
     docs = {k: v for k, v in docs.items() if v["filed"] >= cut}
     trades.sort(key=lambda t: (t["filed"], t["traded"]), reverse=True)
     return trades, docs, len(new)
+
+
+def senate(prev, cut, now_iso, errs):
+    """參議院：FMP 最新申報（冇 FMP_API_KEY 就沿用舊紀錄、唔攞）。返 (交易, 見過嘅 key, 新筆數, 狀態)。
+    第一次（舊檔冇 senate_seen）攞到嘅標 backfill。key 唔可以出現喺錯誤訊息或者檔案。"""
+    key = os.environ.get("FMP_API_KEY", "").strip()
+    seen = dict(prev.get("senate_seen") or {})
+    old = [t for t in prev.get("congress") or [] if t.get("chamber") == "參議院" and t["filed"] >= cut]
+    first = not seen and not old                                  # 未攞過（例如之前冇 key）：今次攞到嘅當 backfill
+    if not key:
+        return old, seen, 0, "冇 FMP key"
+    rows, n_new = [], 0
+    for p in range(5):                                            # 免費版有限量；最多 5 頁（每頁 100），舊過 cut 就停
+        try:
+            data = json.loads(get(FMP_SEN.format(p=p, key=key)))
+        except Exception as e:  # noqa: BLE001
+            if p == 0:
+                errs.append("參議院（FMP）：" + str(e).replace(key, "***")[:60])
+                return old, seen, 0, "攞唔到"
+            break
+        if not isinstance(data, list) or not data:
+            if p == 0 and isinstance(data, dict):
+                errs.append("參議院（FMP）：" + str(data.get("Error Message") or data)[:60].replace(key, "***"))
+                return old, seen, 0, "攞唔到"
+            break
+        rows += data
+        if min((r.get("disclosureDate") or "") for r in data) < cut:
+            break
+    trades = old
+    for r in rows:
+        filed, sym = (r.get("disclosureDate") or "")[:10], (r.get("symbol") or "").strip().upper()
+        if filed < cut or not sym or (r.get("assetType") or "").strip() != "Stock":
+            continue
+        typ = (r.get("type") or "").strip()
+        k = "|".join([r.get("link") or "", sym, r.get("transactionDate") or "", typ, r.get("amount") or "", r.get("owner") or ""])
+        if k in seen:
+            continue
+        seen[k] = dict(filed=filed, seen=now_iso)
+        n_new += 1
+        trades.append(dict(sym=sym.replace(".", "-"), kind="ST", type=SEN_TYPE.get(typ, "其他"), partial="Partial" in typ,
+                           traded=(r.get("transactionDate") or "")[:10], notified=None, amount=re.sub(r"\s+", " ", r.get("amount") or ""),
+                           owner=SEN_OWNER.get((r.get("owner") or "").strip(), (r.get("owner") or "").strip()),
+                           member=" ".join(x for x in (r.get("firstName"), r.get("lastName")) if x) or r.get("office") or "",
+                           state="", chamber="參議院", filed=filed, seen=filed if first else now_iso, backfill=first,
+                           doc=(re.findall(r"[0-9a-fA-F-]{36}", r.get("link") or "") or [""])[0], url=r.get("link") or ""))
+    seen = {k: v for k, v in seen.items() if v["filed"] >= cut}
+    return trades, seen, n_new, "ok"
 
 
 # ---------------------------------------------------------------- ② SEC Form 4
@@ -246,17 +298,23 @@ def main(docs=None):
         cg, hd, n_h = house(prev, cut, now_iso, first, errs)
     except Exception as e:  # noqa: BLE001
         errs.append(f"眾議院：{str(e)[:100]}")
-        cg, hd, n_h = prev.get("congress") or [], prev.get("house_docs") or {}, 0
+        cg, hd, n_h = [t for t in prev.get("congress") or [] if t.get("chamber") != "參議院"], prev.get("house_docs") or {}, 0
+    try:
+        sn, sseen, n_sn, sn_note = senate(prev, cut, now_iso, errs)
+    except Exception as e:  # noqa: BLE001
+        errs.append(f"參議院：{str(e)[:100]}".replace(os.environ.get("FMP_API_KEY") or "\0", "***"))
+        sn, sseen, n_sn, sn_note = [t for t in prev.get("congress") or [] if t.get("chamber") == "參議院"], prev.get("senate_seen") or {}, 0, "出錯"
+    cg = sorted(cg + sn, key=lambda t: (t["filed"], t["traded"]), reverse=True)
     try:
         ins, ss, watch, n_s = insider(prev, cut, now_iso, first, docs, errs)
     except Exception as e:  # noqa: BLE001
         errs.append(f"SEC：{str(e)[:100]}")
         ins, ss, watch, n_s = prev.get("insider") or [], prev.get("sec_seen") or {}, [], 0
     res = dict(generated=datetime.now(HK).strftime("%Y-%m-%d %H:%M HKT"), days=DAYS, congress=cg, insider=ins, watch=watch,
-               house_docs=hd, sec_seen=ss, errs=errs[:20],
-               stats=dict(house_new=n_h, house_scan=sum(1 for v in hd.values() if v.get("scan")), sec_new=n_s))
+               house_docs=hd, senate_seen=sseen, sec_seen=ss, errs=errs[:20],
+               stats=dict(house_new=n_h, house_scan=sum(1 for v in hd.values() if v.get("scan")), senate_new=n_sn, senate=sn_note, sec_new=n_s))
     f.write_text(json.dumps(res, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    print(f"[people] 議員交易 {len(cg)} 筆（新 PTR {n_h} 份，紙本 {res['stats']['house_scan']} 份略過）；"
+    print(f"[people] 議員交易 {len(cg)} 筆（眾議院新 PTR {n_h} 份，紙本 {res['stats']['house_scan']} 份略過；參議院新 {n_sn} 筆，{sn_note}）；"
           f"內部人 {len(ins)} 筆（新 Form 4 {n_s} 份，留意 {len(watch)} 隻）；錯誤 {errs[:3] or '冇'}")
 
 
