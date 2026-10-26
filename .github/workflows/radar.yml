@@ -34,6 +34,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
+          DEEPSEEK_PEAK_OK: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}   # 2026-10-26 老師：繁忙時段淨係自己撳（app 雷達「重新整理」）先可以用 DeepSeek
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 前瞻敘事（穩定幣、各鏈、各類項目數據 + X + AI；AI 每日寫一次；失敗唔影響其他）
         run: |
@@ -48,6 +49,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
+          DEEPSEEK_PEAK_OK: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}   # 2026-10-26 老師：繁忙時段淨係自己撳（app 雷達「重新整理」）先可以用 DeepSeek
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: Meme 雷達（熱門池、安全檢查、熱度 × 安全排名、AI；失敗唔影響其他）
         run: |
@@ -62,6 +64,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
+          DEEPSEEK_PEAK_OK: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}   # 2026-10-26 老師：繁忙時段淨係自己撳（app 雷達「重新整理」）先可以用 DeepSeek
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: 題材雷達（核能、稀土等題材 ETF 同成份股、新聞關鍵字、AI；失敗唔影響其他）
         run: |
@@ -77,6 +80,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 2026-10-23：有就用 DeepSeek（收錢，有每日／試用上限）；老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
+          DEEPSEEK_PEAK_OK: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}   # 2026-10-26 老師：繁忙時段淨係自己撳（app 雷達「重新整理」）先可以用 DeepSeek
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}     # 2026-10-22：有就由 Mistral（免費）做唔使上網嘅 AI
       - name: Perp DEX 同潛在空投分析（2026-10-24；跟 ChainLab 寫法，每 7 日 AI 上網寫一次；失敗唔影響其他）
         run: |
@@ -89,6 +93,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}   # 老師開嘅 Secret 叫 DDEEPSEEK_API_KEY，兩個名都收
           AI_LEDGER: radar                                     # 跨流程 AI 用量帳本（llm.py）
+          DEEPSEEK_PEAK_OK: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}   # 2026-10-26 老師：繁忙時段淨係自己撳（app 雷達「重新整理」）先可以用 DeepSeek
       - name: 推去 radar 分支
         working-directory: out
         run: |

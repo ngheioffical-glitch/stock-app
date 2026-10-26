@@ -331,6 +331,10 @@ res, lab = q.ask("x", timeout=60)
 check(len(dsent) == n0 + 1 and lab.startswith("deepseek:"), "非繁忙時段照用 DeepSeek")
 q._ds_peak = lambda: True
 os.environ["DEEPSEEK_PEAK_OK"] = "1"
+n0 = len(dsent)
+res, lab = q.ask("x", timeout=60)
+check(len(dsent) == n0 + 1 and lab.startswith("deepseek:") and not q.peak_now(),
+      "繁忙時段用戶自己撳（DEEPSEEK_PEAK_OK=1）：照用 DeepSeek，排程程式（peak_now）都當非繁忙")
 # 上限：今日（所有流程加埋）≥ US$1 → 唔叫 DeepSeek，退 Gemini 並標明
 n0 = len(dsent)
 q._PD.update(other_today=1.0)

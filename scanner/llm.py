@@ -587,8 +587,9 @@ def _ds_peak():
 
 
 def peak_now():
-    """俾其他程式用：而家係咪繁忙時段（香港平日 09–12、14–18 時）。主力係收錢 AI 嗰陣，排程可以留返非繁忙先做。"""
-    return _ds_peak()
+    """俾其他程式用：而家係咪繁忙時段（香港平日 09–12、14–18 時）。主力係收錢 AI 嗰陣，排程可以留返非繁忙先做。
+    2026-10-26 老師：「只可以user自己撳refresh先可以例外」→ workflow 喺用戶自己撳嗰次先設 DEEPSEEK_PEAK_OK=1，當非繁忙。"""
+    return _ds_peak() and os.environ.get("DEEPSEEK_PEAK_OK", "").strip() != "1"
 
 
 def _ds_usd(model, hit, miss, out, n_search=0):
