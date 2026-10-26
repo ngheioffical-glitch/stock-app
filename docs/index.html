@@ -581,8 +581,7 @@ function load(){
   } catch(e){ return {...defaults}; }
 }
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); return true; } catch(e){ return false; } }   // 2026-10-24：回報成唔成功（設定頁儲存失敗會講）
-let S = load(), SCAN = null, TAB = "today", ERR = null;
-try { TAB = localStorage.getItem(KEY + "-tab") || "today"; } catch(e){}
+let S = load(), SCAN = null, TAB = "today", ERR = null;   // 2026-10-26 老師：「每次入app都係彈去第一版AI今日重點」→ 開 app 一律由今日頁開始（唔再記上次分頁）
 
 // ───────────────────────── 工具
 const $ = s => document.querySelector(s);
@@ -1338,7 +1337,7 @@ function janCard(){
 function viewToday(){
   if (!FEED.news && !FEED.err) fetchFeeds();
   const n = SCAN ? signals().list.length : 0;
-  return topbar() + janCard() + dataAlert() + todayTodo() + lightCard() + mktTiles() + digestMini() + evMarketCard()
+  return topbar() + digestMini() + janCard() + dataAlert() + todayTodo() + lightCard() + mktTiles() + evMarketCard()   // 2026-10-26 老師：AI 今日重點擺「今日要做」上面
     + (n ? `<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>` : "");
 }
 // 股票 → 揀股（2026-10-24 由今日頁搬過嚟）：表 = 一行一隻；下面每隻預設收埋，撳先睇止蝕、RSI、估值、幾時賣
@@ -3479,6 +3478,10 @@ fetchBtc(); fetchFng(); fetchHyper();
 setInterval(() => { if (document.visibilityState === "visible") fetchFeeds(); }, 5 * 60e3);
 fetchLev();
 // 返前景：新聞照讀；其他排程數據（掃描、模型、盤中、加密）舊過 20 分鐘先重讀（「今日要做淨係開市前就得」：app 喺背景放咗一晚，朝早開都係新一日）
+// 2026-10-26：喺背景超過 10 分鐘再返嚟 = 當重新入 app → 返今日頁頂（AI 今日重點）；短時間切走再返唔郁，免得睇緊嘢被彈走
+let HIDDEN_AT = 0;
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") HIDDEN_AT = Date.now(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && HIDDEN_AT && Date.now() - HIDDEN_AT > 10 * 60e3 && TAB !== "today"){ TAB = "today"; render("f"); window.scrollTo(0, 0); } });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); fetchLive(); fetchBtc(); fetchFng(); fetchHyper(); fetchPeople(); } } });
 </script>
 </body>
