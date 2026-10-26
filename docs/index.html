@@ -163,39 +163,16 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .dayhd.now{color:var(--cyan)}
 .todayfab{position:fixed;right:18px;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:4;border-radius:999px;padding:8px 16px;font-size:13px;
   color:var(--bg);background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 18px rgba(0,229,255,.5),0 6px 20px rgba(0,0,0,.5)}
-/* 開 app 動畫（2026-09-30） */
-#splash{position:fixed;inset:0;z-index:50;background:radial-gradient(ellipse at 50% 38%,#0b1f2c 0%,#05090f 62%,#020406 100%);display:grid;place-items:center;overflow:hidden;
-  transition:opacity .55s ease,filter .55s ease,transform .55s var(--ease)}
-#splash.out{opacity:0;filter:blur(8px);transform:scale(1.06);pointer-events:none}
-.sp-floor{position:absolute;left:-50%;right:-50%;bottom:-10%;height:62%;transform:perspective(420px) rotateX(62deg);transform-origin:50% 0;
-  background-image:linear-gradient(rgba(0,229,255,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.28) 1px,transparent 1px);background-size:44px 44px;
-  -webkit-mask:linear-gradient(to bottom,transparent,#000 35%);mask:linear-gradient(to bottom,transparent,#000 35%);animation:floor 1.6s linear infinite}
-@keyframes floor{to{background-position:0 44px}}
-.sp-scan{position:absolute;left:0;right:0;height:120px;top:-120px;background:linear-gradient(to bottom,transparent,rgba(0,229,255,.10),transparent);animation:scanl 2.2s ease-in-out infinite}
-@keyframes scanl{to{top:110%}}
-.sp-core{position:relative;display:flex;flex-direction:column;align-items:center;gap:18px;animation:coreIn .7s var(--ease) both}
-@keyframes coreIn{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:none}}
-.sp-ring{width:150px;height:150px;overflow:visible}
-.sp-ring .a1{transform-origin:75px 75px;animation:spin 2.4s linear infinite}
-.sp-ring .a2{transform-origin:75px 75px;animation:spin 3.6s linear infinite reverse}
-.sp-ring .tick{transform-origin:75px 75px;animation:spin 12s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.sp-ring .chart{stroke-dasharray:260;stroke-dashoffset:260;animation:draw 1.3s .25s var(--ease) forwards}
-@keyframes draw{to{stroke-dashoffset:0}}
-.sp-ring .dot{opacity:0;animation:dotin .4s 1.45s ease-out forwards}
-@keyframes dotin{from{opacity:0;r:0}to{opacity:1;r:4.5}}
-.sp-logo{font-family:var(--brand);font-weight:800;font-size:22px;letter-spacing:.2em;color:var(--cyan);white-space:nowrap}
-.sp-logo b{display:inline-block;font-weight:800;opacity:0;animation:letter .5s var(--ease) forwards;animation-delay:calc(.35s + var(--k) * 45ms);
-  text-shadow:0 0 18px rgba(0,229,255,.8)}
-.sp-logo b.sl{color:var(--ink);opacity:0;text-shadow:none}
-@keyframes letter{0%{opacity:0;transform:translateY(8px);filter:blur(6px)}60%{opacity:1;filter:blur(0);color:#fff}100%{opacity:1;transform:none}}
-.sp-logo b.sl{animation-name:letterDim}
-@keyframes letterDim{from{opacity:0}to{opacity:.55}}
-.sp-sub{font-family:var(--mono);font-size:12px;letter-spacing:.22em;color:var(--muted);height:14px}
-.sp-sub::after{content:"_";animation:blink 1s steps(1) infinite;color:var(--cyan)}
-@keyframes blink{50%{opacity:0}}
-.sp-bar{width:180px;height:2px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
-.sp-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--buy));box-shadow:0 0 12px var(--cyan);transition:width .45s var(--ease)}
+/* 開 app 動畫：「一息入場」（2026-10-26 老師：「依家有啲老土，叫GPT設計一下」→ /codex，老師揀 Codex 方案）
+   圖示同字一齊淡入（最多上移 6px）→ 停一陣 → 純淡出；0.64 秒完，唔等數據（數據未到，今日頁照顯示載入緊／出錯）。
+   唔用轉圈、刻度、假進度、READY、模糊；減少動態效果 = 唔顯示 */
+#splash{position:fixed;inset:0;z-index:50;background:var(--bg,#0a0a0d);display:grid;place-items:center;opacity:1;transition:opacity 220ms cubic-bezier(.2,.7,.2,1)}
+#splash.out{opacity:0;pointer-events:none}
+.sp-brand{display:flex;flex-direction:column;align-items:center;gap:22px;margin-top:-40px}
+.sp-symbol{display:block;width:60px;height:60px;border-radius:13px;animation:spSettle 240ms cubic-bezier(.16,1,.3,1) both}
+.sp-word{font-family:var(--sans);font-size:26px;font-weight:600;letter-spacing:.10em;padding-left:.1em;line-height:1.4;color:var(--ink,#ececf1);animation:spSettle 240ms 60ms cubic-bezier(.16,1,.3,1) both}
+@keyframes spSettle{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#splash{display:none}}
 .snap{display:flex;flex-wrap:wrap;gap:4px 12px;padding:8px 10px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
 .snap>.muted{flex-basis:100%;font-size:12px}
 .zm{font-size:12px;color:var(--muted);font-family:var(--mono)}
@@ -229,8 +206,7 @@ nav button[aria-current="page"] svg{animation:pop .45s var(--ease)}
 .skel{height:118px;border-radius:14px;background:linear-gradient(100deg,var(--panel) 30%,rgba(0,229,255,.07) 50%,var(--panel) 70%);background-size:220% 100%;animation:shim 1.3s linear infinite}
 .skel.s2{height:220px}.skel.s3{height:160px}
 @keyframes shim{from{background-position:120% 0}to{background-position:-100% 0}}
-@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}
-  .sp-logo b{opacity:1!important}.sp-logo b.sl{opacity:.55!important}.sp-ring .chart{stroke-dashoffset:0!important}.sp-ring .dot{opacity:1!important}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 @media (max-width:380px){.kv{grid-template-columns:repeat(2,1fr)} .price{font-size:30px}}
 /* 長文字格（例如「幾時賣」）任何闊度都要摺行，唔好推到表格闊過畫面（2026-10-15 用戶：手機有啲字見唔到） */
 td.small{white-space:normal;min-width:9em;line-height:1.45}
@@ -485,12 +461,6 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .vs .skel{background:linear-gradient(100deg,var(--panel) 30%,rgba(255,255,255,.05) 50%,var(--panel) 70%);background-size:220% 100%}
 .vs .lbl{letter-spacing:.04em}
 .vs .t-cyan{border-color:rgba(125,211,232,.3)} .vs .t-buy{border-color:rgba(139,224,180,.3)}
-.vs #splash{background:var(--bg)}
-.vs .sp-floor,.vs .sp-scan{display:none}
-.vs .sp-logo{font-family:var(--sans);font-weight:900;letter-spacing:.04em;color:var(--ink)}
-.vs .sp-logo b{text-shadow:none}
-.vs .sp-bar i{background:var(--cyan);box-shadow:none}
-.vs .sp-sub{font-family:var(--sans);letter-spacing:.12em} .vs .sp-sub::after{content:none}   /* 2026-10-24：拎走終端機式閃動底線 */
 .vs details b{font-family:inherit}
 /* 事件股價線（2026-10-21） */
 .ev-mini{height:230px;margin:0 -18px}
@@ -532,20 +502,7 @@ details.moreold>summary::before{content:"▸ "} details.moreold[open]>summary::b
 </head>
 <body>
 <div id="splash" aria-hidden="true">
-  <div class="sp-floor"></div><div class="sp-scan"></div>
-  <div class="sp-core">
-    <svg class="sp-ring" viewBox="0 0 150 150" fill="none" stroke-linecap="round">
-      <circle cx="75" cy="75" r="70" stroke="rgba(0,229,255,.12)" stroke-width="1"/>
-      <g class="tick" stroke="rgba(0,229,255,.35)" stroke-width="1.2"><line x1="75" y1="3" x2="75" y2="13" transform="rotate(0 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(15 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(30 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(45 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(60 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(75 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(90 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(105 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(120 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(135 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(150 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(165 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(180 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(195 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(210 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(225 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(240 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(255 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(270 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(285 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(300 75 75)"/><line x1="75" y1="3" x2="75" y2="13" transform="rotate(315 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(330 75 75)"/><line x1="75" y1="3" x2="75" y2="9" transform="rotate(345 75 75)"/></g>
-      <circle class="a1" cx="75" cy="75" r="60" stroke="var(--cyan)" stroke-width="2.5" stroke-dasharray="90 287" style="filter:drop-shadow(0 0 6px var(--cyan))"/>
-      <circle class="a2" cx="75" cy="75" r="50" stroke="var(--buy)" stroke-width="1.5" stroke-dasharray="40 274" opacity=".8"/>
-      <path class="chart" d="M40 98 L54 88 L64 93 L78 72 L88 79 L110 50" stroke="var(--buy)" stroke-width="3" style="filter:drop-shadow(0 0 5px var(--buy))"/>
-      <circle class="dot" cx="110" cy="50" r="4.5" fill="var(--buy)" style="filter:drop-shadow(0 0 8px var(--buy))"/>
-    </svg>
-    <div class="sp-logo"><b style="--k:0">龍</b><b style="--k:1">頭</b><b style="--k:2">突</b><b style="--k:3">破</b></div>
-    <div class="sp-sub" id="spSub">載入緊</div>
-    <div class="sp-bar"><i id="spBar"></i></div>
-  </div>
+  <div class="sp-brand"><img class="sp-symbol" src="icon.svg" alt=""><div class="sp-word">龍頭突破</div></div>
 </div>
 <main id="app"><div class="skel"></div><div class="skel s2"></div><div class="skel s3"></div></main>
 <div id="rs" hidden></div>
@@ -3440,28 +3397,15 @@ async function fetchScan(){
     SCAN = await r.json(); ERR = null; DATA_AT = Date.now();
   } catch(e){ ERR = e.message; }
   render();
-  splashDone();
 }
 
-// ───────────────────────── 開 app 動畫：最少 1.7 秒，數據到咗先收（最多 4 秒）
-const SPLASH = {t0: performance.now(), done: false};
+// ───────────────────────── 開 app 動畫「一息入場」（2026-10-26，Codex 設計）：0.42 秒開始淡出、0.64 秒移除；唔等數據、唔重播
 (function(){
-  const steps = [[0, "連接數據", 18], [450, "掃描龍頭股", 52], [950, "整理今日要做", 80]];   // 2026-10-24：之前係英文
-  steps.forEach(([ms, txt, w]) => setTimeout(() => { if (SPLASH.done) return; const s = $("#spSub"), b = $("#spBar"); if (s) s.textContent = txt; if (b) b.style.width = w + "%"; }, ms));
-  setTimeout(splashDone, 4000);
-})();
-function splashDone(){
-  if (SPLASH.done) return;
-  const sp = $("#splash");
-  if (!sp){ SPLASH.done = true; return; }
-  const wait = Math.max(0, 1700 - (performance.now() - SPLASH.t0));
-  SPLASH.done = true;
-  setTimeout(() => {
-    const s = $("#spSub"), b = $("#spBar"); if (s) s.textContent = "READY"; if (b) b.style.width = "100%";
-    setTimeout(() => { sp.classList.add("out"); render("r"); setTimeout(() => sp.remove(), 600); }, 260);
-  }, wait);
-}
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+  const sp = $("#splash"); if (!sp) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches){ sp.remove(); return; }
+  setTimeout(() => sp.classList.add("out"), 420);
+  setTimeout(() => sp.remove(), 640);
+})();if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 fetchScan();
 fetchModel();
 fetchVal();
