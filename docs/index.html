@@ -787,6 +787,7 @@ async function fetchRadar(){
 }
 let RADAR_MSG = "";
 async function radarRun(){             // 用 app 設定嘅 GitHub token 觸發 radar.yml（同新聞「重新整理」一樣）
+  if (!peakOK("叫雲端重新做雷達（會用 AI）")) return;
   RADAR_MSG = "觸發緊雲端…"; render();
   try {
     const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/radar.yml/dispatches`, {method: "POST",
@@ -2158,8 +2159,15 @@ const ago = t => { const m = (Date.now() - Date.parse(t)) / 60e3; return m < 60 
 // 撳「重新整理」：有 GitHub token 就即刻觸發雲端全部更新（feeds.yml workflow_dispatch），之後每 15 秒睇下有冇新數據（最多 5 分鐘）
 // 2026-10-15 用戶揀 B：GitHub 排程唔準時，開 app 嗰陣新聞超過 15 分鐘就自動觸發（auto：relay=1，淨係新聞、唔強制重寫 AI，慳額度；每部機最多 15 分鐘一次）
 const repoOf = () => { const m = /githubusercontent\.com\/([^/]+\/[^/]+)\//.exec(S.feedUrl || ""); return m ? m[1] : "ngheioffical-glitch/stock-app"; };
+// 2026-10-26 老師：繁忙時段（dsPeak，同 scanner/llm.py _ds_peak 一樣）淨係自己撳先可以用 DeepSeek，
+//   撳之前先彈出嚟講明貴，畀用家決定（撳「取消」就唔叫雲端）
+function peakOK(what){
+  if (!dsPeak()) return true;
+  return confirm(`而家係 DeepSeek 繁忙時段（香港平日 09–12、14–18 時），AI 價錢係平時兩倍。\n\n確定而家${what}？\n（撳「取消」就唔叫雲端；非繁忙時段排程會自動更新）`);
+}
 async function cloudRefresh(auto){
   if (!S.ghToken){ fetchFeeds(true); return; }
+  if (!auto && !peakOK("叫雲端全部更新（會用 AI）")){ fetchFeeds(true); return; }
   const before = FEED.news && FEED.news.generated;
   FEED.cloud = auto ? "新聞超過 15 分鐘冇更新：自動叫雲端更新緊…" : "觸發緊雲端更新…"; render();
   try {
@@ -3199,6 +3207,7 @@ function rsSheetFor(kind, r){
 }
 
 async function resGenerate(sym){
+  if (!peakOK(`生成 ${sym} 研究報告`)) return "已取消（繁忙時段）";
   RS.msg = `觸發緊雲端生成 ${sym}…`; if (TAB === "res") render();
   try {
     const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/research.yml/dispatches`, {method: "POST",
@@ -3352,7 +3361,8 @@ function bind(){
   evDrawPage();                                        // 事件線要等 HTML 出咗先知闊度
   on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
   const rgo = () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ alert("請輸入美股代號，例如 NVDA"); return; }
-    if (resItem(v)){ openRes(v); return; } if (confirm(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（${aiProv() === "deepseek" ? "而家用 DeepSeek，收錢但好平" : "而家用免費 AI，唔使錢"}）。`)) resGenerate(v); };
+    if (resItem(v)){ openRes(v); return; } if (dsPeak()){ resGenerate(v); return; }   // 繁忙時段 resGenerate 自己會問（唔好問兩次）
+    if (confirm(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（${aiProv() === "deepseek" ? "而家用 DeepSeek，收錢但好平" : "而家用免費 AI，唔使錢"}）。`)) resGenerate(v); };
   on("#resGo", rgo); const rsy = $("#resSym"); if (rsy) rsy.onkeydown = e => { if (e.key === "Enter") rgo(); };
 }
 
