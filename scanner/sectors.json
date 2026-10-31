@@ -101,6 +101,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "CVE": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "CVX": {
   "date": "2026-10-15",
   "industry": "Oil & Gas Integrated",
@@ -113,6 +119,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "EQNR": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "GE": {
   "date": "2026-10-15",
   "industry": "Aerospace & Defense",
@@ -123,6 +135,12 @@
   "date": "2026-09-27",
   "industry": "Specialty Industrial Machinery",
   "sector": "Industrials",
+  "src": "yahoo"
+ },
+ "GKOS": {
+  "date": "2026-10-31",
+  "industry": "Medical Devices",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "GLW": {
@@ -233,6 +251,12 @@
   "sector": "Communication Services",
   "src": "yahoo"
  },
+ "MPC": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Refining & Marketing",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "MRK": {
   "date": "2026-10-15",
   "industry": "Drug Manufacturers - General",
@@ -293,6 +317,18 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "NTRA": {
+  "date": "2026-10-31",
+  "industry": "Diagnostics & Research",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
+ "NUE": {
+  "date": "2026-10-31",
+  "industry": "Steel",
+  "sector": "Basic Materials",
+  "src": "yahoo"
+ },
  "NVDA": {
   "date": "2026-09-27",
   "industry": "Semiconductors",
@@ -311,10 +347,22 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "PBR": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "PLTR": {
   "date": "2026-09-27",
   "industry": "Software - Infrastructure",
   "sector": "Technology",
+  "src": "yahoo"
+ },
+ "PSX": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Refining & Marketing",
+  "sector": "Energy",
   "src": "yahoo"
  },
  "QCOM": {
@@ -335,9 +383,21 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "SN": {
+  "date": "2026-10-31",
+  "industry": "Furnishings, Fixtures & Appliances",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
  "SNDK": {
   "date": "2026-09-27",
   "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "SNOW": {
+  "date": "2026-10-31",
+  "industry": "Software - Application",
   "sector": "Technology",
   "src": "yahoo"
  },
@@ -345,6 +405,24 @@
   "date": "2026-09-27",
   "industry": "Computer Hardware",
   "sector": "Technology",
+  "src": "yahoo"
+ },
+ "SU": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
+ "TEAM": {
+  "date": "2026-10-31",
+  "industry": "Software - Application",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "TGT": {
+  "date": "2026-10-31",
+  "industry": "Discount Stores",
+  "sector": "Consumer Defensive",
   "src": "yahoo"
  },
  "TMO": {
@@ -381,6 +459,12 @@
   "date": "2026-09-27",
   "industry": "Credit Services",
   "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "VLO": {
+  "date": "2026-10-31",
+  "industry": "Oil & Gas Refining & Marketing",
+  "sector": "Energy",
   "src": "yahoo"
  },
  "WDC": {
