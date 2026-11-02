@@ -3422,13 +3422,22 @@ function viewRes(){
 
 const ORDER = Object.keys(GROUPS);     // 底部 5 格（2026-10-24 由 8 格改）；設定唔喺底部導航（頂部齒輪）
 // anim："r"／"l" = 由右／左滑入（轉分頁），"f" = 淡入（頁內切換），冇 = 數據更新唔郁
+// 2026-11-02 老師：「展開啲卡閱讀嗰陣，好快就自己縮翻」→ 定時讀數據會重畫成頁，<details> 收返埋。
+//   重畫同一頁時記住邊啲打開咗（用摘要文字 + 第幾個同名），畫完打開返
+let LAST_TAB = null;
+const detKeys = root => { const seen = {}; return [...root.querySelectorAll("details")].map(d => {
+  const s = d.querySelector("summary"), t = (s ? s.textContent : "").replace(/\s+/g, " ").trim().slice(0, 80);
+  seen[t] = (seen[t] || 0) + 1; return [d, t + "#" + seen[t]]; }); };
 function render(anim){
   const app = $("#app");
   if (TAB === "radar") TAB = "proj";                  // 2026-10-24 之前嘅「雷達」分頁拆開咗
   if (TAB === "ppl") TAB = pplTab();
+  const keepOpen = TAB === LAST_TAB ? new Set(detKeys(app).filter(([d]) => d.open).map(([, k]) => k)) : null;
   const rs = k => () => viewRadarSec(k);
   app.innerHTML = ({today:viewToday, model:viewModel, pick:viewPick, rank:viewRank, res:viewRes, news:viewNews, fx:viewFx, people:viewPeople, crypto:viewCrypto, hold:viewHold, ser:viewSer, trump:viewTrump, set:viewSet,
     theme:rs("theme"), narr:rs("narr"), proj:rs("proj"), meme:rs("meme"), drop:rs("drop")}[TAB] || viewToday)();
+  if (keepOpen && keepOpen.size) detKeys(app).forEach(([d, k]) => { if (keepOpen.has(k)) d.open = true; });
+  LAST_TAB = TAB;
   if (PPL.includes(TAB)) try { localStorage.setItem(KEY + "-ppl", TAB); } catch(e){}
   if (GROUPS[navOf(TAB)]) try { localStorage.setItem(KEY + "-g-" + navOf(TAB), TAB); } catch(e){}   // 每個大分頁記住上次睇邊個細分頁
   document.querySelectorAll("#tabs button").forEach(b => b.dataset.tab === navOf(TAB) ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current"));
