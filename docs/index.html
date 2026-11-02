@@ -1057,7 +1057,8 @@ function viewCrypto(){
   if (!HYP) fetchHyper();
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
-    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + cryptoAiCard() + whaleCard() + walertCard() + cryptoNewsCard();
+    + cryptoAiCard()      // 2026-11-02 老師：AI 加密重點都擺前面
+    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + whaleCard() + walertCard() + cryptoNewsCard();
 }
 
 // 加密名人持倉（2026-10-25 老師：「可以睇到名人持倉咩幣同埋個量」→ 免費版）：scanner/holders.py → feeds/holders.json（上市公司幣庫存，CoinGecko）。
@@ -1994,7 +1995,9 @@ function healthCard(){
     if (wk && nyMin >= 570) add("開市前更新（今日）", !!(D && D.pre === nyDay), D && D.pre === nyDay ? D.generated : "冇", D && D.pre === nyDay ? "" : "今日開市前冇更新到（GitHub 排程冇跑，又冇人開 app）；開 app 就會即刻更新");
     else if (wk && nyMin >= 240) add("開市前更新（今日）", true, D && D.pre === nyDay ? D.generated : "等緊", D && D.pre === nyDay ? "" : "開市前（香港晚上）會自動更新；你開 app 都會即刻更新");
   } else add("新聞", false, "讀唔到", FEED.err || "");
-  if (TR) add("Trump 來源", !(TR.errs || []).length, `${TR.recent.length} 條近 3 日`, (TR.errs || []).join("；"));
+  // 2026-11-02：淨係後備（X 鏡像）出錯、主來源（trumpstruth.org）有數據 = 正常，只顯示備註，唔當警告
+  if (TR){ const te = TR.errs || [], backupOnly = te.length && TR.recent.length && te.every(e => /^X @/.test(e));
+    add("Trump 來源", !te.length || backupOnly, `${TR.recent.length} 條近 3 日`, backupOnly ? "（後備 X 來源今次攞唔到，主來源正常）" + te.join("；") : te.join("；")); }
   // 2026-10-05 用戶：新功能都要檢查（債息、商品、業績、加密、雷達、AI 額度）
   const ageMin = t => (now - (typeof t === "number" ? t : (/HKT/.test(String(t)) ? hkt(t) : Date.parse(t)))) / 60e3;
   const fresh = (name, t, maxMin, normal, errs) => {
@@ -2020,8 +2023,10 @@ function healthCard(){
   if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", FM, FN, Object.values(HYP.err || {}));
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
   [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
-  fresh("估值（每日）", VAL && VAL.generated, 36 * 60, "每日美股收市後", VAL && VAL.errs);
-  fresh("名人交易（議員、內部人）", PPLX && PPLX.generated, 36 * 60, "每日美股收市後", PPLX && PPLX.errs);
+  // 2026-11-02：每日掃描淨係香港星期二至六朝早跑 → 星期六朝早嗰份要用到星期二朝早（約 72 個鐘），之前寫死 36 個鐘，星期日、一會誤報
+  const hkDay = new Date(now + 8 * 3600e3), wd = hkDay.getUTCDay(), DMAX = (wd === 0 || wd === 1 || (wd === 2 && hkDay.getUTCHours() < 12)) ? 84 * 60 : 36 * 60;
+  fresh("估值（每日）", VAL && VAL.generated, DMAX, "美股每個交易日收市後", VAL && VAL.errs);
+  fresh("名人交易（議員、內部人）", PPLX && PPLX.generated, DMAX, "美股每個交易日收市後", PPLX && PPLX.errs);
   const AS = aiState();     // 只睇新聞（最新）；雷達嘅錯誤可能係幾個鐘前
   add("AI 額度同 key", !AS || AS.kind === "time", !AS ? "正常" : AS.kind === "quota" ? "額度用晒" : AS.kind === "key" ? "key 失效" : AS.kind === "time" ? "正常（今次時間唔夠，下次補）" : "部分出錯", AS ? AS.text : "");
   const bad = H.filter(x => !x.ok).length;
