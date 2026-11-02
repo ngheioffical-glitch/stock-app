@@ -1296,7 +1296,7 @@ function janCard(){
 function viewToday(){
   if (!FEED.news && !FEED.err) fetchFeeds();
   const n = SCAN ? signals().list.length : 0;
-  return topbar() + digestMini() + janCard() + dataAlert() + todayTodo() + lightCard() + mktTiles() + evMarketCard()   // 2026-10-26 老師：AI 今日重點擺「今日要做」上面
+  return topbar() + digestMini() + pauseBanner() + janCard() + dataAlert() + todayTodo() + lightCard() + mktTiles() + evMarketCard()   // 2026-10-26 老師：AI 今日重點擺「今日要做」上面
     + (n ? `<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>` : "");
 }
 // 股票 → 揀股（2026-10-24 由今日頁搬過嚟）：表 = 一行一隻；下面每隻預設收埋，撳先睇止蝕、RSI、估值、幾時賣
@@ -2029,6 +2029,8 @@ function healthCard(){
   fresh("名人交易（議員、內部人）", PPLX && PPLX.generated, DMAX, "美股每個交易日收市後", PPLX && PPLX.errs);
   const AS = aiState();     // 只睇新聞（最新）；雷達嘅錯誤可能係幾個鐘前
   add("AI 額度同 key", !AS || AS.kind === "time", !AS ? "正常" : AS.kind === "quota" ? "額度用晒" : AS.kind === "key" ? "key 失效" : AS.kind === "time" ? "正常（今次時間唔夠，下次補）" : "部分出錯", AS ? AS.text : "");
+  if (PAUSE && PAUSE.paused)          // 2026-11-02 暫停鍵：暫停中其他數據停喺暫停前係預期，唔當警告（新聞同 AI 今日重點照檢查）
+    H.forEach(x => { if (!x.ok && !/^新聞|^AI 今日重點|^AI 供應商|^AI 額度/.test(x.name)){ x.ok = true; x.tip = "暫停中（" + PAUSE.at + " 起），恢復之後自動更新"; } });
   const bad = H.filter(x => !x.ok).length;
   return `<div class="card"><div class="row spread"><b>系統健康</b><span class="tag ${bad ? "t-stop" : "t-buy"}">${bad ? bad + " 項要留意" : "全部正常"}</span></div>
     ${H.map(x => `<div class="small" style="display:flex;gap:8px;align-items:flex-start"><span class="${x.ok ? "up" : "dn"}">${x.ok ? "✓" : "⚠"}</span>
@@ -2119,15 +2121,54 @@ function importSettings(file){
   };
   rd.readAsText(file);
 }
+// ───────────────────────── 暫停鍵（2026-11-02 老師：「冇撳暫停就照依家咁樣排程 有就咩都唔好郁 淨係更新ai今日重點」）
+// 狀態喺 docs/pause.json；撳掣用 GitHub token 觸發 pause.yml 寫入。暫停中雲端排程唔做（scanner/pause.py），feeds 淨係新聞 + AI 今日重點。
+let PAUSE = null, PAUSE_MSG = "";
+async function fetchPause(){
+  try { const r = await fetch(S.dataUrl.replace(/scan\.json(\?.*)?$/, "pause.json") + "?t=" + Date.now(), {cache: "no-store"});
+    if (r.ok){ const p = await r.json(); const changed = !PAUSE || !!PAUSE.paused !== !!p.paused; PAUSE = p; if (changed) render(); return p; } } catch(e){}
+  return null;
+}
+async function setPause(on){
+  if (!S.ghToken){ PAUSE_MSG = "要喺「進階」填 GitHub token 先可以暫停／恢復雲端。"; render(); return; }
+  if (!confirm(on ? "暫停雲端更新？\n\n暫停之後：排名、模型、盤中、加密、雷達、研究等全部唔再自動更新，淨係新聞同 AI 今日重點照更新。\n（停超過兩個星期，模型帳戶恢復時可能要手動補數據）"
+                  : "恢復雲端更新？所有排程照返平時咁行。")) return;
+  PAUSE_MSG = "觸發緊雲端…"; render();
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/pause.yml/dispatches`, {method: "POST",
+      headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
+      body: JSON.stringify({ref: "main", inputs: {on: on ? "1" : "0"}})});
+    if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : r.status === 404 ? "（雲端未有 pause.yml）" : ""));
+  } catch(e){ PAUSE_MSG = "觸發唔到：" + e.message; render(); return; }
+  PAUSE_MSG = on ? "已叫雲端暫停，大約 1–2 分鐘生效…" : "已叫雲端恢復，大約 1–2 分鐘生效…"; render();
+  const t0 = Date.now(), tick = async () => {
+    const p = await fetchPause();
+    if (p && !!p.paused === on){ PAUSE_MSG = on ? "已暫停" : "已恢復"; render(); setTimeout(() => { PAUSE_MSG = ""; render(); }, 6000); return; }
+    if (Date.now() - t0 > 4 * 60e3){ PAUSE_MSG = "雲端仲未改到，遲啲再睇（或者再撳一次）"; render(); return; }
+    setTimeout(tick, 15e3);
+  };
+  setTimeout(tick, 20e3);
+}
+function pauseCard(){
+  const p = PAUSE && PAUSE.paused;
+  return `<div class="card"><div class="row spread"><b>雲端更新</b><span class="tag ${p ? "t-warn" : "t-buy"}">${PAUSE ? (p ? "已暫停" : "運行中") : "讀緊…"}</span></div>
+    <p class="small muted" style="margin:4px 0">${p ? `由 ${esc(PAUSE.at || "")} 起暫停：淨係新聞同 AI 今日重點照更新，其他全部停。你自己撳「重新整理」、「生成」照做。`
+      : "照平時排程自動更新。撳「暫停」之後，淨係新聞同 AI 今日重點照更新，其他全部停（慳錢、慳運算）。"}</p>
+    <button id="pauseBtn" class="${p ? "primary" : ""}">${p ? "▶ 恢復雲端更新" : "⏸ 暫停雲端更新"}</button>
+    ${PAUSE_MSG ? `<p class="small" style="color:var(--cyan);margin:6px 0 0">${esc(PAUSE_MSG)}</p>` : ""}</div>`;
+}
+const pauseBanner = () => PAUSE && PAUSE.paused ? `<div class="info small"><span class="tag t-warn">⏸ 雲端已暫停</span> 由 ${esc(PAUSE.at || "")} 起淨係更新新聞同 AI 今日重點；排名、模型、加密等停喺暫停前。去「設定」可以恢復。</div>` : "";
+
 function viewSet(){
   // 2026-10-24 界面第二期：一般（資金、備份）放頂；系統健康、AI 用量照列；數據網址同 GitHub token 收入「進階」；策略規則同版本歷史收埋
+  if (!PAUSE) fetchPause();
   return topbar() + `<h2>設定</h2>
   <div class="card"><b>一般</b>
     <label>資金（美元，可以唔填；填咗先計股數）<input id="capital" type="number" step="any" inputmode="decimal" value="${S.capital || ""}" placeholder="例如 100000"></label>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div>
     <p class="small muted" style="margin:6px 0 0"><b>設定備份</b>：換手機或者清咗瀏覽器資料之前匯出；新手機匯入就返晒（資金、跟單、加密模型倉、研究頁「我的部位」）。GitHub token 唔會匯出。</p>
     <div class="row"><button id="expSet">匯出設定</button><label class="btnlike">匯入設定<input id="impSet" type="file" accept="application/json,.json" hidden></label></div></div>`
-  + healthCard() + aiUseCard() + `
+  + pauseCard() + healthCard() + aiUseCard() + `
   <details class="card"><summary><b>進階</b> <span class="small muted">· 數據網址、GitHub token</span></summary><div class="grid2">
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
     <label>新聞數據網址<input id="feedUrl" value="${esc(S.feedUrl)}"></label>
@@ -3330,6 +3371,7 @@ function bind(){
   document.querySelectorAll("[data-sub]").forEach(b => b.onclick = () => go(b.dataset.sub));      // 細分頁、今日頁嘅「揀股參考 →」「睇晒全文 →」
   document.querySelectorAll("[data-mkt]").forEach(b => b.onclick = () => { const f = MKT[b.dataset.mkt]; if (f) rsSheet(f() + `<button data-close style="width:100%">知道</button>`); });
   on("#radarRun", () => radarRun());
+  on("#pauseBtn", () => setPause(!(PAUSE && PAUSE.paused)));
   on("#janDone", () => { try { localStorage.setItem("jan-done", String(new Date().getFullYear())); } catch(e){} render(); });
   on("#radarReload", () => { RADAR_MSG = ""; fetchRadarAll(); });
   document.querySelectorAll("[data-rsec]").forEach(b => b.onclick = () => { RSEC = b.dataset.rsec; try { localStorage.setItem("rsec", RSEC); } catch(e){} render(); window.scrollTo(0, 0); });
@@ -3425,6 +3467,7 @@ fetchScan();
 fetchModel();
 fetchVal();
 fetchPeople();
+fetchPause();
 fetchResIndex();
 fetchEvIndex();
 fetchLive();
@@ -3441,7 +3484,7 @@ fetchLev();
 let HIDDEN_AT = 0;
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") HIDDEN_AT = Date.now(); });
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && HIDDEN_AT && Date.now() - HIDDEN_AT > 10 * 60e3 && TAB !== "today"){ TAB = "today"; render("f"); window.scrollTo(0, 0); } });
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchFeeds(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); fetchLive(); fetchBtc(); fetchFng(); fetchHyper(); fetchPeople(); } } });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible"){ fetchFeeds(); fetchPause(); if (Date.now() - DATA_AT > 20 * 60e3){ fetchScan(); fetchModel(); fetchLive(); fetchBtc(); fetchFng(); fetchHyper(); fetchPeople(); } } });
 </script>
 </body>
 </html>

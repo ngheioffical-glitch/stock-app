@@ -1,0 +1,31 @@
+name: 暫停／恢復
+# 2026-11-02 老師：「新增暫停鍵，冇撳暫停就照依家咁樣排程 有就咩都唔好郁 淨係更新ai今日重點」
+# app 設定頁撳「暫停」／「恢復」→ 用手機 GitHub token 觸發呢個（workflow_dispatch）→ 寫 docs/pause.json。
+# 其他 workflow 一開始用 scanner/pause.py gate 判斷：暫停中排程唔做（feeds 淨係新聞 + AI 今日重點）。
+on:
+  workflow_dispatch:
+    inputs:
+      on:
+        description: "1 = 暫停，0 = 恢復"
+        required: true
+        default: "1"
+permissions:
+  contents: write
+concurrency:
+  group: pause
+  cancel-in-progress: false
+jobs:
+  set:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 scanner/pause.py set "${{ github.event.inputs.on }}"
+      - name: 提交（同每日掃描撞到就 rebase 再試）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/pause.json
+          if git diff --cached --quiet; then echo "冇變"; exit 0; fi
+          git commit -m "$([ '${{ github.event.inputs.on }}' = '1' ] && echo 暫停 || echo 恢復) $(date -u +%F' '%H:%M) UTC"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push && exit 0; sleep 5; done; exit 1

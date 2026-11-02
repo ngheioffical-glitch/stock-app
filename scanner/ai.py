@@ -50,6 +50,9 @@ GAP = int(os.environ.get("AI_GAP_MIN", os.environ.get("GEMINI_GAP_MIN", "45"))) 
 # 2026-10-24 老師：「淨係新聞密就得，其他全部淨係排程」：feeds.yml 淨係新聞嗰次（FEEDS_FULL=0）只做翻譯、經濟數據解讀、聯儲局、今日重點；
 # 宏觀思考、加密重點、大額轉帳分析、商品分析（extras）留返全部更新（排程或者 app 撳「重新整理」）先寫
 FULL = os.environ.get("FEEDS_FULL", "1").strip() != "0"
+# 2026-11-02 老師：「新增暫停鍵…有就咩都唔好郁 淨係更新ai今日重點」→ docs/pause.json 暫停中（feeds.yml 設 FEEDS_PAUSED=1）：
+#   翻譯、經濟數據解讀、聯儲局總結沿用上一份唔叫 AI；淨係寫今日重點；全部更新嗰啲（宏觀思考、加密重點等）都唔做
+PAUSED = os.environ.get("FEEDS_PAUSED", "").strip() == "1"
 STYLE = "用香港廣東話口語、繁體中文。專有名詞（公司、指數、人名、股票代號）保留英文或通用中譯。"
 
 
@@ -1113,7 +1116,7 @@ def main():
         tr_last = datetime.fromisoformat(P["tr_at"]) if P.get("tr_at") else None
         urgent = [t for t in hi_titles(N, now) if t not in set((P.get("digest") or {}).get("hi", []))] or             any(not t.get("zh") and t.get("text") and t.get("id") not in {x.get("id") for x in (PT or {}).get("posts", []) if x.get("zh")}
                 for t in (T or {}).get("posts", []))
-        allow = urgent or not tr_last or now - tr_last >= timedelta(minutes=TR_GAP)
+        allow = (urgent or not tr_last or now - tr_last >= timedelta(minutes=TR_GAP)) and not PAUSED
         msg = translate(key, N, S, P, PS, T, PT, allow=allow)
         N["tr_at"] = now.isoformat(timespec="seconds") if allow and "（" in msg and "條" in msg else P.get("tr_at")
         print("[ai] 翻譯：" + msg)
@@ -1124,11 +1127,14 @@ def main():
     # 2. 經濟數據 AI 解讀：一公佈就做（45 分鐘後再做一次）
     PE = prev("econ.json")
     try:
+        if PAUSED:
+            raise InterruptedError("暫停中：沿用上一份解讀")
         light, watch = context()
         print("[ai] " + econ_ai(key, N, E, PE, now, light, watch))
     except Exception as e:  # noqa: BLE001
-        print(f"[ai] 經濟數據解讀失敗：{e}")
-        errs.append(f"數據解讀：{str(e)[:300]}")
+        print(f"[ai] 經濟數據解讀{'：' if PAUSED else '失敗：'}{e}")
+        if not PAUSED:
+            errs.append(f"數據解讀：{str(e)[:300]}")
         old = {f"{r['t']}|{r['name']}": r for r in PE.get("rows", []) if r.get("ai")}
         for r in E.get("rows", []):                      # 失敗就沿用上一份解讀
             o = old.get(f"{r['t']}|{r['name']}")
@@ -1136,7 +1142,11 @@ def main():
                 r["ai"], r["ai_at"], r["ai_stage"], r["ai_model"] = o["ai"], o.get("ai_at"), o.get("ai_stage", 1), o.get("ai_model")
     # 2b. 聯儲局文件總結：一出就做
     try:
-        print("[ai] " + fed_ai(key, N, P, now))
+        if PAUSED:
+            N["fed"] = P.get("fed")
+            print("[ai] 暫停中：聯儲局總結沿用上一份")
+        else:
+            print("[ai] " + fed_ai(key, N, P, now))
     except Exception as e:  # noqa: BLE001
         print(f"[ai] 聯儲局總結失敗：{e}")
         errs.append(f"聯儲局：{str(e)[:300]}")
@@ -1207,7 +1217,7 @@ def main():
             errs.append(f"重點：{str(e)[:300]}")
             if P.get("digest"):
                 N["digest"] = P["digest"]
-    if FULL:
+    if FULL and not PAUSED:
         extras(key, N, P, out, now, manual, errs)
     else:
         N["think"] = P.get("think")

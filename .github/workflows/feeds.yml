@@ -40,10 +40,14 @@ jobs:
       pre: ${{ steps.g.outputs.pre }}
       fut_now: ${{ steps.g.outputs.fut_now }}
       full: ${{ steps.g.outputs.full }}
+      paused: ${{ steps.g.outputs.paused }}
     steps:
       - uses: actions/checkout@v5
         with:
-          sparse-checkout: scanner/feeds_gate.py
+          sparse-checkout: |
+            scanner/feeds_gate.py
+            scanner/pause.py
+            docs/pause.json
           sparse-checkout-cone-mode: false
       - id: g
         run: |
@@ -215,6 +219,7 @@ jobs:
           PREMARKET: ${{ needs.guard.outputs.pre }}
           FUT_NOW: ${{ needs.guard.outputs.fut_now }}
           FEEDS_FULL: ${{ needs.guard.outputs.full }}          # 2026-10-24：0 = 淨係新聞（ai.py 唔寫宏觀思考、加密、大額轉帳、商品分析）
+          FEEDS_PAUSED: ${{ needs.guard.outputs.paused }}      # 2026-11-02 暫停鍵：1 = 淨係寫 AI 今日重點（翻譯、數據解讀、聯儲局沿用上一份）
           FEEDS_PREV: prev                                     # 2026-10-24：上一份用 git 攞咗嘅（ai.py prev() 優先讀）
       - name: 推去 feeds 分支
         working-directory: out

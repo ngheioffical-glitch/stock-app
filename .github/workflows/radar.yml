@@ -13,7 +13,23 @@ concurrency:
   group: radar
   cancel-in-progress: false
 jobs:
+  pz:                              # 2026-11-02 暫停鍵（scanner/pause.py）：暫停中排程、push 唔做；用戶自己撳（workflow_dispatch）照做
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      skip: ${{ steps.p.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            docs/pause.json
+            scanner/pause.py
+          sparse-checkout-cone-mode: false
+      - id: p
+        run: python3 scanner/pause.py gate "${{ github.event_name }}" "${{ github.event.inputs.relay }}" | tee -a "$GITHUB_OUTPUT"
   radar:
+    needs: pz
+    if: needs.pz.outputs.skip != '1'
     runs-on: ubuntu-latest
     timeout-minutes: 90            # 2026-10-20：Opus high + 上網搜尋每個分析 1–2.5 分鐘
     steps:

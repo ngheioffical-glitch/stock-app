@@ -94,11 +94,12 @@ def is_full(event, cron="", relay=""):
     return event == "push"
 
 
-def main(event, last_ts, cron="", relay="", full_at=0):
+def main(event, last_ts, cron="", relay="", full_at=0, paused=False):
+    """paused：暫停鍵開咗而且唔係用戶自己撳（scanner/pause.py gate 嘅 skip）→ 一律淨係新聞 + AI 今日重點（2026-11-02）。"""
     now = datetime.now(NY)
-    full = is_full(event, cron, relay)
+    full = is_full(event, cron, relay) and not paused
     full_age_h = (time.time() - full_at) / 3600 if full_at else None
-    late = event == "schedule" and not full and full_age_h is not None and full_age_h >= FULL_MAX_H
+    late = event == "schedule" and not full and not paused and full_age_h is not None and full_age_h >= FULL_MAX_H
     full = full or late
     age_min = (time.time() - last_ts) / 60 if last_ts else 1e9
     fut, fut_b, fut_d, fut_now, f = "", "", "", "", None
@@ -133,7 +134,9 @@ def main(event, last_ts, cron="", relay="", full_at=0):
         run, why = 1, f"收市後期貨再郁 {abs(f[0] - f[1]) * 100:.1f}%（由收市計 {f[0] * 100:+.1f}%，上次更新時 {f[1] * 100:+.1f}%）"
     else:
         run, why = int(age_min >= BASE_H * 60), f"收市後期貨冇大郁，距離上次 {age_min / 60:.1f} 個鐘（夠 {BASE_H} 個鐘先行）"
-    out = {"run": run, "why": why, "fut": fut, "fut_b": fut_b, "fut_d": fut_d, "pre": int(pre), "fut_now": fut_now, "full": int(full)}
+    if paused:
+        why = "暫停中（淨係新聞 + AI 今日重點）；" + why
+    out = {"run": run, "why": why, "fut": fut, "fut_b": fut_b, "fut_d": fut_d, "pre": int(pre), "fut_now": fut_now, "full": int(full), "paused": int(paused)}
     print(json.dumps(out, ensure_ascii=False))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
@@ -147,4 +150,5 @@ if __name__ == "__main__":
         fa = int(a[4].strip() or 0)
     except ValueError:                                   # 攞唔到（例如 GitHub 出錯頁）當冇紀錄，唔升級
         fa = 0
-    main(a[0], int(a[1] or 0), a[2], a[3], fa)
+    import pause                                         # 同一個 folder（2026-11-02 暫停鍵）
+    main(a[0], int(a[1] or 0), a[2], a[3], fa, paused=pause.gate(a[0], a[3])[1])
