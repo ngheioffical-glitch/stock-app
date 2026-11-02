@@ -122,6 +122,7 @@ def fake_get(url, **k):
 
 P.get = fake_get
 P.pdf_text = lambda b: PTR
+P.efd_rows = lambda cut, docs: (_ for _ in ()).throw(P.EFDBlocked("HTTP 403"))   # 參議院官方 eFD：先當擋咗（下面另外測）
 P.main(out)
 o = json.loads((out / "people.json").read_text(encoding="utf-8"))
 check([t["sym"] for t in o["congress"]] == ["GOOG", "NVDA"] and all(t["backfill"] and t["member"] == "Ann Lee" and t["chamber"] == "眾議院" for t in o["congress"]),
@@ -137,9 +138,10 @@ pdfs = [c for c in calls if c.endswith(".pdf")]
 new = [t for t in o["congress"] if t["doc"] == "20000004"]
 check(pdfs == [P.HOUSE_PDF.format(y=today.year, doc="20000004")] and not any(c.endswith(".xml") for c in calls), "第二次：見過嘅 PTR、Form 4 唔再下載，淨係攞新嗰份")
 check(new and not new[0]["backfill"] and new[0]["seen"] > new[0]["filed"] and len(o["congress"]) == 4, "新紀錄記低雲端第一次攞到嘅時間（seen），唔係 backfill")
-check(o["stats"]["senate"] == "冇 FMP key" and not any("financialmodelingprep" in c for c in calls), "參議院：冇 FMP key 就唔攞、照行")
+check("擋咗程式" in o["stats"]["senate"] and "冇繞過" in o["stats"]["senate"] and not any("financialmodelingprep" in c for c in calls),
+      "參議院：官方 eFD 擋咗就停（唔繞過）；冇 FMP key 就唔攞、照行")
 
-# 參議院（FMP 最新申報；官方 eFD 擋程式）
+# 參議院（官方 eFD 擋咗之後試 FMP）
 KEY = "TESTKEY123"
 os.environ["FMP_API_KEY"] = KEY
 d1, d_old = (today - timedelta(days=2)).isoformat(), (today - timedelta(days=200)).isoformat()
@@ -169,7 +171,8 @@ sen = [t for t in o["congress"] if t["chamber"] == "參議院"]
 check(len(sen) == 1 and sen[0]["sym"] == "NVDA" and sen[0]["type"] == "買" and sen[0]["owner"] == "配偶" and sen[0]["member"] == "Jane Roe" and sen[0]["backfill"],
       "參議院：淨係股票（債券、期權唔要）、200 日前唔要；第一次攞到標 backfill")
 check(len([t for t in o["congress"] if t["chamber"] == "眾議院"]) == 4 and fmp == [P.FMP_SEN.format(p=0, key=KEY)], "眾議院紀錄冇重複；FMP 頭一頁已經舊過 90 日就唔再翻頁")
-SEN.append(dict(SEN[0], symbol="AMD", assetDescription="AMD"))
+check(o["stats"]["senate"] == "ok（FMP）", "官方擋咗、FMP 攞到：狀態講明係 FMP")
+SEN.append(dict(SEN[0], symbol="AMD", assetDescription="AMD", disclosureDate=today.isoformat(), transactionDate=today.isoformat()))
 P.main(out)
 o = json.loads((out / "people.json").read_text(encoding="utf-8"))
 sen = [t for t in o["congress"] if t["chamber"] == "參議院"]
@@ -178,12 +181,76 @@ P.get = lambda url, **k: (_ for _ in ()).throw(RuntimeError("boom " + url)) if "
 P.main(out)
 txt = (out / "people.json").read_text(encoding="utf-8")
 o = json.loads(txt)
-check(KEY not in txt and o["stats"]["senate"] == "攞唔到" and len([t for t in o["congress"] if t["chamber"] == "參議院"]) == 2,
-      "FMP 出錯：沿用舊紀錄；錯誤訊息唔會寫出 key")
+check(KEY not in txt and not o["stats"]["senate"].startswith("ok") and any("FMP" in e for e in o["errs"])
+      and len([t for t in o["congress"] if t["chamber"] == "參議院"]) == 2, "FMP 出錯：沿用舊紀錄；錯誤訊息唔會寫出 key")
 P.get = lambda url, **k: (_ for _ in ()).throw(RuntimeError("HTTP Error 402: Payment Required")) if "financialmodelingprep" in url else fake_get(url, **k)
 P.main(out)
 o = json.loads((out / "people.json").read_text(encoding="utf-8"))
-check(o["stats"]["senate"] == "FMP 免費版唔包（要付費）" and not any("參議院" in e for e in o["errs"]),
+check(o["stats"]["senate"].endswith("FMP 免費版唔包（要付費）") and not any("參議院" in e for e in o["errs"]),
       "FMP 回 402（免費版唔包參議院）：講清楚要付費，唔當每日錯誤")
 del os.environ["FMP_API_KEY"]
+
+# 參議院官方 eFD（2026-11-02）：用假網站測成個流程（同意條款 → 搜尋 → 讀電子報告；紙本記數；擋咗即刻停）
+import importlib  # noqa: E402
+
+PE = importlib.reload(P)
+PE.EFD_GAP = 0
+U1, U2 = "aaaaaaaa-1111-2222-3333-444444444444", "bbbbbbbb-1111-2222-3333-444444444444"
+d_e = (today - timedelta(days=3)).strftime("%m/%d/%Y")
+PAGE = f"""<html><table class="table"><thead><tr><th>#</th><th>Transaction Date</th><th>Owner</th><th>Ticker</th><th>Asset Name</th><th>Asset Type</th><th>Type</th><th>Amount</th><th>Comment</th></tr></thead>
+<tbody><tr><td>1</td><td>{d_e}</td><td>Spouse</td><td><a href="x">NVDA</a></td><td>NVIDIA Corp</td><td>Stock</td><td>Purchase</td><td>$15,001 - $50,000</td><td>--</td></tr>
+<tr><td>2</td><td>{d_e}</td><td>Self</td><td>--</td><td>US Treasury</td><td>Government Security</td><td>Sale (Full)</td><td>$1,001 - $15,000</td><td>--</td></tr></tbody></table></html>"""
+rows = PE.parse_efd_ptr(PAGE)
+check(len(rows) == 2 and rows[0]["symbol"] == "NVDA" and rows[0]["assetType"] == "Stock" and rows[0]["type"] == "Purchase"
+      and rows[0]["transactionDate"] == (today - timedelta(days=3)).isoformat() and rows[1]["symbol"] == "", "拆官方電子報告表：代號、類型、日期；冇代號（--）當空")
+hits, mode = [], {"block": False}
+
+
+class FakeResp:
+    def __init__(s, b):
+        s.b = b.encode()
+
+    def read(s):
+        return s.b
+
+
+class FakeOp:
+    def open(s, req, timeout=0):
+        u = req.full_url
+        hits.append(u)
+        if mode["block"]:
+            return FakeResp("<html>Access Denied ... errors.edgesuite.net</html>")
+        if u.endswith("/search/home/"):
+            return FakeResp('<form><input name="csrfmiddlewaretoken" value="tok123"></form>')
+        if u.endswith("/search/report/data/"):
+            return FakeResp(json.dumps({"recordsFiltered": 2, "data": [
+                ["Jane", "Roe", "Roe, Jane", f'<a href="/search/view/ptr/{U1}/">PTR</a>', d_e],
+                ["Bob", "Lee", "Lee, Bob", f'<a href="/search/view/paper/{U2}/">PTR</a>', d_e]]}))
+        if "/search/view/ptr/" in u:
+            return FakeResp(PAGE)
+        raise RuntimeError("唔應該攞：" + u)
+
+
+PE.urllib.request.build_opener = lambda *a, **k: FakeOp()
+o2 = out / "efd"
+o2.mkdir()
+(o2 / "people.json").write_text(json.dumps({"congress": [], "insider": []}), encoding="utf-8")
+PE.get = fake_get
+PE.pdf_text = lambda b: PTR
+PE.main(o2)
+o = json.loads((o2 / "people.json").read_text(encoding="utf-8"))
+sen = [t for t in o["congress"] if t["chamber"] == "參議院"]
+check(o["stats"]["senate"] == "ok" and len(sen) == 1 and sen[0]["sym"] == "NVDA" and sen[0]["member"] == "Jane Roe" and sen[0]["owner"] == "配偶"
+      and sen[0]["url"].endswith(f"/ptr/{U1}/") and o["stats"]["senate_paper"] == 1 and o["senate_since"] == today.isoformat() and sen[0]["backfill"],
+      "官方 eFD：攞到電子報告（淨係股票）、紙本記數；第一次攞到之前申報嘅標 backfill")
+n0 = sum(1 for u in hits if "/search/view/ptr/" in u)
+PE.main(o2)
+check(sum(1 for u in hits if "/search/view/ptr/" in u) == n0 and len([t for t in json.loads((o2 / "people.json").read_text(encoding="utf-8"))["congress"] if t["chamber"] == "參議院"]) == 1,
+      "第二次：睇過嘅報告唔再讀、唔重複")
+mode["block"], hits[:] = True, []
+PE.main(o2)
+o = json.loads((o2 / "people.json").read_text(encoding="utf-8"))
+check("擋咗程式" in o["stats"]["senate"] and len(hits) == 1 and len([t for t in o["congress"] if t["chamber"] == "參議院"]) == 1,
+      "官方 eFD 出防機械人頁：第一個請求之後即刻停（唔重試），沿用舊紀錄")
+check("stock-app research" in PE.UA["User-Agent"] and "Mozilla" not in PE.UA["User-Agent"], "用誠實身份（唔扮瀏覽器）")
 print(f"\n全部 {ok} 項通過")

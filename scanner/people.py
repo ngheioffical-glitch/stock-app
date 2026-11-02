@@ -3,9 +3,10 @@
 ① 國會議員（眾議院）：官方書記處每年 ZIP 索引（FilingType P = 交易報告 PTR）→ 每份電子申報 PDF 拆出每筆交易：
    議員、州／選區、資產（淨係股票 [ST] 有代號先入標籤；國債、私人公司等只記類型）、買（P）／賣（S、S (partial)）、交易日、通知日、
    金額區間、擁有人（配偶 SP／聯名 JT／子女 DC／本人）、申報日。掃描紙本（冇文字）略過，記數。
-   參議院（2026-10-25 老師：「我要求要埋參議院嗰啲」）：官方 eFD 程式同真瀏覽器撳同意條款都被 Akamai 防機械人擋，唔繞過；
-   改用 FMP「Latest Senate Financial Disclosures」（整理自 eFD；免費版有限量；GitHub Secret FMP_API_KEY，冇就略過）。淨係股票（assetType Stock）。
-   唔用 Capitol Trades（佢 robots.txt 禁 AI 爬蟲同程式攞 /_next/data）。
+   參議院（2026-10-25 老師：「我要求要埋參議院嗰啲」）：10-25 喺老師部電腦（香港）試官方 eFD 被 Akamai 防機械人擋；
+   2026-11-02 改喺雲端（GitHub Actions，我哋本身嘅排程地方）用誠實身份再試官方 eFD（efd_rows），擋咗就即刻停、唔繞過、唔扮瀏覽器；
+   之後先試 FMP（實測免費版 402 唔包參議院）。淨係股票（assetType Stock）。
+   唔用 Capitol Trades（佢禁程式攞，而家連 robots.txt 都要過 Vercel 防機械人檢查）。
 ② 公司內部人（SEC Form 4，EDGAR 官方免費，一般 2 個工作日內申報）：留意清單（模型持倉、排名頭 15、候選、研究）每隻嘅 Form 4；
    淨係計公開市場買入（代碼 P）同賣出（S）——授股、行權、送贈、扣稅唔計；記低係咪 10b5-1 預先計劃交易。
 「幾時知」：每筆記低 seen（雲端第一次攞到嘅時間）；第一次行（冇舊檔）嘅舊紀錄標 backfill（唔知幾時攞到，研究唔用）。
@@ -15,12 +16,16 @@
 """
 from __future__ import annotations
 
+import html
+import http.cookiejar
 import io
 import json
 import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import zipfile
@@ -134,34 +139,145 @@ def house(prev, cut, now_iso, first, errs):
     return trades, docs, len(new)
 
 
+class EFDBlocked(Exception):
+    """官方 eFD 嘅防機械人（Akamai）擋咗：即刻停，唔重試、唔扮瀏覽器。"""
+
+
+EFD = "https://efdsearch.senate.gov"
+EFD_GAP = 2.0                                                    # 每個請求之間（有禮貌）
+EFD_MAX = 60                                                     # 每次最多睇幾多份新報告（第一次 90 日嘅分幾日補）
+
+
+def _mdy(s):
+    try:
+        return datetime.strptime(s.strip(), "%m/%d/%Y").date().isoformat()
+    except ValueError:
+        return ""
+
+
+def _cells(row):
+    return [re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", c))).strip() for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", row, re.S)]
+
+
+def parse_efd_ptr(page):
+    """參議院電子 PTR 頁 → 每筆交易（同 FMP 一樣嘅欄位名，方便同一套整理）。表頭：交易日、擁有人、代號、資產、類型、買賣、金額。"""
+    for tb in re.findall(r"<table[^>]*>(.*?)</table>", page, re.S):
+        rows = re.findall(r"<tr[^>]*>(.*?)</tr>", tb, re.S)
+        if not rows:
+            continue
+        head = [h.lower() for h in _cells(rows[0])]
+        if "transaction date" not in head or "amount" not in head:
+            continue
+        ix = {k: head.index(k) for k in ("transaction date", "owner", "ticker", "asset name", "asset type", "type", "amount") if k in head}
+        out = []
+        for r in rows[1:]:
+            c = _cells(r)
+            if len(c) < len(head):
+                continue
+            g = lambda k: c[ix[k]] if k in ix else ""  # noqa: E731
+            out.append(dict(transactionDate=_mdy(g("transaction date")), owner=g("owner"), symbol="" if g("ticker") in ("--", "") else g("ticker"),
+                            assetDescription=g("asset name"), assetType=g("asset type"), type=g("type"), amount=g("amount")))
+        return out
+    return []
+
+
+def _efd(op, path, data=None, headers=None):
+    req = urllib.request.Request(EFD + path, data=data, headers={**UA, "Accept": "text/html,application/json;q=0.9,*/*;q=0.8", **(headers or {})})
+    try:
+        r = op.open(req, timeout=40)
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429):
+            raise EFDBlocked(f"HTTP {e.code}") from None
+        raise
+    b = r.read().decode("utf-8", "replace")
+    time.sleep(EFD_GAP)
+    if re.search(r"Access Denied|errors\.edgesuite\.net|captcha|are you a robot", b, re.I):
+        raise EFDBlocked("防機械人頁")
+    return b
+
+
+def efd_rows(cut, docs):
+    """官方參議院 eFD（2026-11-02 老師：「要幫我搞到個名人交易記錄出嚟，仲要識更新」）：用誠實身份（UA 講明係研究程式）
+    撳同意條款（老師 10-25 批）→ 搵近 DAYS 日交易報告（PTR）→ 睇未睇過嘅電子報告。防機械人擋就即刻停（EFDBlocked），唔繞過。
+    返 (交易行, docs 快取)。docs：{uuid: {filed, n, paper}}。"""
+    cj = http.cookiejar.CookieJar()
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    home = _efd(op, "/search/home/")
+    m = re.search(r'name="csrfmiddlewaretoken" value="([^"]+)"', home)
+    if not m:
+        raise RuntimeError("同意條款頁格式變咗")
+    _efd(op, "/search/home/", urllib.parse.urlencode({"prohibition_agreement": "1", "csrfmiddlewaretoken": m.group(1)}).encode(),
+         {"Referer": EFD + "/search/home/"})
+    csrf = next((c.value for c in cj if c.name == "csrftoken"), "")
+    start = datetime.strptime(cut, "%Y-%m-%d").strftime("%m/%d/%Y") + " 00:00:00"
+    found, off = [], 0
+    while True:
+        body = dict(start=str(off), length="100", report_types="[11]", filer_types="[1]", submitted_start_date=start, submitted_end_date="",
+                    candidate_state="", senator_state="", office_id="", first_name="", last_name="", csrfmiddlewaretoken=csrf)
+        d = json.loads(_efd(op, "/search/report/data/", urllib.parse.urlencode(body).encode(),
+                            {"Referer": EFD + "/search/", "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest"}))
+        data = d.get("data") or []
+        for c in data:
+            link = re.search(r'href="([^"]+)"', c[3] or "")
+            if link:
+                found.append(dict(first=(c[0] or "").strip(), last=(c[1] or "").strip(), href=link.group(1), filed=_mdy(c[4] or "")))
+        off += len(data)
+        if not data or off >= int(d.get("recordsFiltered") or 0) or off >= 500:
+            break
+    rows, n = [], 0
+    for f in sorted(found, key=lambda x: x["filed"], reverse=True):
+        uid = (re.findall(r"[0-9a-fA-F-]{36}", f["href"]) or [f["href"]])[0]
+        if uid in docs or f["filed"] < cut:
+            continue
+        if "/paper/" in f["href"]:                                 # 紙本掃描冇得讀，記數
+            docs[uid] = dict(filed=f["filed"], n=0, paper=True)
+            continue
+        if n >= EFD_MAX:
+            break
+        n += 1
+        tx = parse_efd_ptr(_efd(op, f["href"], headers={"Referer": EFD + "/search/"}))
+        docs[uid] = dict(filed=f["filed"], n=len(tx), paper=False)
+        rows += [dict(t, disclosureDate=f["filed"], firstName=f["first"], lastName=f["last"], link=EFD + f["href"]) for t in tx]
+    return rows, docs
+
+
 def senate(prev, cut, now_iso, errs):
-    """參議院：FMP 最新申報（冇 FMP_API_KEY 就沿用舊紀錄、唔攞）。返 (交易, 見過嘅 key, 新筆數, 狀態)。
-    第一次（舊檔冇 senate_seen）攞到嘅標 backfill。key 唔可以出現喺錯誤訊息或者檔案。"""
+    """參議院：先試官方 eFD（efd_rows）；擋咗就試 FMP（有 FMP_API_KEY；免費版 402 唔包）。冇就沿用舊紀錄。
+    返 (交易, 見過嘅 key, 新筆數, 狀態)。senate_since = 第一次攞到嘅日子，之前申報嘅標 backfill（唔知幾時攞到）。key 唔寫出嚟。"""
     key = os.environ.get("FMP_API_KEY", "").strip()
     seen = dict(prev.get("senate_seen") or {})
     old = [t for t in prev.get("congress") or [] if t.get("chamber") == "參議院" and t["filed"] >= cut]
-    first = not seen and not old                                  # 未攞過（例如之前冇 key）：今次攞到嘅當 backfill
-    if not key:
-        return old, seen, 0, "冇 FMP key"
-    rows, n_new = [], 0
-    for p in range(5):                                            # 免費版有限量；最多 5 頁（每頁 100），舊過 cut 就停
-        try:
-            data = json.loads(get(FMP_SEN.format(p=p, key=key)))
-        except Exception as e:  # noqa: BLE001
-            if p == 0 and "402" in str(e):               # 2026-11-02 實測：FMP 免費版唔包參議院（Payment Required）→ 已知限制，唔當每日錯誤
-                return old, seen, 0, "FMP 免費版唔包（要付費）"
-            if p == 0:
-                errs.append("參議院（FMP）：" + str(e).replace(key, "***")[:60])
-                return old, seen, 0, "攞唔到"
-            break
-        if not isinstance(data, list) or not data:
-            if p == 0 and isinstance(data, dict):
-                errs.append("參議院（FMP）：" + str(data.get("Error Message") or data)[:60].replace(key, "***"))
-                return old, seen, 0, "攞唔到"
-            break
-        rows += data
-        if min((r.get("disclosureDate") or "") for r in data) < cut:
-            break
+    since = prev.get("senate_since") or now_iso[:10]
+    docs = {k: v for k, v in (prev.get("senate_docs") or {}).items() if v.get("filed", "") >= cut}
+    rows, n_new, status = [], 0, ""
+    try:
+        rows, docs = efd_rows(cut, docs)
+        status = "ok"
+    except EFDBlocked as e:
+        status = f"官方 eFD 擋咗程式（{e}），冇繞過"
+    except Exception as e:  # noqa: BLE001
+        status = "官方 eFD 出錯"
+        errs.append(f"參議院（官方 eFD）：{str(e)[:80]}")
+    if status != "ok" and key:
+        for p in range(5):                                        # FMP 後備；免費版有限量；最多 5 頁（每頁 100），舊過 cut 就停
+            try:
+                data = json.loads(get(FMP_SEN.format(p=p, key=key)))
+            except Exception as e:  # noqa: BLE001
+                if p == 0 and "402" in str(e):           # 2026-11-02 實測：FMP 免費版唔包參議院（Payment Required）→ 已知限制，唔當每日錯誤
+                    status += "；FMP 免費版唔包（要付費）"
+                elif p == 0:
+                    errs.append("參議院（FMP）：" + str(e).replace(key, "***")[:60])
+                break
+            if not isinstance(data, list) or not data:
+                if p == 0 and isinstance(data, dict):
+                    errs.append("參議院（FMP）：" + str(data.get("Error Message") or data)[:60].replace(key, "***"))
+                break
+            rows += data
+            status = "ok（FMP）"
+            if min((r.get("disclosureDate") or "") for r in data) < cut:
+                break
+    if not status.startswith("ok"):
+        since = prev.get("senate_since") or ""
     trades = old
     for r in rows:
         filed, sym = (r.get("disclosureDate") or "")[:10], (r.get("symbol") or "").strip().upper()
@@ -173,14 +289,15 @@ def senate(prev, cut, now_iso, errs):
             continue
         seen[k] = dict(filed=filed, seen=now_iso)
         n_new += 1
+        bf = filed < since                                         # 第一次攞到嗰日之前申報 = 唔知幾時攞到（研究唔用）
         trades.append(dict(sym=sym.replace(".", "-"), kind="ST", type=SEN_TYPE.get(typ, "其他"), partial="Partial" in typ,
                            traded=(r.get("transactionDate") or "")[:10], notified=None, amount=re.sub(r"\s+", " ", r.get("amount") or ""),
                            owner=SEN_OWNER.get((r.get("owner") or "").strip(), (r.get("owner") or "").strip()),
                            member=" ".join(x for x in (r.get("firstName"), r.get("lastName")) if x) or r.get("office") or "",
-                           state="", chamber="參議院", filed=filed, seen=filed if first else now_iso, backfill=first,
+                           state="", chamber="參議院", filed=filed, seen=filed if bf else now_iso, backfill=bf,
                            doc=(re.findall(r"[0-9a-fA-F-]{36}", r.get("link") or "") or [""])[0], url=r.get("link") or ""))
     seen = {k: v for k, v in seen.items() if v["filed"] >= cut}
-    return trades, seen, n_new, "ok"
+    return trades, seen, n_new, status, dict(since=since or None, docs=docs)
 
 
 # ---------------------------------------------------------------- ② SEC Form 4
@@ -302,10 +419,11 @@ def main(docs=None):
         errs.append(f"眾議院：{str(e)[:100]}")
         cg, hd, n_h = [t for t in prev.get("congress") or [] if t.get("chamber") != "參議院"], prev.get("house_docs") or {}, 0
     try:
-        sn, sseen, n_sn, sn_note = senate(prev, cut, now_iso, errs)
+        sn, sseen, n_sn, sn_note, sx = senate(prev, cut, now_iso, errs)
     except Exception as e:  # noqa: BLE001
         errs.append(f"參議院：{str(e)[:100]}".replace(os.environ.get("FMP_API_KEY") or "\0", "***"))
         sn, sseen, n_sn, sn_note = [t for t in prev.get("congress") or [] if t.get("chamber") == "參議院"], prev.get("senate_seen") or {}, 0, "出錯"
+        sx = dict(since=prev.get("senate_since"), docs=prev.get("senate_docs") or {})
     cg = sorted(cg + sn, key=lambda t: (t["filed"], t["traded"]), reverse=True)
     try:
         ins, ss, watch, n_s = insider(prev, cut, now_iso, first, docs, errs)
@@ -313,8 +431,9 @@ def main(docs=None):
         errs.append(f"SEC：{str(e)[:100]}")
         ins, ss, watch, n_s = prev.get("insider") or [], prev.get("sec_seen") or {}, [], 0
     res = dict(generated=datetime.now(HK).strftime("%Y-%m-%d %H:%M HKT"), days=DAYS, congress=cg, insider=ins, watch=watch,
-               house_docs=hd, senate_seen=sseen, sec_seen=ss, errs=errs[:20],
-               stats=dict(house_new=n_h, house_scan=sum(1 for v in hd.values() if v.get("scan")), senate_new=n_sn, senate=sn_note, sec_new=n_s))
+               house_docs=hd, senate_seen=sseen, senate_since=sx["since"], senate_docs=sx["docs"], sec_seen=ss, errs=errs[:20],
+               stats=dict(house_new=n_h, house_scan=sum(1 for v in hd.values() if v.get("scan")), senate_new=n_sn, senate=sn_note,
+                          senate_paper=sum(1 for v in sx["docs"].values() if v.get("paper")), sec_new=n_s))
     f.write_text(json.dumps(res, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[people] 議員交易 {len(cg)} 筆（眾議院新 PTR {n_h} 份，紙本 {res['stats']['house_scan']} 份略過；參議院新 {n_sn} 筆，{sn_note}）；"
           f"內部人 {len(ins)} 筆（新 Form 4 {n_s} 份，留意 {len(watch)} 隻）；錯誤 {errs[:3] or '冇'}")
