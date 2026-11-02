@@ -242,6 +242,14 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 #rs>.rs-in{animation:rsIn .28s var(--ease)}
 @keyframes rsIn{from{transform:translateX(18px)}to{transform:none}}
 #rs[hidden]{display:none}
+/* 2026-11-02 app 自己嘅確認框（Android 外殼唔支援 confirm／alert） */
+.askbox{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.6)}
+.askbox .card{width:min(100%,380px);margin:0}
+.ask-msg{white-space:pre-line;margin:0 0 12px;line-height:1.6}
+/* 研究生成步驟 */
+.jobsteps{list-style:none;margin:6px 0 0;padding:0}
+.jobsteps li{display:flex;gap:8px;align-items:center;font-size:13px;padding:2px 0}
+.jobsteps li .s{width:16px;text-align:center}
 #rs button{font:inherit;box-shadow:none;transition:transform .14s var(--ease),background-color .2s,color .2s}
 #rs details{border:0;padding:0}
 #rs summary{color:inherit;letter-spacing:0}
@@ -542,6 +550,25 @@ let S = load(), SCAN = null, TAB = "today", ERR = null;   // 2026-10-26 老師�
 
 // ───────────────────────── 工具
 const $ = s => document.querySelector(s);
+// 2026-11-02：Android 外殼（MainActivity.kt）冇 WebChromeClient，原生 confirm()／alert() 唔會彈出、confirm 即刻當「取消」
+//   （老師撳研究「生成」冇反應就係呢個原因）→ 一律用 app 自己畫嘅對話框
+function askBox(msg, ok = "確定", cancel = "取消"){
+  return new Promise(res => {
+    const w = document.createElement("div");
+    w.className = "askbox"; w.setAttribute("role", "dialog"); w.setAttribute("aria-modal", "true");
+    w.innerHTML = `<div class="card"><p class="ask-msg"></p><div class="row" style="justify-content:flex-end">${cancel ? `<button class="ask-no"></button>` : ""}<button class="primary ask-ok"></button></div></div>`;
+    w.querySelector(".ask-msg").textContent = msg;
+    w.querySelector(".ask-ok").textContent = ok;
+    if (cancel) w.querySelector(".ask-no").textContent = cancel;
+    const done = v => { w.remove(); res(v); };
+    w.querySelector(".ask-ok").onclick = () => done(true);
+    if (cancel) w.querySelector(".ask-no").onclick = () => done(false);
+    w.onclick = e => { if (e.target === w) done(false); };
+    document.body.appendChild(w);
+    w.querySelector(".ask-ok").focus();
+  });
+}
+const noteBox = msg => askBox(msg, "知道", "");
 // AI 型號標籤；2026-10-20 起 Claude 出事退返 Gemini／GitHub 會寫「後備：原因」，用紅色 ⚠ 標明（用戶要求）
 // 2026-10-24 界面重整：用家面前唔顯示 AI 型號名（「設定 → AI 用量」有）；主力 AI 今次用唔到、用咗後備先標明（撳住睇原因）
 const mdl = m => !m ? "" : /後備/.test(m) ? `<span class="tag t-warn" title="${esc(String(m))}">後備 AI</span>` : "";
@@ -787,7 +814,7 @@ async function fetchRadar(){
 }
 let RADAR_MSG = "";
 async function radarRun(){             // 用 app 設定嘅 GitHub token 觸發 radar.yml（同新聞「重新整理」一樣）
-  if (!peakOK("叫雲端重新做雷達（會用 AI）")) return;
+  if (!await peakOK("叫雲端重新做雷達（會用 AI）")) return;
   RADAR_MSG = "觸發緊雲端…"; render();
   try {
     const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/radar.yml/dispatches`, {method: "POST",
@@ -2116,8 +2143,8 @@ function importSettings(file){
       const tok = S.ghToken; S = {...defaults, ...j.settings, ghToken: tok};          // token 照用呢部手機原本嗰個
       for (const [k, v] of Object.entries(j.extra || {})) if (BACKUP_KEYS.includes(k)) localStorage.setItem(k, String(v));
       if (!save()) throw new Error("瀏覽器唔俾寫入");
-      alert("還原咗設定，會重新載入 app。"); location.reload();
-    } catch(e){ alert("還原唔到：" + e.message); }
+      noteBox("還原咗設定，會重新載入 app。").then(() => location.reload());
+    } catch(e){ noteBox("還原唔到：" + e.message); }
   };
   rd.readAsText(file);
 }
@@ -2131,7 +2158,7 @@ async function fetchPause(){
 }
 async function setPause(on){
   if (!S.ghToken){ PAUSE_MSG = "要喺「進階」填 GitHub token 先可以暫停／恢復雲端。"; render(); return; }
-  if (!confirm(on ? "暫停雲端更新？\n\n暫停之後：排名、模型、盤中、加密、雷達、研究等全部唔再自動更新，淨係新聞同 AI 今日重點照更新。\n（停超過兩個星期，模型帳戶恢復時可能要手動補數據）"
+  if (!await askBox(on ? "暫停雲端更新？\n\n暫停之後：排名、模型、盤中、加密、雷達、研究等全部唔再自動更新，淨係新聞同 AI 今日重點照更新。\n（停超過兩個星期，模型帳戶恢復時可能要手動補數據）"
                   : "恢復雲端更新？所有排程照返平時咁行。")) return;
   PAUSE_MSG = "觸發緊雲端…"; render();
   try {
@@ -2207,13 +2234,13 @@ const ago = t => { const m = (Date.now() - Date.parse(t)) / 60e3; return m < 60 
 const repoOf = () => { const m = /githubusercontent\.com\/([^/]+\/[^/]+)\//.exec(S.feedUrl || ""); return m ? m[1] : "ngheioffical-glitch/stock-app"; };
 // 2026-10-26 老師：繁忙時段（dsPeak，同 scanner/llm.py _ds_peak 一樣）淨係自己撳先可以用 DeepSeek，
 //   撳之前先彈出嚟講明貴，畀用家決定（撳「取消」就唔叫雲端）
-function peakOK(what){
+async function peakOK(what){
   if (!dsPeak()) return true;
-  return confirm(`而家係 DeepSeek 繁忙時段（香港平日 09–12、14–18 時），AI 價錢係平時兩倍。\n\n確定而家${what}？\n（撳「取消」就唔叫雲端；非繁忙時段排程會自動更新）`);
+  return askBox(`而家係 DeepSeek 繁忙時段（香港平日 09–12、14–18 時），AI 價錢係平時兩倍。\n\n確定而家${what}？\n（撳「取消」就唔叫雲端；非繁忙時段排程會自動更新）`, "照做", "取消");
 }
 async function cloudRefresh(auto){
   if (!S.ghToken){ fetchFeeds(true); return; }
-  if (!auto && !peakOK("叫雲端全部更新（會用 AI）")){ fetchFeeds(true); return; }
+  if (!auto && !await peakOK("叫雲端全部更新（會用 AI）")){ fetchFeeds(true); return; }
   const before = FEED.news && FEED.news.generated;
   FEED.cloud = auto ? "新聞超過 15 分鐘冇更新：自動叫雲端更新緊…" : "觸發緊雲端更新…"; render();
   try {
@@ -2976,7 +3003,7 @@ function openSearch(){
   const cand = SCAN && SCAN.green ? signals().list.map(r => r.sym) : [], res = RS.index ? (RS.index.items || []).filter(x => !x.dry).map(x => x.sym) : [];
   const {sh, close} = rsSheet(`<h4>搵股票</h4><div class="row" style="flex-wrap:nowrap"><input id="stQ" placeholder="美股代號，例如 NVDA" autocapitalize="characters" autocomplete="off" style="flex:1"><button class="primary" id="stGo">睇</button></div>
     ${chips("模型持倉", held)}${chips("候選股", cand)}${chips("有研究報告", res)}`);
-  const go = s => { s = normSym(s); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(s)){ alert("請輸入美股代號，例如 NVDA"); return; } close(); setTimeout(() => openStock(s), 280); };
+  const go = s => { s = normSym(s); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(s)){ noteBox("請輸入美股代號，例如 NVDA"); return; } close(); setTimeout(() => openStock(s), 280); };
   const q = sh.querySelector("#stQ"); setTimeout(() => q.focus(), 300);
   sh.querySelector("#stGo").onclick = () => go(q.value); q.onkeydown = e => { if (e.key === "Enter") go(q.value); };
   sh.querySelectorAll("[data-stk]").forEach(b => b.onclick = () => go(b.dataset.stk));
@@ -3253,17 +3280,73 @@ function rsSheetFor(kind, r){
 }
 
 async function resGenerate(sym){
-  if (!peakOK(`生成 ${sym} 研究報告`)) return "已取消（繁忙時段）";
+  if (!await peakOK(`生成 ${sym} 研究報告`)) return "已取消（繁忙時段）";
   RS.msg = `觸發緊雲端生成 ${sym}…`; if (TAB === "res") render();
   try {
     const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/research.yml/dispatches`, {method: "POST",
       headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
       body: JSON.stringify({ref: "main", inputs: {sym}})});
     if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : r.status === 404 ? "（雲端未有 research.yml）" : ""));
-    RS.msg = `已觸發：雲端大約 10 分鐘寫好 ${sym}，之後撳「重新整理」。`;
+    RS.msg = `已觸發 ${sym}：去「股票 → 研究」頁睇每一步進度（大約 10 分鐘）。`;
+    trackRes(sym);
   } catch(e){ RS.msg = "觸發唔到：" + e.message; }
   if (TAB === "res") render();
   return RS.msg;
+}
+// 2026-11-02 老師：「我需要顯示步驟比我睇，唔係我都唔知開始咗未」→ 觸發之後每 10 秒問 GitHub：搵到今次 run，逐個步驟顯示
+const JOB = {};
+function stepName(n){
+  if (n === "Set up job") return "準備雲端機器";
+  if (n === "Complete job" || /^Post /.test(n)) return null;
+  if (/checkout/i.test(n)) return "攞程式";
+  if (/setup-python/i.test(n)) return "裝 Python";
+  if (/pip install/i.test(n)) return "裝套件";
+  return n;
+}
+async function ghGet(path){
+  const r = await fetch(`https://api.github.com/repos/${repoOf()}${path}`, {cache: "no-store",
+    headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"}});
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+function trackRes(sym){
+  const J = JOB[sym] = {t0: Date.now(), steps: [], msg: "已叫雲端，等緊 GitHub 開工…"};
+  const tick = async () => {
+    if (JOB[sym] !== J) return;
+    try {
+      if (!J.run){
+        const d = await ghGet("/actions/workflows/research.yml/runs?event=workflow_dispatch&per_page=5");
+        const r = (d.workflow_runs || []).find(x => Date.parse(x.created_at) >= J.t0 - 90e3);
+        if (r){ J.run = r.id; J.url = r.html_url; }
+      }
+      if (J.run){
+        const [run, jobs] = await Promise.all([ghGet(`/actions/runs/${J.run}`), ghGet(`/actions/runs/${J.run}/jobs`)]);
+        J.steps = (jobs.jobs || []).flatMap(j => j.name === "pz" ? [{n: "暫停檢查", s: j.status, c: j.conclusion}]
+          : (j.steps || []).map(s => ({n: stepName(s.name), s: s.status, c: s.conclusion})).filter(x => x.n));
+        J.msg = run.status === "completed" ? (run.conclusion === "success" ? `寫好咗 ${sym}` : `雲端出錯（${run.conclusion}），撳下面連結睇原因`)
+          : run.status === "queued" || run.status === "waiting" ? "雲端排緊隊…" : "雲端做緊（AI 上網搵資料、寫報告要幾分鐘）…";
+        if (run.status === "completed"){
+          J.done = run.conclusion;
+          if (J.done === "success"){ RS.cache = {}; fetchResIndex(); setTimeout(fetchResIndex, 60e3); }   // GitHub Pages 發佈要多一兩分鐘
+          if (TAB === "res") render(); return;
+        }
+      }
+    } catch(e){ J.msg = "暫時讀唔到進度（" + e.message + "），會再試"; }
+    if (TAB === "res") render();
+    if (Date.now() - J.t0 > 30 * 60e3){ J.msg = "超過 30 分鐘都未完，撳下面連結去 GitHub 睇"; if (TAB === "res") render(); return; }
+    setTimeout(tick, 10e3);
+  };
+  setTimeout(tick, 5e3);
+}
+function resJobCard(sym){
+  const J = JOB[sym]; if (!J) return "";
+  const ic = x => x.c === "success" ? "✓" : x.c === "skipped" ? "–" : x.c ? "✗" : x.s === "in_progress" ? "⏳" : "○";
+  const cls = x => x.c === "success" ? "up" : x.c && x.c !== "skipped" ? "dn" : "";
+  return `<div class="card"><div class="row spread"><b>生成 ${esc(sym)} 研究報告</b><span class="small muted">${Math.round((Date.now() - J.t0) / 60e3)} 分鐘</span></div>
+    <p class="small" style="margin:4px 0">${esc(J.msg)}</p>
+    <ul class="jobsteps"><li><span class="s up">✓</span>已叫雲端</li>${J.steps.map(x => `<li><span class="s ${cls(x)}">${ic(x)}</span>${esc(x.n)}</li>`).join("")}
+      ${J.done === "success" ? `<li><span class="s ${resItem(sym) ? "up" : ""}">${resItem(sym) ? "✓" : "⏳"}</span>${resItem(sym) ? "報告上咗 app" : "等網站更新（一兩分鐘）"}</li>` : ""}</ul>
+    <div class="row">${J.done === "success" && resItem(sym) ? `<button class="primary" data-ressym="${esc(sym)}">睇報告</button>` : ""}${J.url ? `<a class="small" href="${esc(J.url)}" target="_blank" rel="noopener">喺 GitHub 睇詳細</a>` : ""}</div></div>`;
 }
 
 function resBind(r){
@@ -3313,6 +3396,7 @@ function viewRes(){
   const u = RS.index && RS.index.usage, mon = new Date().toISOString().slice(0, 7), spent = u ? (u[mon] || 0) : 0;
   let h = topbar() + `<div class="row spread"><h2>AI 個股研究</h2><button id="resReload" class="small">重新整理</button></div>
     <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ AI 上網搜尋（有 Claude 用 Claude；冇就免費 Gemini 搜尋 + Mistral 分析）→ 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
+  h += Object.keys(JOB).map(resJobCard).join("");      // 2026-11-02：生成緊嘅報告逐步顯示
   if (RS.err) h += `<div class="alert small">讀唔到研究清單：${esc(RS.err)}</div>`;
   if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : RS.err ? "暫時讀唔到清單，請撳重新整理。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
   h += items.map(it => { const lv = resLive(it.sym, it), px = lv && lv.px != null ? lv.px : it.price, sn = lv && lv.stars ? lv.stars : it.stars, pf = lv && lv.pfv != null ? lv.pfv : it.p_fv;
@@ -3354,16 +3438,17 @@ function bind(){
   on("#saveSet", () => { const c = +$("#capital").value; S.capital = isFinite(c) && c > 0 ? c : 0;
     S.dataUrl = $("#dataUrl").value.trim() || defaults.dataUrl; S.feedUrl = $("#feedUrl").value.trim() || defaults.feedUrl;
     S.liveUrl = $("#liveUrl").value.trim() || defaults.liveUrl; S.ghToken = $("#ghToken").value.trim();
-    if (!save()) alert("儲存唔到：瀏覽器唔俾寫入（可能係私密瀏覽模式或者儲存空間滿）。今次改動關咗 app 就會冇。");
+    if (!save()) noteBox("儲存唔到：瀏覽器唔俾寫入（可能係私密瀏覽模式或者儲存空間滿）。今次改動關咗 app 就會冇。");
     FEED.at = 0; fetchScan(); fetchLive(); });
   on("#expSet", () => exportSettings());
-  const imp = $("#impSet"); if (imp) imp.onchange = () => { if (imp.files && imp.files[0] && confirm("用呢個檔還原設定？而家嘅設定會被取代（GitHub token 照留）。")) importSettings(imp.files[0]); imp.value = ""; };
+  const imp = $("#impSet"); if (imp) imp.onchange = async () => { const f = imp.files && imp.files[0]; imp.value = "";
+    if (f && await askBox("用呢個檔還原設定？而家嘅設定會被取代（GitHub token 照留）。")) importSettings(f); };
   on("#reload", () => fetchScan());
   on("#feedReload", () => { cloudRefresh(); render(); });
   on("#goToday", () => jumpToday(true));
   on("#fGo", () => { const c = +$("#fCap").value, d = $("#fStart").value;
-    if (!(c > 0)){ alert("請填本金（美元）"); return; }
-    if (!d || d < "2000-01-03"){ alert("開始日期要喺 2000-01-03 之後"); return; }
+    if (!(c > 0)){ noteBox("請填本金（美元）"); return; }
+    if (!d || d < "2000-01-03"){ noteBox("開始日期要喺 2000-01-03 之後"); return; }
     S.follow = {capital: c, start: d}; save(); pickModel(); HCACHE = {}; render("f"); });
   document.querySelectorAll("[data-acct]").forEach(b => b.onclick = () => setAcct(b.dataset.acct));
   document.querySelectorAll("[data-mtab]").forEach(b => b.onclick = () => { MTAB = b.dataset.mtab; try { localStorage.setItem("mtab", MTAB); } catch(e){} render("f"); window.scrollTo(0, 0); });
@@ -3375,15 +3460,15 @@ function bind(){
   on("#janDone", () => { try { localStorage.setItem("jan-done", String(new Date().getFullYear())); } catch(e){} render(); });
   on("#radarReload", () => { RADAR_MSG = ""; fetchRadarAll(); });
   document.querySelectorAll("[data-rsec]").forEach(b => b.onclick = () => { RSEC = b.dataset.rsec; try { localStorage.setItem("rsec", RSEC); } catch(e){} render(); window.scrollTo(0, 0); });
-  on("#fClear", () => { if (confirm("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
+  on("#fClear", async () => { if (await askBox("停止跟單？（只係清除呢部手機嘅記錄）")){ S.follow = null; save(); render("f"); } });
   on("#goSet", () => go(TAB === "set" ? (LASTTAB || "today") : "set"));
   on("#serReload", () => { fetchSer(); if (S.ghToken) cloudRefresh(); });      // 2026-10-24：Serenity、Trump 淨係全部更新排程，撳「重新整理」即刻叫雲端更新
   on("#trReload", () => { fetchTrump(); if (S.ghToken) cloudRefresh(); });
   on("#cmGo", () => { const cap = +$("#cmCap").value, d = $("#cmStart").value, wb = Math.min(100, Math.max(0, +$("#cmWb").value)), lev = +$("#cmLev").value;
-    if (!(cap > 0)){ alert("請填本金（美元）"); return; }
-    if (!d || d < "2017-01-05"){ alert("開始日期要喺 2017-01-05 之後"); return; }
+    if (!(cap > 0)){ noteBox("請填本金（美元）"); return; }
+    if (!d || d < "2017-01-05"){ noteBox("開始日期要喺 2017-01-05 之後"); return; }
     S.cm = {capital: cap, start: d, wb: isFinite(wb) ? wb : 50, lev: lev === 2 ? 2 : 1}; save(); render("f"); });
-  on("#cmClear", () => { if (confirm("清除加密模型倉設定？")){ S.cm = null; save(); render("f"); } });
+  on("#cmClear", async () => { if (await askBox("清除加密模型倉設定？")){ S.cm = null; save(); render("f"); } });
   on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
@@ -3407,9 +3492,9 @@ function bind(){
   on("#goSearch", () => openSearch());
   evDrawPage();                                        // 事件線要等 HTML 出咗先知闊度
   on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
-  const rgo = () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ alert("請輸入美股代號，例如 NVDA"); return; }
+  const rgo = async () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ noteBox("請輸入美股代號，例如 NVDA"); return; }
     if (resItem(v)){ openRes(v); return; } if (dsPeak()){ resGenerate(v); return; }   // 繁忙時段 resGenerate 自己會問（唔好問兩次）
-    if (confirm(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（${aiProv() === "deepseek" ? "而家用 DeepSeek，收錢但好平" : "而家用免費 AI，唔使錢"}）。`)) resGenerate(v); };
+    if (await askBox(`叫雲端生成 ${v} 嘅研究報告？大約 10 分鐘（${aiProv() === "deepseek" ? "而家用 DeepSeek，收錢但好平" : "而家用免費 AI，唔使錢"}）。`, "生成", "取消")) resGenerate(v); };
   on("#resGo", rgo); const rsy = $("#resSym"); if (rsy) rsy.onkeydown = e => { if (e.key === "Enter") rgo(); };
 }
 
