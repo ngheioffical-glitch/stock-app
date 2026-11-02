@@ -180,5 +180,10 @@ txt = (out / "people.json").read_text(encoding="utf-8")
 o = json.loads(txt)
 check(KEY not in txt and o["stats"]["senate"] == "攞唔到" and len([t for t in o["congress"] if t["chamber"] == "參議院"]) == 2,
       "FMP 出錯：沿用舊紀錄；錯誤訊息唔會寫出 key")
+P.get = lambda url, **k: (_ for _ in ()).throw(RuntimeError("HTTP Error 402: Payment Required")) if "financialmodelingprep" in url else fake_get(url, **k)
+P.main(out)
+o = json.loads((out / "people.json").read_text(encoding="utf-8"))
+check(o["stats"]["senate"] == "FMP 免費版唔包（要付費）" and not any("參議院" in e for e in o["errs"]),
+      "FMP 回 402（免費版唔包參議院）：講清楚要付費，唔當每日錯誤")
 del os.environ["FMP_API_KEY"]
 print(f"\n全部 {ok} 項通過")

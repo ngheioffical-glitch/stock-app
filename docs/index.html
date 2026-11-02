@@ -1509,7 +1509,7 @@ function viewPeople(){
   const cg = peEvents((PPLX.congress || []).filter(t => t.filed >= cut), cgKey), ins = peEvents((PPLX.insider || []).filter(t => t.filed >= cut), inKey);
   const insD = ins.filter(e => !e.plan), insP = ins.filter(e => e.plan);
   const sn = PPLX.stats && PPLX.stats.senate;
-  h += `<div class="card"><b>國會議員（眾議院 + 參議院）近 ${PE_DAYS} 日</b><span class="small muted">按申報日，淨係股票，${cg.length} 單（同人同日同股合併）${sn && sn !== "ok" ? ` · <span class="dn">參議院：${esc(sn === "冇 FMP key" ? "未設定 FMP key，暫時冇" : sn)}</span>` : ""}</span>
+  h += `<div class="card"><b>國會議員（眾議院 + 參議院）近 ${PE_DAYS} 日</b><span class="small muted">按申報日，淨係股票，${cg.length} 單（同人同日同股合併）${sn && sn !== "ok" ? ` · <span class="dn">參議院：${esc(sn === "冇 FMP key" ? "未設定 FMP key，暫時冇" : /付費/.test(sn) ? "暫時冇（FMP 免費版唔包參議院，要付費先有）" : sn)}</span>` : ""}</span>
     ${cg.length ? moreList(cg.map(peCg), 12) : `<p class="small muted">冇</p>`}</div>`;
   h += `<div class="card"><b>公司內部人近 ${PE_DAYS} 日（自主買賣）</b><span class="small muted">留意清單（模型持倉、排名頭 15、候選、研究）${(PPLX.watch || []).length} 隻；${insD.length} 單</span>
     ${insD.length ? moreList(insD.map(peIn), 12) : `<p class="small muted">冇</p>`}

@@ -148,6 +148,8 @@ def senate(prev, cut, now_iso, errs):
         try:
             data = json.loads(get(FMP_SEN.format(p=p, key=key)))
         except Exception as e:  # noqa: BLE001
+            if p == 0 and "402" in str(e):               # 2026-11-02 實測：FMP 免費版唔包參議院（Payment Required）→ 已知限制，唔當每日錯誤
+                return old, seen, 0, "FMP 免費版唔包（要付費）"
             if p == 0:
                 errs.append("參議院（FMP）：" + str(e).replace(key, "***")[:60])
                 return old, seen, 0, "攞唔到"
