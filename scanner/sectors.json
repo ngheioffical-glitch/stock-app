@@ -5,6 +5,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "ADI": {
+  "date": "2026-11-03",
+  "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
  "AMAT": {
   "date": "2026-09-27",
   "industry": "Semiconductor Equipment & Materials",
@@ -65,6 +71,12 @@
   "sector": "Industrials",
   "src": "yahoo"
  },
+ "CNQ": {
+  "date": "2026-11-03",
+  "industry": "Oil & Gas E&P",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "COHR": {
   "date": "2026-09-27",
   "industry": "Scientific & Technical Instruments",
@@ -75,6 +87,12 @@
   "date": "2026-10-12",
   "industry": "Discount Stores",
   "sector": "Consumer Defensive",
+  "src": "yahoo"
+ },
+ "CRL": {
+  "date": "2026-11-03",
+  "industry": "Diagnostics & Research",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "CRM": {
@@ -117,6 +135,12 @@
   "date": "2026-09-27",
   "industry": "Computer Hardware",
   "sector": "Technology",
+  "src": "yahoo"
+ },
+ "E": {
+  "date": "2026-11-03",
+  "industry": "Oil & Gas Integrated",
+  "sector": "Energy",
   "src": "yahoo"
  },
  "EQNR": {
