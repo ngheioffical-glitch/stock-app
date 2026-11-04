@@ -375,6 +375,7 @@ def scan(end=None):
     ndx = C.pop("^NDX").dropna()
     ndx_lo = L["^NDX"].reindex(ndx.index) if "^NDX" in L.columns else ndx
     cash_px = {k: C.pop(k) for k in CASH_SYMS if k in C.columns}
+    ief_tr = AC["IEF"].copy() if "IEF" in AC.columns else None     # 連派息：領導股現金跟 IEF 要計埋息（2026-11-04；舊版用 Close 漏咗）
     for X in (O, H, L, AC, V):
         X.drop(columns=["^NDX"] + CASH_SYMS, inplace=True, errors="ignore")
     C = C.dropna(how="all")
@@ -462,7 +463,7 @@ def scan(end=None):
                ndx=round(float(ndx[t]), 2), ndx_e21=round(float(e21[t]), 2), ndx_s50=round(float(s50n[t]), 2),
                ndx_s200=round(float(s200n[t]), 2), ndx_rsi=round(float(rsi14(ndx)[t]), 1), ndx_rsi10=[round(float(x), 1) for x in rsi14(ndx).reindex(days)], green=green, rank1=ranking[0]["sym"] if ranking else None,
                cash=dict(green10=[bool(g) for g in ((ndx > s200n) | ((ndx > e21) & (e21 > s50n))).reindex(days).fillna(False)],
-                         ief10=r4(cash_px["IEF"].reindex(days).ffill()) if "IEF" in cash_px else None,
+                         ief10=r4(ief_tr.reindex(days).ffill()) if ief_tr is not None else None,
                          irx10=r4(cash_px["^IRX"].reindex(days).ffill()) if "^IRX" in cash_px else None),
                tq=tq_info(cash_px, ndx, e21, s50n, s200n, days),
                bench=dict(qqq10=r4(cash_px["QQQ"].reindex(days).ffill()) if "QQQ" in cash_px else None),   # 模型帳戶記低 QQQ 收市，app 比較「同期買 QQQ」
