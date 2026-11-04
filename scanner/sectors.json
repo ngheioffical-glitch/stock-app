@@ -203,6 +203,12 @@
   "sector": "Financial Services",
   "src": "yahoo"
  },
+ "HURN": {
+  "date": "2026-11-04",
+  "industry": "Consulting Services",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
  "INTC": {
   "date": "2026-09-27",
   "industry": "Semiconductors",
