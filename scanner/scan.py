@@ -89,7 +89,7 @@ TQ_VOL = 0.35      # V2.3：上一日收市綠燈 + QQQ 20 日波幅（年化）
 def download(syms, end=None):
     """Yahoo 日線。auto_adjust=False：開高低收只做拆股調整（同圖表一樣，用嚟定前高、止蝕）；Adj Close 連派息調整（用嚟計 RS）。"""
     import yfinance as yf
-    kw = dict(auto_adjust=False, group_by="ticker", threads=True, progress=False)
+    kw = dict(auto_adjust=False, actions=True, group_by="ticker", threads=True, progress=False)   # actions：派息（模型帳戶記應收）
     if end:
         kw.update(start=(pd.Timestamp(end) - pd.Timedelta(days=740)).strftime("%Y-%m-%d"),
                   end=(pd.Timestamp(end) + pd.Timedelta(days=1)).strftime("%Y-%m-%d"))
@@ -117,7 +117,10 @@ def download(syms, end=None):
         if not got:
             break
     f = {k: raw.xs(k, axis=1, level=1) for k in ["Open", "High", "Low", "Close", "Adj Close", "Volume"]}
-    return {k: v.dropna(how="all") for k, v in f.items()}
+    out = {k: v.dropna(how="all") for k, v in f.items()}
+    if "Dividends" in raw.columns.get_level_values(1):
+        out["Dividends"] = raw.xs("Dividends", axis=1, level=1)
+    return out
 
 
 def swing(x, n=3, high=True):
@@ -324,6 +327,42 @@ def must_have():
     return out
 
 
+def day_plans(days, days_we, after, C, AC, H, L, advF, ndx, e21, s50n, s200n, keep):
+    """最近 10 日（最後一日除外）每日嘅收市決定資料：補跑時 lead.plan 用（2026-11-04，舊版補跑漏中間日嘅止蝕上移同出場）。
+    每日只用到嗰日或者之前嘅數據（rolling／shift）；排名、狀態同主掃描一樣。"""
+    sma50, sma200 = C.rolling(50).mean(), C.rolling(200).mean()
+    hi52 = H.rolling(252, min_periods=252).max()
+    piv, swl = swing(H, 3, True), swing(L, 3, False)
+    atr = wilder_atr(H, L, C)
+    low20 = L.rolling(20).min()
+    q = lambda a, b: AC.shift(a) / AC.shift(b) - 1
+    rs_hist = 0.4 * q(0, 63) + 0.2 * q(63, 126) + 0.2 * q(126, 189) + 0.2 * q(189, 252)
+    fin = lambda x: round(float(x), 4) if np.isfinite(x) else None
+    ranks, out = {}, {}
+    for t in days[:-1]:
+        close, adv = C.loc[t], advF.loc[t]
+        pool = adv[(close >= 5) & (adv >= 20e6)].sort_values(ascending=False).head(50).index
+        rs = rs_hist.loc[t][pool][C.loc[:t, pool].notna().sum() >= 253].dropna().sort_values(ascending=False)
+        ranks[t] = rs
+    syms = sorted(set(keep) | {s for rs in ranks.values() for s in rs.index})
+    for t, we, a in zip(days[:-1], days_we[:-1], after[:-1]):
+        ranking = []
+        for i, s in enumerate(ranks[t].index):
+            c = C.at[t, s]
+            stop = swl.at[t, s] - 0.2 * atr.at[t, s]
+            if not np.isfinite(stop) or stop >= piv.at[t, s]:
+                stop = low20.at[t, s] - 0.2 * atr.at[t, s]
+            good = c > sma200.at[t, s] and sma50.at[t, s] > sma200.at[t, s] and c >= 0.75 * hi52.at[t, s]
+            ranking.append(dict(rank=i + 1, sym=s, close=fin(c), pivot=fin(piv.at[t, s]), stop=fin(stop),
+                                status="唔合格" if not good else ("收市高過前高，唔追" if not c < piv.at[t, s] else "候選")))
+        stocks = {s: dict(close=fin(C.at[t, s]), sma200=fin(sma200.at[t, s]), swing_low=fin(swl.at[t, s]), atr=fin(atr.at[t, s]))
+                  for s in syms if s in C.columns and np.isfinite(C.at[t, s])}
+        out[str(t.date())] = dict(date=str(t.date()), next_day=str(a.date()), week_end=we, ranking=ranking, stocks=stocks,
+                                  green=bool(ndx[t] > s200n[t] or (ndx[t] > e21[t] and e21[t] > s50n[t])),
+                                  rank1=ranking[0]["sym"] if ranking else None)
+    return out
+
+
 def scan(end=None):
     syms, nas_info = nasdaq_universe()
     extra = sorted(must_have() - set(syms))
@@ -332,6 +371,7 @@ def scan(end=None):
     syms = syms + extra
     D = download(syms, end)
     O, H, L, C, AC, V = D["Open"], D["High"], D["Low"], D["Close"], D["Adj Close"], D["Volume"]
+    DV = D.get("Dividends")
     ndx = C.pop("^NDX").dropna()
     ndx_lo = L["^NDX"].reindex(ndx.index) if "^NDX" in L.columns else ndx
     cash_px = {k: C.pop(k) for k in CASH_SYMS if k in C.columns}
@@ -381,6 +421,10 @@ def scan(end=None):
                    c10=r4(C[s].loc[days]), l10=r4(L[s].loc[days]),
                    o10=r4(O[s].loc[days]), h10=r4(H[s].loc[days]),       # 開市、最高：模型帳戶判斷 buy-stop 成交
                    rsi=round(float(rsi[s]), 1) if np.isfinite(rsi.get(s, np.nan)) else None)
+        if DV is not None and s in DV.columns:                   # 最近 10 日有派息先寫（模型帳戶記應收）
+            dv = DV[s].reindex(days).fillna(0.0)
+            if (dv != 0).any():
+                rec["div10"] = [round(float(x), 6) for x in dv]
         stocks[s] = rec
         if s in rank:
             status = "唔合格" if not (c1 and c2 and c3) else ("收市高過前高，唔追" if not close[s] < piv[s] else "候選")
@@ -423,7 +467,7 @@ def scan(end=None):
                tq=tq_info(cash_px, ndx, e21, s50n, s200n, days),
                bench=dict(qqq10=r4(cash_px["QQQ"].reindex(days).ffill()) if "QQQ" in cash_px else None),   # 模型帳戶記低 QQQ 收市，app 比較「同期買 QQQ」
                bounce=bnc, fear=fear, crypto=cry, universe_checked=len(syms), ranking=ranking, candidates=[r["sym"] for r in ranking if r["status"] == "候選"],
-               stocks=stocks)
+               stocks=stocks, plans=day_plans(days, days_we, after, C, AC, H, L, advF, ndx, e21, s50n, s200n, must_have()))
     # 安全檢查：數據唔完整就唔覆蓋舊檔，令 app 繼續顯示上一份
     if len(ranking) < 40 or len(stocks) < 200:
         raise SystemExit(f"數據唔完整（排名 {len(ranking)} 隻、股票 {len(stocks)} 隻），唔更新 scan.json")

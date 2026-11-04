@@ -1,12 +1,14 @@
 """領導股部分（比重睇 v25.W["lead"]；V2.7 = 35%）：V2.2 規則，雲端每日讀 docs/scan.json 行（由 V2.3 model.py 搬過嚟，規則一樣）。[quant-risk]
 
 每個交易日（model.py 按次序調用）：
-  1. 開市：執行上一日收市決定嘅賣出（開市價）
-  2. 盤中：上一日掛嘅 buy-stop，最高 >= 買入價就買（成交 = max(開市, 買入價)），排名高先用現金，
+  0. 除息：前一日收市揸住先有息，記應收，到期入現金（2026-11-04）
+  1. 開市：執行上一日收市決定嘅賣出（開市價；冇開市價就等下一日，唔用收市價扮成交）
+  2. 盤中：上一日掛嘅 buy-stop，最高 >= 買入價就買（成交 = max(開市, 買入價)），排名高先用現金，買夠持股上限（5 隻／剎車 2 隻）就停，
      每隻 = 呢部分帳戶值 × 20%（排第 1 用 30%）
   3. 盤中：最低 <= 止蝕就賣（開市已穿用開市價，否則止蝕價；當日先買嘅用止蝕價）
-  4. 收市：記收市價；連續 5 個交易日冇價 = 退市／被收購（AI 查證）；現金：上一日綠燈收國債息（SGOV／BIL），紅燈跟 IEF
-最新一日收市（plan）：2R 保本、跟 swing low − 0.2 ATR 上移；大市紅燈／跌穿 200 日線／星期五排名跌出頭 15（剎車中頭 6）→ 下一日開市賣；
+  4. 收市：記收市價；連續 5 個交易日冇價 AI 查證（有來源嘅現金收購價先當變現，其他凍結持倉）；現金：上一日綠燈收國債息（SGOV／BIL），紅燈跟 IEF
+     （只計全日都喺度嘅現金；當日先入或者當日用咗嘅唔計）
+每個交易日收市（plan；補跑時中間日用 scan.json 嘅 plans）：2R 保本、跟 swing low − 0.2 ATR 上移；大市紅燈／跌穿 200 日線／星期五排名跌出頭 15（剎車中頭 6）→ 下一日開市賣；
   星期五記呢部分帳戶值做回撤剎車（由高位跌 25% → 最多揸 2 隻，返到高位 − 12.5% 恢復）；有空位就對排名頭嘅候選股掛 buy-stop（空位 × 2 張）。
 成本每邊 0.1%。價錢係 Yahoo 拆股調整價；拆股自動換算持倉（Yahoo 拆股紀錄／AI 查證）。
 狀態放喺帳戶頂層（cash、positions、peak、braking、pending、slots、sleeve、last_green），scan.py 嘅 must_have() 靠 positions／pending 揀股下載。
@@ -15,11 +17,12 @@ from __future__ import annotations
 
 import json
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 RULE = dict(cap=5, cap_brake=2, frac=0.20, boost=1.5, rank_exit=15.0, rank_exit_brake=6.0, sleeve_cost=0.001, be_R=2.0, atr_buf=0.2,
             brake_down=0.75, brake_up=0.875, cost=0.001, mult=2,
-            delist_days=5,       # 持倉連續 5 個交易日冇價：當退市／被收購（同回測引擎一樣）；停牌幾日唔會誤判
+            delist_days=5,       # 持倉連續 5 個交易日冇價：AI 查證，之後每 5 日再查；停牌幾日唔會誤判
+            div_pay_days=14,     # Yahoo 冇付款日：當除息後 14 日到帳（Codex 2026-11-04 真付款日測試：即日到帳同付款日到帳年化只差 0.01 點）
             split_tol=0.03)      # 同一日收市價被 Yahoo 追溯改咗 > 3% = 拆股／合股
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
 
@@ -30,8 +33,8 @@ def _ai(prompt):
 
 
 def nav_at(st, px):
-    """領導股部分嘅帳戶值（注碼、剎車用呢個）。"""
-    return st["cash"] + sum(p["shares"] * px(p) for p in st["positions"])
+    """領導股部分嘅帳戶值（注碼、剎車用呢個；連未到帳嘅應收股息）。"""
+    return st["cash"] + sum(x["amt"] for x in st.get("recv") or []) + sum(p["shares"] * px(p) for p in st["positions"])
 
 
 def value(st):
@@ -49,21 +52,45 @@ def close_pos(st, p, price, d, reason, actions):
                                  reason=f"領導股：{reason}"))
 
 
+def dividends(st, sc, i, d):
+    """除息日（今日 i）：前一日收市揸住先有息，記應收；到期（除息後 div_pay_days 日）嘅應收入現金。"""
+    for p in st["positions"]:
+        dv = ((sc["stocks"].get(p["sym"]) or {}).get("div10") or [None] * (i + 1))[i]
+        if dv and p["date"] < d:
+            pay = (date.fromisoformat(d) + timedelta(days=RULE["div_pay_days"])).isoformat()
+            st.setdefault("recv", []).append(dict(sym=p["sym"], ex=d, amt=p["shares"] * dv, pay=pay))
+    if st.get("recv"):
+        st["cash"] += sum(x["amt"] for x in st["recv"] if x["pay"] <= d)
+        st["recv"] = [x for x in st["recv"] if x["pay"] > d]
+
+
 def step(st, sc, i, actions):
-    """處理 scan 入面第 i 個交易日（開市賣 → buy-stop → 止蝕 → 收市 → 現金）。"""
+    """處理 scan 入面第 i 個交易日（除息 → 開市賣 → buy-stop → 止蝕 → 收市 → 現金）。"""
     d, stocks, R = sc["days"][i], sc["stocks"], RULE
     arr = lambda s, k: (stocks.get(s) or {}).get(k, [None] * 10)[i]
     pend = st.get("pending") or {}
     prev_px = lambda p: (stocks.get(p["sym"]) or {}).get("c10", [None] * 10)[i - 1] if i > 0 else None
     nav_prev = nav_at(st, lambda p: prev_px(p) or p["last_close"])
+    cash0 = st["cash"]
+    dividends(st, sc, i, d)
+    sells = st.pop("carry_sells", None) or []                  # 之前冇開市價、留低未賣嘅
     if pend.get("for") and pend["for"] <= d:
-        for x in pend.get("sells", []):                        # 1. 開市賣
-            p = next((p for p in st["positions"] if p["sym"] == x["sym"]), None)
-            if p:
-                o = arr(p["sym"], "o10") or arr(p["sym"], "c10") or p["last_close"]
+        sells = sells + [x for x in pend.get("sells", []) if x["sym"] not in {y["sym"] for y in sells}]
+    for x in sells:                                            # 1. 開市賣
+        p = next((p for p in st["positions"] if p["sym"] == x["sym"]), None)
+        if p:
+            o = arr(p["sym"], "o10")
+            if o:
                 close_pos(st, p, o, d, x["reason"], actions)
+            else:                                              # 2026-11-04：冇開市價唔可以當收市價成交
+                st.setdefault("carry_sells", []).append(x)
+                actions["warn"].append(f"{p['sym']} {d} 冇開市價：今日冇賣，下一個有價嘅交易日開市再賣（原因：{x['reason']}）")
+    if pend.get("for") and pend["for"] <= d:
+        cap = R["cap_brake"] if st.get("braking") else R["cap"]
         for b in pend.get("buys", []):                         # 2. buy-stop
             s = b["sym"]
+            if len(st["positions"]) >= cap:                    # 2026-11-04：上限要限制成交，唔係淨係限制掛單（掛單數 = 空位 × 2）
+                break
             if any(p["sym"] == s for p in st["positions"]):
                 continue
             o, h = arr(s, "o10"), arr(s, "h10")
@@ -92,15 +119,18 @@ def step(st, sc, i, actions):
         c = arr(p["sym"], "c10")
         if c is not None:
             p["last_close"], p["miss"] = c, 0
+            p.pop("frozen", None)
         else:
             p["miss"] = p.get("miss", 0) + 1
             if p["miss"] >= R["delist_days"]:
                 delisted(st, p, d, actions)
-    cash_sleeve(st, sc, i)
+    cash_sleeve(st, sc, i, cash0)
 
 
-def cash_sleeve(st, sc, i):
-    """領導股現金：上一日收市綠燈 → 收短期國債息（^IRX ÷ 252，即 SGOV／BIL）；紅燈 → 跟 IEF 升跌。轉換嗰日扣 0.1%。"""
+def cash_sleeve(st, sc, i, cash0=None):
+    """領導股現金：上一日收市綠燈 → 收短期國債息（^IRX ÷ 252，即 SGOV／BIL）；紅燈 → 跟 IEF 升跌。轉換嗰日扣 0.1%。
+    cash0 = 今日開市前嘅現金：只有全日都喺度嘅部分（min(cash0, 而家現金)）先有回報、先要轉換，
+    今日賣股先收到嘅錢唔可以賺之前冇揸嘅 IEF 跳空（2026-11-04）。"""
     cs = sc.get("cash") or {}
     g10, ief, irx = cs.get("green10"), cs.get("ief10"), cs.get("irx10")
     if not g10:
@@ -114,9 +144,11 @@ def cash_sleeve(st, sc, i):
         r = ief[i] / ief[i - 1] - 1
     old = st.get("sleeve")
     if st["cash"] > 0:
+        base = st["cash"] if cash0 is None else min(cash0, st["cash"])
         if old and old != mode:
-            st["cash"] -= st["cash"] * RULE["sleeve_cost"]
-        st["cash"] *= 1 + r
+            st["cash"] -= base * RULE["sleeve_cost"]
+            base *= 1 - RULE["sleeve_cost"]
+        st["cash"] += base * r
     st["sleeve"], st["last_green"] = mode, g10[i]
 
 
@@ -128,7 +160,7 @@ def plan(st, sc, actions):
     for p in st["positions"]:
         s = stocks.get(p["sym"])
         if not s or s.get("close") is None:
-            actions["warn"].append(f"{p['sym']} 今日冇數據（已連續 {p.get('miss', 0)} 日）：連續 {R['delist_days']} 日冇數據就當退市，按最後收市價自動賣出")
+            actions["warn"].append(f"{p['sym']} 今日冇數據（已連續 {p.get('miss', 0)} 日）：連續 {R['delist_days']} 日冇數據就會 AI 查證；冇可成交價唔會當賣咗")
             continue
         c, old = s["close"], p["stop"]
         if not p["be"] and p["R"] > 0 and c >= p["entry"] + R["be_R"] * p["R"]:
@@ -168,14 +200,16 @@ def plan(st, sc, actions):
         for r in sc["ranking"]:
             if r["status"] == "候選" and r["sym"] not in held and len(buys) < slots * R["mult"]:
                 buys.append(dict(sym=r["sym"], rank=r["rank"], trigger=r["pivot"], stop=r["stop"],
-                                 frac=R["frac"] * (R["boost"] if r["sym"] == sc["rank1"] else 1.0)))
+                                 frac=R["frac"] * (R["boost"] if r["sym"] == sc["rank1"] else 1.0),
+                                 **({"ref": r["close"]} if r.get("close") else {})))    # ref：掛單嗰日收市，fix_splits 用嚟認拆股
     st["pending"] = {"for": sc["next_day"], "buys": buys, "sells": sells}
     st["slots"] = slots
 
 
 def delisted(st, p, d, actions):
-    """持倉連續冇數據：AI（Google 搜尋）查咩事。收購 → 收購價；改代號 → 轉新代號；停牌 → 等（最多 20 日）；其他 → 最後收市價。"""
-    if p.get("ai_checked") == d:
+    """持倉連續冇數據：AI（Google 搜尋）查咩事，每 delist_days 日先查一次。改代號 → 轉新代號；有來源嘅現金收購價 → 按收購價變現；
+    其他（停牌、退市、破產、查唔到）→ 凍結：冇可核實成交價就唔可以當賣咗（2026-11-04，舊版按最後收市價當變現）。"""
+    if p["miss"] % RULE["delist_days"] or p.get("ai_checked") == d:
         return
     p["ai_checked"] = d
     r, src = _ai(f"美股代號 {p['sym']}（最後有價：{p['last_close']:.2f} 美元）由 {d} 前幾日開始冇交易數據。查下發生咩事："
@@ -187,19 +221,19 @@ def delisted(st, p, d, actions):
         old, p["sym"], p["miss"] = p["sym"], str(r["new_ticker"]).upper().strip("$ "), 0
         actions["warn"].append(f"{old} 改咗代號做 {p['sym']}（{src}：{note}），模型已轉用新代號繼續揸")
         return
-    if st_ in ("halted", "trading") and p["miss"] < 20:
-        actions["warn"].append(f"{p['sym']} 連續 {p['miss']} 日冇數據，AI 查到係「{'停牌' if st_ == 'halted' else '仲有交易'}」（{src}：{note}），繼續揸住等；20 日都冇數據先會按最後收市價賣")
-        return
-    px, why = p["last_close"], f"連續 {p['miss']} 日冇數據"
     if st_ == "acquired" and r.get("cash_per_share"):
         try:
-            px, why = float(r["cash_per_share"]), "被收購（現金收購價）"
+            px = float(r["cash_per_share"])
         except (TypeError, ValueError):
-            pass
-    elif st_ in ("delisted", "bankrupt"):
-        why = "退市" if st_ == "delisted" else "破產"
-    close_pos(st, p, px, d, f"{why}，按 {px:.2f} 賣", actions)
-    actions["warn"].append(f"{p['sym']}：{why}（{src if r else 'AI 查唔到：' + src}{'：' + note if note else ''}），模型已按 {px:.2f} 賣出；你實際戶口通常會由券商自動處理（收購會轉現金）")
+            px = None
+        if px:
+            close_pos(st, p, px, d, f"被收購（現金收購價），按 {px:.2f} 賣", actions)
+            actions["warn"].append(f"{p['sym']}：被收購（{src}{'：' + note if note else ''}），模型已按 {px:.2f} 賣出；你實際戶口通常會由券商自動轉現金")
+            return
+    why = {"halted": "停牌", "trading": "AI 話仲有交易", "delisted": "退市", "bankrupt": "破產", "acquired": "被收購但查唔到現金價"}.get(st_, "查唔到發生咩事")
+    p["frozen"] = why
+    actions["warn"].append(f"{p['sym']} 連續 {p['miss']} 日冇數據：{why}（{src if r else 'AI 查唔到：' + src}{'：' + note if note else ''}）。"
+                           f"冇可成交價，模型冇當賣咗，持倉凍結；帳戶值仍然按最後收市價 {p['last_close']:.2f} 計，可能高估。每 {RULE['delist_days']} 日再查，請睇你券商點處理")
 
 
 def yahoo_splits(sym, days=45):
@@ -216,22 +250,39 @@ def yahoo_splits(sym, days=45):
         return []
 
 
+def split_confirmed(sym, k, last):
+    """收市價 × k 係咪拆股／合股：先睇 Yahoo 拆股紀錄，再問 AI。返 (係咪, 來源)。"""
+    near = lambda f: abs(f / k - 1) < 0.05
+    ok, src = any(near(f) for _, f in yahoo_splits(sym)), "Yahoo 官方拆股紀錄"
+    if not ok:
+        r, src = _ai(f"美股 {sym} 喺 {last} 前後 30 日內有冇拆股或者合股（reverse split）？"
+                     '回覆 JSON：{"split": true/false/"unknown", "ratio_new_per_old": 每 1 股舊股變幾多股新股（例如 2 拆 1 = 2，1 合 10 = 0.1）, "date": "YYYY-MM-DD", "note": "一句中文"}')
+        if r and r.get("split") is True and r.get("ratio_new_per_old"):
+            ok = near(1 / float(r["ratio_new_per_old"]))
+            src = f"AI 查證 {src}：{r.get('note', '')}"
+    return ok, src
+
+
 def fix_splits(st, sc, i0, actions=None):
-    """拆股／合股：Yahoo 會追溯調整舊價。新數據入面「上次處理嗰日」嘅收市，同存低嘅收市唔同 → 按比例換算持倉。"""
+    """拆股／合股：Yahoo 會追溯調整舊價。新數據入面「上次處理嗰日」嘅收市，同存低嘅收市唔同 → 按比例換算持倉同掛單（2026-11-04 加掛單）。"""
     if i0 < 1 or sc["days"][i0 - 1] != st["last"]:
         return
+    for b in (st.get("pending") or {}).get("buys", []):
+        c = (sc["stocks"].get(b["sym"]) or {}).get("c10", [None] * 10)[i0 - 1]
+        if c and b.get("ref") and abs(c / b["ref"] - 1) > RULE["split_tol"]:
+            k = c / b["ref"]
+            ok, src = split_confirmed(b["sym"], k, st["last"])
+            msg = f"{b['sym']} 掛單：同一日收市由 {b['ref']:.2f} 變 {c:.2f}（× {k:.4f}）"
+            if ok:
+                b["trigger"], b["stop"], b["ref"] = b["trigger"] * k, b["stop"] * k, c
+            print(f"[lead] {msg}：{'拆股／合股，換算掛單' if ok else '確認唔到係拆股，唔調整'}")
+            if actions is not None:
+                actions["warn"].append(f"{msg}：" + (f"確認係拆股／合股（{src}），已換算買入價同止蝕" if ok else "Yahoo 同 AI 都確認唔到係拆股，掛單冇調整；可能係數據修正"))
     for p in st["positions"]:
         c = (sc["stocks"].get(p["sym"]) or {}).get("c10", [None] * 10)[i0 - 1]
         if c and p["last_close"] and not p.get("miss") and abs(c / p["last_close"] - 1) > RULE["split_tol"]:
             k = c / p["last_close"]
-            near = lambda f: abs(f / k - 1) < 0.05
-            ok, src = any(near(f) for _, f in yahoo_splits(p["sym"])), "Yahoo 官方拆股紀錄"
-            if not ok:
-                r, src = _ai(f"美股 {p['sym']} 喺 {st['last']} 前後 30 日內有冇拆股或者合股（reverse split）？"
-                             '回覆 JSON：{"split": true/false/"unknown", "ratio_new_per_old": 每 1 股舊股變幾多股新股（例如 2 拆 1 = 2，1 合 10 = 0.1）, "date": "YYYY-MM-DD", "note": "一句中文"}')
-                if r and r.get("split") is True and r.get("ratio_new_per_old"):
-                    ok = near(1 / float(r["ratio_new_per_old"]))
-                    src = f"AI 查證 {src}：{r.get('note', '')}"
+            ok, src = split_confirmed(p["sym"], k, st["last"])
             msg = f"{p['sym']} 同一日收市由 {p['last_close']:.2f} 變 {c:.2f}（× {k:.4f}）"
             if not ok:
                 print(f"[lead] {msg}：Yahoo 同 AI 都確認唔到係拆股，唔調整")
@@ -261,7 +312,8 @@ def holdings(st, sc, tot):
                         ret=round(p["last_close"] / p["entry"] - 1, 4), stop=round(p["stop"], 2), be=p["be"],
                         weight=round(p["shares"] * p["last_close"] / tot, 4) if tot else 0,
                         day_chg=round(c10[-1] / c10[-2] - 1, 4) if len(c10) > 1 and c10[-1] and c10[-2] else None,
-                        rule=f"盤中跌穿止蝕 {p['stop']:.2f} 即賣{'（已保本）' if p['be'] else ''}；收市跌穿 200 日線、星期五排名跌出頭 {lim}、大市紅燈 → 下一日開市賣"))
+                        rule=(f"⚠ 凍結（{p['frozen']}）：冇可成交價，模型冇當賣咗，請睇你券商點處理" if p.get("frozen") else
+                              f"盤中跌穿止蝕 {p['stop']:.2f} 即賣{'（已保本）' if p['be'] else ''}；收市跌穿 200 日線、星期五排名跌出頭 {lim}、大市紅燈 → 下一日開市賣")))
     return out
 
 

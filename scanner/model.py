@@ -6,7 +6,7 @@ V2.7（stock-strategy/LAB_LOSSMIN.md 第 2 輪：冇偷睇揀法 LM2 2026 年揀
   1. Yahoo 下載 2 年日線（^NDX、QQQ、TLT、GLD、^IRX、TQQQ、IEF、TMF、UGL；連派息調整價）→ v24.rows() 每日訊號
   2. 由帳戶上次處理嗰日之後，逐個交易日（要 scan.json 都有嗰日）：領導股（開市賣 → buy-stop → 止蝕 → 收市 → 現金）、
      三隻 ETF 腳（開市低吸 → 收市升跌 → 收市執行上一日決定 → 收市決定聽日）、月尾再平衡（領導股只用現金）
-  3. 最新一日收市：領導股更新止蝕、決定賣出、掛下一日 buy-stop
+  3. 每日收市：領導股更新止蝕、決定賣出、掛下一日 buy-stop（補跑時中間日用 scan.json 嘅 plans；隔咗超過 10 日就停低要手動補）
   4. 寫 docs/model_cont.json：狀態、hist（每日快照，app 歷史用）、view（持倉、要做同原因、四部分狀態）
   數據唔齊（ETF 價缺）就停喺嗰日之前；scan.json 未更新就唔行（等下次）。
 延續帳戶第一次用 scanner/model_cont.py 由研究嘅 2000 年起帳戶（results_all/v25_seed.json）建立。
@@ -121,8 +121,6 @@ def run(path=CONT, sc=None, F=None):
     new = [r for r in R[i + 1:] if r["d"] <= sc["date"]]
     if len(R) > i + 1 and not new:
         actions["warn"].append(f"scan.json 仲係 {sc['date']}（ETF 數據去到 {days[-1]}）：等揀股掃描更新先行")
-    if new and new[0]["d"] not in sidx:
-        actions["warn"].append(f"隔咗超過 10 個交易日先更新，{st['last']} 之後部分日子領導股冇計")
     if new and new[0]["d"] in sidx:
         lead.fix_splits(st, sc, sidx[new[0]["d"]], actions)
     done = 0
@@ -131,8 +129,10 @@ def run(path=CONT, sc=None, F=None):
         if miss:
             actions["warn"].append(f"{r['d']} 缺數據（{'、'.join(miss)}）：模型停喺 {prev['d']}，下次掃描再補")
             break
-        if r["d"] in sidx:
-            lead.step(st, sc, sidx[r["d"]], actions)
+        if r["d"] not in sidx:                           # 2026-11-04：舊版會淨係推 ETF 腳同總帳，領導股漏咗幾日都當完成
+            actions["warn"].append(f"隔咗超過 10 個交易日先更新：scan.json 冇 {r['d']}，帳戶停喺 {prev['d']}，要手動補（tmp/backfill_days.py）")
+            break
+        lead.step(st, sc, sidx[r["d"]], actions)
         f = []
         if v25.step_legs(st, r, prev, f):
             lv = lead.value(st)
@@ -141,6 +141,12 @@ def run(path=CONT, sc=None, F=None):
             if st.get("peak") and lv > 0:                # 剎車只計表現：再平衡調入／調出嘅現金唔當升跌（同回測單獨 V2.2 帳戶一樣）
                 st["peak"] *= (lv + mv) / lv
         actions["fills"] += f
+        if r["d"] < sc["date"]:                          # 補跑：中間日都要做當日嘅收市決定（2026-11-04；舊版漏止蝕上移同出場）
+            pl = (sc.get("plans") or {}).get(r["d"])
+            if pl:
+                lead.plan(st, pl, actions)
+            else:
+                actions["warn"].append(f"補跑 {r['d']}：scan.json 冇當日決策資料，呢日冇更新止蝕同賣出決定")
         snap(st, r, actions["fills"])
         prev = r
         done += 1

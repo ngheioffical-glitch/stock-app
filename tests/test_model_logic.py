@@ -202,8 +202,10 @@ for xr, kw, want, what in (({}, dict(me=True, pick="TQQQ"), "TQQQ", "月尾揀�
 s = legs(subs=[True, True, False, False], f=0.5)
 s["trend"]["pend"] = [True, True, True, False]
 v24.step(s, rr(px={"TQQQ": 110.0, "IEF": 101.0}), rr(d="2026-01-05"), [])
-check(near(s["trend"]["val"], 1000 * (0.5 * 1.1 + 0.5 * 1.01) * (1 - C * 0.25)) and s["trend"]["f"] == 0.75 and near(s["trend"]["epx"], 90.0),
-      "趨勢腳一半 TQQQ（+10%）一半 IEF（+1%），再加到 ¾：成本只計郁咗嘅 ¼；平均入貨價 (½×80 + ¼×110) ÷ ¾ = 90")
+f0_ = 0.55 / 1.055                # 升跌之後持股漂移：TQQQ 550、IEF 505
+mv_ = (1 - f0_) / 2               # 揸 2／4 份，加多 1 份：未買嗰部分（IEF）轉一半
+check(near(s["trend"]["val"], 1055 * (1 - 2 * C * mv_)) and near(s["trend"]["f"], f0_ + mv_) and near(s["trend"]["epx"], (f0_ * 80 + mv_ * 110) / (f0_ + mv_)),
+      "趨勢腳一半 TQQQ（+10%）一半 IEF（+1%）再加 1 份：持股漂移後轉一半 IEF，賣買兩邊都計成本；平均入貨價按轉入比例計")
 s = legs(subs=[False] * 4, dip=dict(pend="buy", why="測試"))
 v24.step(s, rr(px={"TQQQ": 55.0, "IEF": 100.0}, op=50.0), rr(d="2026-01-05"), [])
 check(near(s["dip"]["val"], 100 * (1 - C) * 55 / 50) and s["dip"]["pos"] and s["dip"]["epx"] == 50.0, "低吸：開市 50 買、收市 55")
@@ -266,23 +268,24 @@ check(a1 == a2, "領導股：處理 T 日只睇 T 日同之前（聽日嘅價唔
 def scenario(F):
     R = v24.rows(F, "2026-03-09")
     i0 = [r["d"] for r in R].index(str(F0.index[-41].date()))
-    days = [str(d.date()) for d in F0.index[-10:]]
+    days = [str(d.date()) for d in F0.index[-40:]]             # 2026-11-04：帳戶日子要全部喺 scan 入面（隔太耐會停低）；頭 30 日領導股冇倉、冇價
+    pad = lambda x: [None] * 30 + list(x)
     S = {"AAA": ([100, 101.5, 102, 101, 99, 96, 95.5, 96, 97, 98], [102, 103, 103, 102, 100, 97, 96.5, 97, 98, 99],
                  [99, 100.5, 101, 99.5, 97, 94, 94.5, 95.5, 96, 97], [101.5, 102.5, 101.5, 99.8, 97.5, 95.2, 96, 96.8, 97.5, 98.2]),
          "BBB": ([112, 113, 114, 115, 116, 115, 116, 117, 118, 117], [114, 115, 116, 117, 118, 117, 118, 119, 119.5, 118.5],
                  [111, 112, 113, 114, 115, 114, 115, 116, 117, 116], [113, 114, 115, 116, 117, 116, 117, 118, 118, 117.5]),
          "CCC": ([52, 53, 54, 55.5, 57, 58, 60, 61.5, 63, 64], [53.5, 54.5, 56, 57.5, 58.5, 60.5, 62, 63.5, 65, 66],
                  [51.5, 52.5, 53.5, 55, 56.5, 57.5, 59.5, 61, 62.5, 63.5], [53, 54, 55.5, 57, 58, 60, 61.5, 63, 64.5, 65.5])}
-    stocks = {s: dict(o10=o, h10=h, l10=lo, c10=c, close=c[-1], sma200=40.0, swing_low=min(lo[-5:]), atr=2.0) for s, (o, h, lo, c) in S.items()}
-    stocks.update({s: dict(o10=[px] * 10, h10=[px] * 10, l10=[px] * 10, c10=[px] * 10, close=px, sma200=20.0, swing_low=px * 0.9, atr=1.0)
+    stocks = {s: dict(o10=pad(o), h10=pad(h), l10=pad(lo), c10=pad(c), close=c[-1], sma200=40.0, swing_low=min(lo[-5:]), atr=2.0) for s, (o, h, lo, c) in S.items()}
+    stocks.update({s: dict(o10=[px] * 40, h10=[px] * 40, l10=[px] * 40, c10=[px] * 40, close=px, sma200=20.0, swing_low=px * 0.9, atr=1.0)
                    for s, px in (("DDD", 68.0), ("EEE", 29.0))})
     sc = dict(days=days, date=days[-1], next_day="2026-03-09", week_end=True, green=True, rank1="DDD", stocks=stocks,
               ranking=[dict(rank=1, sym="DDD", status="候選", pivot=70.0, stop=63.0), dict(rank=2, sym="CCC", status="收市高過前高，唔追", pivot=64.0, stop=58.0),
                        dict(rank=3, sym="AAA", status="唔合格", pivot=103.0, stop=95.0), dict(rank=4, sym="EEE", status="候選", pivot=30.0, stop=27.0)],
-              cash=dict(green10=[True] * 10, ief10=[float(x) for x in F0["IEF"].iloc[-10:]], irx10=[4.5] * 10))
+              cash=dict(green10=[True] * 40, ief10=[float(x) for x in F0["IEF"].iloc[-40:]], irx10=[4.5] * 40))
     st = v25.new_legs(100000.0, R[i0], note="測試帳戶")
     st.update(cash=35000.0, positions=[], peak=None, braking=False, slots=0, sleeve=None, last_green=True,
-              pending={"for": days[0], "buys": [dict(sym="AAA", rank=3, trigger=101.0, stop=95.0, frac=0.2), dict(sym="BBB", rank=5, trigger=120.0, stop=110.0, frac=0.2),
+              pending={"for": days[30], "buys": [dict(sym="AAA", rank=3, trigger=101.0, stop=95.0, frac=0.2), dict(sym="BBB", rank=5, trigger=120.0, stop=110.0, frac=0.2),
                                                  dict(sym="CCC", rank=2, trigger=50.0, stop=46.0, frac=0.2)], "sells": []})
     return st, sc
 

@@ -12,11 +12,12 @@
    冇價錢止蝕（測過：逆向買入加止蝕會喺反彈前被洗走）；最多蝕呢 10%。冇倉時現金收國債息。
 3. 輪動腳（10%）：每月最後一個交易日收市，QQQ、TLT（20 年以上美債）、黃金各自計 1、3、6 個月回報平均；
    最高嗰樣高過國債息同期平均，就揸佢嘅槓桿版（QQQ→TQQQ、TLT→TMF、黃金→UGL），否則揸現金；下一個交易日收市前換。
-成本：每次轉換每邊 0.1%（趨勢腳一次轉換當 0.1%，同回測一樣）。所有價錢係連派息調整價。
+成本：每次轉換每邊 0.1%（趨勢腳 IEF ↔ TQQQ 賣一邊買一邊，2026-11-04 起兩邊都計）。所有價錢係連派息調整價。
 
 V2.7（2026-10-12，v25.py 開）：
   趨勢腳分段買返：RULE["vol_ins"] 每個門檻一份（V2.7 = 30%、27.5%、25%、22.5% 各四分一）。每份：揸緊時紅燈或波幅 ≥ 35% 先賣；
     冇揸時要綠燈而且波幅低過自己嘅門檻先買。所以賣係一次過賣晒，買返係分 4 次（波幅越低買越多）。未買返嗰部分揸 IEF。
+    持股隨價錢漂移，唔會每日調返 k／n；加份時將 IEF 按份數轉入 TQQQ（trend_target）。
     V2.4 = (35%,)、V2.6 = (25%,)：只得一份，同以前一樣。
   輪動腳安全版：RULE["xr_safe"] = True 時，大市紅燈或 QQQ 20 日波幅 > 35% 就唔揸 TQQQ（月尾唔揀佢；月中揸緊就下一個交易日收市前轉現金，等月尾再揀）。
 """
@@ -31,7 +32,23 @@ LEG = {"trend": "趨勢腳", "dip": "低吸腳", "xr": "輪動腳"}
 UNDER = {"QQQ": "QQQ", "TLT": "TLT（長債）", "GLD": "黃金"}
 pc = lambda x: f"{x * 100:+.1f}%"
 pv = lambda x: f"{x * 100:.1f}".rstrip("0").rstrip(".") + "%"
-frac_of = lambda subs: sum(subs) / len(subs)
+
+
+def trend_target(T, f):
+    """趨勢腳而家 TQQQ 佔 f；T["pend"] 改份數之後 → (新比例, 要轉嘅比例)。加份：未買嗰部分（IEF）按份數轉入 TQQQ；減份：TQQQ 按份數賣。
+    2026-11-04：持股比例隨價錢漂移，唔再當每日暗中調返 k／n（Codex 重現：無成交都多賺再平衡效果）。"""
+    k0, k1, n = sum(T.get("subs") or []), sum(T["pend"]), len(T["pend"])
+    if k1 == n:
+        return 1.0, 1.0 - f
+    if k1 == 0:
+        return 0.0, f
+    if k1 > k0:
+        moved = (1.0 - f) * (k1 - k0) / (n - k0)
+        return f + moved, moved
+    if k1 < k0:
+        moved = f * (k0 - k1) / k0
+        return f - moved, moved
+    return f, 0.0
 
 
 # ---------------------------------------------------------------- 每日數據 → 訊號
@@ -128,13 +145,19 @@ def step(st, r, p, fills):
         D["days"] += 1
     else:
         D["val"] *= 1 + r["bill"]
-    # ---- 趨勢腳（收市升跌 → 收市執行）：f = TQQQ 佔呢隻腳幾多（分段買返時 0、¼、½、¾、1），其餘 IEF
+    # ---- 趨勢腳（收市升跌 → 收市執行）：f = TQQQ 而家佔呢隻腳幾多（持股隨價錢漂移），其餘 IEF
     T = st["trend"]
     f0 = T["f"]
-    T["val"] *= (1 + r["bill"]) if f0 is None else f0 * _r(r, p, "TQQQ") + (1 - f0) * _r(r, p, "IEF")
+    if f0 is None:
+        T["val"] *= 1 + r["bill"]
+    else:
+        vt, vi = T["val"] * f0 * _r(r, p, "TQQQ"), T["val"] * (1 - f0) * _r(r, p, "IEF")
+        T["val"] = vt + vi
+        f0 = T["f"] = vt / T["val"] if T["val"] else 0.0
     if T["pend"] is not None:
-        f1, a, ief, why = frac_of(T["pend"]), f0 or 0.0, r["px"].get("IEF"), "趨勢腳：" + (T["why"] or "")
-        T["val"] *= 1 - c * (1.0 if f0 is None else abs(f1 - a))
+        a, ief, why = f0 or 0.0, r["px"].get("IEF"), "趨勢腳：" + (T["why"] or "")
+        f1, moved = trend_target(T, a)
+        T["val"] *= 1 - c * (1.0 if f0 is None else 2 * moved)     # 2026-11-04：IEF ↔ TQQQ 賣一邊買一邊，兩邊都計
         if f1 > a:
             if f0 is not None:
                 fills.append(dict(date=d, leg="trend", sym="IEF", side="賣出", px=round(ief or 0, 2), when="收市", reason=why))
@@ -271,13 +294,14 @@ def trend_todo(T, tot):
     """趨勢腳下一個交易日要做（frac = 佔 tot 幾多）。"""
     if T["pend"] is None:
         return []
-    f1, a = frac_of(T["pend"]), T["f"] or 0.0
+    a = T["f"] or 0.0
+    f1, moved = trend_target(T, a)
     if T["f"] is None:
         sym, fr = ("現金 → TQQQ" if f1 >= 1 else "現金 → IEF" if f1 <= 0 else f"現金 → TQQQ {f1:.0%}、IEF {1 - f1:.0%}"), 1.0
     elif f1 > a:
-        sym, fr = "IEF → TQQQ", f1 - a
+        sym, fr = "IEF → TQQQ", moved
     else:
-        sym, fr = "TQQQ → IEF", a - f1
+        sym, fr = "TQQQ → IEF", moved
     return [dict(when="收市前", leg="trend", side="轉", sym=sym, frac=T["val"] * fr / tot, reason=T["why"])]
 
 
@@ -361,6 +385,6 @@ def view(st, r, next_day, fills, warn):
 
 def tq_view(T, r, tot, target, margin):
     """app TQQQ 黃燈同 AI 提示用。pend：None = 冇變、True = 下一日加 TQQQ、False = 下一日賣 TQQQ。frac = 而家 TQQQ 佔帳戶幾多。"""
-    pend = None if T["pend"] is None else frac_of(T["pend"]) > (T["f"] or 0.0)
+    pend = None if T["pend"] is None else sum(T["pend"]) > sum(T.get("subs") or [])
     return dict(trend_info(T, r), held=bool(T.get("held")), pend=pend, frac=round(T["val"] * (T.get("f") or 0.0) / tot, 4), target=target, why_off=T["why"],
                 margin=round(margin, 4), gap21=round(r["ndx"] / r["e21"] - 1, 4), gap50=round(r["ndx"] / r["s50"] - 1, 4))
