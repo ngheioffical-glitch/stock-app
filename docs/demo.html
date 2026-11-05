@@ -570,12 +570,12 @@ function ladder(t){
 const ST={done:new Set(),sub:{},skSeen:false};
 const itRow=t=>`<div class="it" data-it="${t.sym}"><button class="chk" data-p="chk" data-chk="${t.sym}" aria-label="${t.sym} 掛咗單" aria-pressed="false">${CHK}</button><button class="it-open" data-p="row" data-stock="${t.sym}"><span class="m"><b><span class="strike">掛單買 <span class="num" data-fly>${t.sym}</span></span></b><small class="num">突破 ${n2(t.trigger)} · 止蝕 ${n2(t.stop)}</small></span><span class="r num">${pc(t.frac,0)}<small>約 ${shares(t)} 股</small></span></button></div>`;
 // 手機版冇右邊說明欄，而內容係舊快照，所以每頁同每個詳情都要寫明，免得有人照住落單
-const DEMO_TAG=`<p class="demo-tag">示範版：11-03 舊快照，唔好照住落單</p>`;
+const DEMO_TAG=`<p class="demo-tag">示範版：數字係 11-03 舊快照，唔好照住落單</p>`;
 const todoEmpty=()=>`<div class="todo-empty"><b>今日冇嘢要做</b><small>持倉照揸，止蝕單留喺度就得。</small></div>`;
 function todayHTML(){
   const dt=new Date(D.asof+"T12:00:00");
   return `<div class="inner">
-  <header class="lgt rise"><h1 class="mast" id="mast">龍頭突破</h1><p class="mast-d">${dt.getMonth()+1} 月 ${dt.getDate()} 日 星期${"日一二三四五六"[dt.getDay()]}收市 · AI 更新 11-05 04:29</p>${DEMO_TAG}</header>
+  <header class="lgt rise"><h1 class="mast" id="mast">龍頭突破</h1><p class="mast-d">${dt.getMonth()+1} 月 ${dt.getDate()} 日 星期${"日一二三四五六"[dt.getDay()]}收市 · AI 文字 11-05 04:29</p>${DEMO_TAG}</header>
   <h2 class="head rise"><button data-p="card" data-sheet="warn"><span class="head-t"><span class="up">綠燈</span>未熄，<br>離紅線只差 <span class="num wr">${M_TXT}</span></span><span class="head-d">納指收 ${n0(D.ndx.c)}，僅高過 200 日線 ${n0(D.ndx.s200)}。再跌多少少就轉紅燈，趨勢腳要賣晒 TQQQ。</span><span class="head-m">轉紅燈要做乜 ›</span></button></h2>
   <section class="card todo rise" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">仲有 ${D.todo.length} 件</span></div>${D.todo.map(itRow).join("")}<p class="note">${D.todo.length>1?"幾張都掛，邊張先觸發就先買；現金用完就停；":""}冇觸發收市後取消。</p>`:todoEmpty()}</section>
   <section class="card acct rise" id="acct"><span class="acct-lab" id="acctLab">模型帳戶 · 今年</span><b class="hero num up" id="acctNum">${sg(D.ret.ytd)}</b>
