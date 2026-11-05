@@ -184,7 +184,7 @@ nav button[aria-current="page"] svg{filter:drop-shadow(0 0 6px rgba(0,229,255,.7
 .mtabs{position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
 .mtabs button{flex:1}
 .fngchart{width:100%;height:70px;display:block;margin-top:10px}
-.fngbar{position:relative;height:10px;border-radius:6px;margin-top:10px;background:linear-gradient(90deg,var(--stop) 0%,var(--warn) 35%,var(--muted) 50%,var(--buy) 75%,var(--buy) 100%);opacity:.9}
+.fngbar{position:relative;height:10px;border-radius:6px;margin-top:10px;background:linear-gradient(90deg,var(--stop) 0%,var(--stop) 38%,var(--muted) 50%,var(--buy) 62%,var(--buy) 100%);opacity:.9}
 .fngbar i{position:absolute;top:-4px;width:4px;height:18px;margin-left:-2px;border-radius:2px;background:var(--ink);box-shadow:0 0 8px var(--cyan)}
 .warnc{color:var(--warn)}
 details.card>summary::-webkit-details-marker{display:none}
@@ -672,7 +672,7 @@ function mktTiles(){
   if (!SCAN) return "";
   const T = [];
   if (SCAN.ndx_rsi != null){ const [l, c] = rsiZone(SCAN.ndx_rsi); T.push(["rsi", "大市 RSI", Math.round(SCAN.ndx_rsi), l, c]); }
-  const F = SCAN.fear; if (F && F.vix != null && !(F.active || F.vix >= 25)) T.push(["vix", "VIX", F.vix.toFixed(1), "平靜", ""]);
+  const F = SCAN.fear; if (F && F.vix != null && !(F.active || F.vix >= 25)){ const [l, c] = vixZone(F.vix); T.push(["vix", "VIX", F.vix.toFixed(1), l, c]); }
   const G = FNG && FNG.stock; if (G) T.push(["fng", "恐慌貪婪", Math.round(G.score), G.rating, fngCls(G.score)]);
   const V = VAL && VAL.market && VAL.market.ndx; if (V && V.pe) T.push(["val", "納指市盈率", V.pe, V.label || "", VALC[V.label] || ""]);
   const B = SCAN.bounce; if (B && B.zone && !(B.signal && B.signal.active)) T.push(["bounce", "牛市回調", "觀察", "撳入去睇", "warnc"]);
@@ -694,6 +694,8 @@ function digestMini(){
 }
 // 大市 RSI 大卡（2026-10-18 用戶：顯示得太婉轉，好難睇到）：NDX 14 日 RSI，≥ 70 超買、≤ 30 超賣；只係資訊
 const rsiZone = v => v >= 70 ? ["超買", "warnc"] : v >= 55 ? ["偏強", "up"] : v > 45 ? ["中性", ""] : v > 30 ? ["偏弱", "warnc"] : ["超賣", "dn"];
+// 市況顏色（2026-11-05 用戶）：危險／恐慌 = 紅，警告 = 黃，安全／樂觀 = 綠，中性 = 白。之前方格見 VIX < 25 就寫「平靜」，同外匯頁（≥ 20「緊張」）矛盾，而家共用一套
+const vixZone = v => v >= 30 ? ["恐慌", "dn"] : v >= 20 ? ["緊張", "warnc"] : ["平靜", "up"];
 function rsiCard(){
   const v = SCAN && SCAN.ndx_rsi; if (v == null) return "";
   const [lab, cls] = rsiZone(v), h = SCAN.ndx_rsi10 || [], n = h.length;
@@ -712,8 +714,8 @@ function fearCard(){
   if (!F) return "";
   const note = `<p class="small muted">回測（同一個帳戶，2000–2026）：VIX ≥ 30 第一日之後 60 日，β 最高 5 隻平均跑贏 QQQ 6–7%（2000–12 同 2013– 都成立）；但同 V2.2 同一個帳戶照做 40%：全期年化少大約 1%、最大回撤 −49%（V2.2 −35%），因為 2021–22 籃子蝕錢觸發 V2.2 回撤剎車，2023 年少賺。2000–2012 就有幫助（15.6% vs 11.8%）。只係訊號，唔改 V2.2，自己決定。</p>`;
   if (!F.active){
-    if (F.vix < 25) return `<div class="card"><div class="row spread"><span class="small muted">VIX（恐慌買入訊號 ≥ 30）</span><b class="mono">${F.vix.toFixed(1)}</b></div>
-      <p class="small muted">平靜。上一次訊號：${esc((F.history || []).slice(-1)[0] || "—")}</p></div>`;
+    if (F.vix < 25){ const [vl, vc] = vixZone(F.vix); return `<div class="card"><div class="row spread"><span class="small muted">VIX（恐慌買入訊號 ≥ 30）</span><b class="mono ${vc}">${F.vix.toFixed(1)}</b></div>
+      <p class="small muted"><span class="${vc}">${vl}</span>。上一次訊號：${esc((F.history || []).slice(-1)[0] || "—")}</p></div>`; }
     return `<div class="card"><div class="row spread"><div><div class="small muted">VIX 接近恐慌買入訊號</div><div class="status warnc" style="font-size:15px">VIX ${F.vix.toFixed(1)}（≥ 30 觸發）</div></div></div>
       <p class="small">如果今晚收市 ≥ 30，下一日開市用 40% 資金平均買呢 5 隻（成交額頭 50 入面 β 最高）：${(F.preview || []).map(x => `<b>${esc(x.sym)}</b> β${x.beta}`).join("、")}</p>${note}</div>`;
   }
@@ -746,7 +748,7 @@ async function fetchFng(){
   try { const b = S.feedUrl.endsWith("/") ? S.feedUrl : S.feedUrl + "/"; const r = await fetch(b + "fng.json?t=" + Math.floor(Date.now() / 60e3), {cache:"no-store"});
     if (r.ok){ FNG = await r.json(); if (TAB === "crypto" || TAB === "today") render(); } } catch(e){}
 }
-const fngCls = v => v < 25 ? "dn" : v < 45 ? "warnc" : v <= 55 ? "" : "up";
+const fngCls = v => v < 45 ? "dn" : v <= 55 ? "" : "up";   // 2026-11-05 用戶：恐慌（< 45）都係紅，貪婪綠，中性白
 function fngSpark(H){
   if (!H || H.length < 10) return "";
   const W = 320, Hh = 70, X = i => (i / (H.length - 1) * W).toFixed(1), Y = v => (Hh - 2 - v / 100 * (Hh - 4)).toFixed(1);
@@ -2376,7 +2378,7 @@ function fxCard(){
 }
 function viewFx(){
   const F = SCAN && SCAN.fear;
-  const vix = F && F.vix != null ? `<p class="small">VIX（恐慌指數，期權推算未來 30 日波幅）：<b class="mono">${F.vix.toFixed(1)}</b>${F.vix >= 30 ? " · 恐慌" : F.vix >= 20 ? " · 緊張" : " · 平靜"}</p>` : "";
+  const vix = F && F.vix != null ? `<p class="small">VIX（恐慌指數，期權推算未來 30 日波幅）：<b class="mono ${vixZone(F.vix)[1]}">${F.vix.toFixed(1)}</b> · <span class="${vixZone(F.vix)[1]}">${vixZone(F.vix)[0]}</span></p>` : "";
   const A = crossAi();
   return topbar() + `<div class="row spread"><h2>外匯同跨市場</h2><button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`
     + (FEED.cloud ? `<p class="small muted">${esc(FEED.cloud)}</p>` : "")
