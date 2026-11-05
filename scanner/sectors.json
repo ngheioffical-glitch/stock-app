@@ -197,6 +197,12 @@
   "sector": "Consumer Cyclical",
   "src": "yahoo"
  },
+ "HNGE": {
+  "date": "2026-11-05",
+  "industry": "Health Information Services",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "HOOD": {
   "date": "2026-09-27",
   "industry": "Capital Markets",
@@ -401,6 +407,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "RVTY": {
+  "date": "2026-11-05",
+  "industry": "Diagnostics & Research",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "SHEL": {
   "date": "2026-10-22",
   "industry": "Oil & Gas Integrated",
@@ -447,6 +459,12 @@
   "date": "2026-10-31",
   "industry": "Software - Application",
   "sector": "Technology",
+  "src": "yahoo"
+ },
+ "TEVA": {
+  "date": "2026-11-05",
+  "industry": "Drug Manufacturers - Specialty & Generic",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "TGT": {
