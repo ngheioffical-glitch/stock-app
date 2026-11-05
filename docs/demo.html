@@ -357,6 +357,29 @@ small{font-size:12px;font-weight:400;color:var(--mut)}
 .splash{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:var(--bg)}
 .splash b{display:block;font:900 30px/1.15 var(--serif);letter-spacing:.02em;color:var(--ink);transform-origin:0 0}
 .splash[hidden]{display:none}
+.sp-a{display:flex;flex-direction:column;align-items:center;gap:20px;margin-top:-40px}
+.sp-icon{display:block;width:64px;height:64px}
+.sp-word{font:900 26px/1.3 var(--serif);letter-spacing:.1em;padding-left:.1em;color:var(--ink)}
+.sp-c{display:grid;place-items:center;margin-top:-40px}.sp-c>*{grid-area:1/1}
+.sp-dot{display:block;width:16px;height:16px;border-radius:50%;background:var(--mut)}
+.sp-light{display:block;font:900 46px/1.2 var(--serif);opacity:0}
+.sp-col{position:relative;margin-top:-30px;font:900 44px/1.16 var(--serif);color:var(--ink)}
+.sp-col span{display:block}
+.sp-seal{position:absolute;left:calc(100% + 10px);bottom:5px;width:34px;height:34px;display:grid;place-items:center;border-radius:6px;background:var(--ink);color:var(--bg);font:900 20px/1 var(--serif);font-style:normal;opacity:0}
+.sp-e{position:relative;z-index:1;margin-top:-40px}.sp-e .sp-icon{width:72px;height:72px}
+.sp-e .ic-l,.sp-e .ic-a{stroke-dasharray:1;stroke-dashoffset:1;opacity:0}.sp-e .ic-r{opacity:0}
+.sp-win{position:absolute;background:#0d6b58}.sp-win[hidden]{display:none}
+.sp-pill{position:absolute;overflow:hidden;background:var(--dock);border-radius:24px;box-shadow:0 10px 28px var(--shadow);pointer-events:none}
+.sp-fname{position:absolute;inset:0;display:grid;place-items:center;font:900 22px/1 var(--serif);letter-spacing:.06em;color:var(--dock-pill)}
+.demo-lnk{display:inline-block;margin:-2px 0 0;padding:6px 12px 6px 0;font-size:13px;font-weight:700;color:var(--acc)}
+.lc-list{margin-top:8px}
+.lc{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;width:100%;min-height:64px;padding:10px 0;text-align:left;border-top:1px solid var(--line)}
+.lc:first-child{border-top:0}
+.lc i{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:var(--card2);color:var(--ink);font:800 14px/1 var(--num);font-style:normal}
+.lc[aria-pressed=true] i{background:var(--ink);color:var(--bg)}
+.lc b{display:block;font-size:15px}
+.lc small{display:block;font-size:12.5px;line-height:1.45;color:var(--mut)}
+.lc em{font:700 12.5px/1 var(--num);font-style:normal;white-space:nowrap;color:var(--mut)}
 
 /* 喺電腦睇：顯示邊度會震 */
 .hapt{position:absolute;z-index:30;top:8px;left:50%;padding:0 10px;height:20px;margin-left:-26px;border-radius:10px;background:#000;color:#fff;font-size:12px;line-height:20px;white-space:nowrap;opacity:0;pointer-events:none}
@@ -890,7 +913,7 @@ small{font-size:12px;font-weight:400;color:var(--mut)}
     <div class="lg lg-ov" id="lgOv"><div id="rs" hidden></div></div>
     <div id="lgPark" hidden><div class="lg" id="lgWrap"><main id="app"></main></div></div>
     <div class="toasts" id="toasts" role="status"></div>
-    <div class="splash" id="splash" hidden><b id="spName">龍頭突破</b></div>
+    <div class="splash" id="splash"></div>
     <span class="hapt" id="hapt" aria-hidden="true"></span>
   </section>
   <aside class="panel" id="panel"></aside>
@@ -919,9 +942,10 @@ function buildD(){
     nav:{d:pts.slice(-253).map(p=>p[0]),v:pts.slice(-253).map(p=>p[1])},
     ret:{day:last/vals[n-2]-1,m1:last/vals[Math.max(0,n-22)]-1,ytd:yb?last/yb[1]-1:0,y1:last/vals[Math.max(0,n-253)]-1,dd:last/Math.max(BT.peak,...vals)-1},
     rank:s.ranking||[],stock};
-  if(EV){const c=EV.c,e=EV.d,sma=c.map((_,i)=>i>=199?c.slice(i-199,i+1).reduce((a,b)=>a+b,0)/200:null);d.mkt={d:e.slice(-252),c:c.slice(-252),s:sma.slice(-252).map(x=>x==null?null:Math.round(x*10)/10)};}
+  if(EV)d.mkt=mktOf();
   return d;
 }
+function mktOf(){const c=EV.c,e=EV.d,sma=c.map((_,i)=>i>=199?c.slice(i-199,i+1).reduce((a,b)=>a+b,0)/200:null);return {d:e.slice(-252),c:c.slice(-252),s:sma.slice(-252).map(x=>x==null?null:Math.round(x*10)/10)};}
 function legLines(){
   const L=D.legs,lh=D.hold.filter(h=>h.legk==="lead").map(h=>h.sym),out=[];
   if(!L)return out;
@@ -1059,7 +1083,7 @@ addEventListener("pointerup",()=>{
   left>0?setTimeout(()=>p.el.classList.remove("is-down"),left):p.el.classList.remove("is-down");
 });
 addEventListener("pointercancel",prCancel);
-document.addEventListener("click",e=>{if(performance.now()<noClickUntil&&!e.target.closest(".dock")){e.stopPropagation();e.preventDefault();}},true); // 底部分頁唔會係拖動起手位，掃完即刻撳都要得；掛喺 document，要快過正式 app 撳股票代號嗰個
+document.addEventListener("click",e=>{if(performance.now()<noClickUntil&&e.target.closest("#phone")&&!e.target.closest(".dock")){e.stopPropagation();e.preventDefault();}},true); // 底部分頁唔會係拖動起手位，掃完即刻撳都要得；掛喺 document，要快過正式 app 撳股票代號嗰個
 
 // ───── 圖（策略、詳情頁）
 const CHARTS=new Map();let chartId=0;
@@ -1204,7 +1228,7 @@ function headHTML(){
 function todayInner(){
   if(!D)return `<header class="lgt"><h1 class="mast" id="mast">龍頭突破</h1><p class="mast-d">載入緊數據…</p>${DEMO_TAG}</header>${lgSec("alerts")}<div class="lg lg-sec"><div class="skel"></div><div class="skel s2"></div><div class="skel s3"></div></div>`;
   const dt=new Date(D.asof+"T12:00:00");
-  return `<header class="lgt rise"><h1 class="mast" id="mast">龍頭突破</h1><p class="mast-d">${dt.getMonth()+1} 月 ${dt.getDate()} 日 星期${"日一二三四五六"[dt.getDay()]}收市</p>${DEMO_TAG}</header>
+  return `<header class="lgt rise"><h1 class="mast" id="mast">龍頭突破</h1><p class="mast-d">${dt.getMonth()+1} 月 ${dt.getDate()} 日 星期${"日一二三四五六"[dt.getDay()]}收市</p>${DEMO_TAG}<button class="demo-lnk" data-lcopen>試入 app 動畫 ›</button></header>
   ${lgSec("alerts")}
   ${headHTML()}
   <section class="card todo rise" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">仲有 ${D.todo.length-D.todo.filter(t=>ST.done.has(t.key)).length} 件</span></div>${D.todo.map(itRow).join("")}<p class="note">${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
@@ -1218,7 +1242,7 @@ function todayInner(){
   <div data-live="ai"></div>
   <h2 class="sec">大市燈號</h2>${lgSec("light")}
   <h2 class="sec">市況一覽 <small>撳入去睇詳細</small></h2>${lgSec("tiles")}
-  ${evCard()}
+  <div id="evSlot">${evCard()}</div>
   ${lgSec("cand")}`;
 }
 // 今日頁入面用正式 app 嘅卡：數據一到就換，內容冇變就唔郁，展開咗嘅 <details> 唔會自己縮返（老師 11-02 要求）
@@ -1250,13 +1274,19 @@ function todayRender(){
   if(D){initAcct(v);v.querySelectorAll(".evch").forEach(el=>{evDraw(el);evReveal(el);});}
   todayLive();
   v.scrollTop=top;paintBar(v);
+  if(Lc.on)Lc.sel.forEach(s=>{const e=v.querySelector(s);if(e)e.style.visibility="hidden";}); // 入 app 動畫途中重砌：飛緊嗰粒字唔好變兩粒
+}
+// 事件線遲啲先到：只填佢嗰格，唔好重砌成頁（入 app 動畫做緊都唔會跳）
+function evArrived(){
+  if(D&&!D.mkt)D.mkt=mktOf();
+  const s=VIEWS.today&&VIEWS.today.querySelector("#evSlot");
+  if(s&&!s.childElementCount){s.innerHTML=evCard();s.querySelectorAll(".evch").forEach(el=>{evDraw(el);evReveal(el);});}
 }
 // 數據有變先重砌 D 同今日頁（正式 app 每次 render 都會行到呢度）
-let dataSig="",firstData=null;
-const dataReady=new Promise(r=>{firstData=r;setTimeout(r,2500);});
+let dataSig="";
 function shellData(){
   const {SCAN:s,MCONT:m}=LG.state();
-  const sig=[s&&s.date,s&&s.generated,m&&m.last,m&&m.view&&m.view.generated,!!EV].join("|");
+  const sig=[s&&s.date,s&&s.generated,m&&m.last,m&&m.view&&m.view.generated].join("|");
   if(sig===dataSig){todayLive();return;}
   dataSig=sig;
   const was=!!D;D=buildD();
@@ -1271,7 +1301,7 @@ function shellData(){
   }
   todayRender();
   document.querySelectorAll(".mast-d[data-asof]").forEach(el=>{el.textContent=D?D.asof.slice(5)+" 收市":"";});
-  if(D&&!was){firstData();lgPrefill();}
+  if(D&&!was)lgPrefill();
 }
 window.__shell={
   scroller:()=>Pu.setting?pushEl:view(cur),
@@ -1856,30 +1886,119 @@ function toggleTheme(btn){
   syncPanel();
 }
 
-// ───── 開場
-// 每日第一次開先播，撳一下即刻跳過；之後直入（Apple HIG：常用動作避免多餘動畫，唔好要人等動畫播完）
-function launch(force){
-  closeAllNow();if(cur!=="today")go("today");
-  const v=view("today"),sp=$("#spName"),day=new Date().toDateString();
+// ───── 入 app 動畫（老師 11-05：「到入app動畫。都係比幾個嚟睇下」）：6 個版本，揀咗記低，落地都係真正嘅今日頁
+// 共通守則（10-26 老師揀「一息入場」嗰陣定低）：唔用轉圈、假進度、模糊；唔叫人等數據（等得最耐都係一陣，等唔到就入去）；撳一下即刻跳過；減少動態 = 唔播
+// 試緊所以每次開都播；老師揀定之後改返每日第一次先播（Apple HIG：常用動作避免多餘動畫）
+const LC_TRIAL=true,LC_DEF="b";
+const Lc={on:false,anims:[],timers:[],sel:[],els:[]};
+const lcA=(el,fr,o)=>{const a=el.animate(fr,{duration:T(o.d),delay:o.dl?T(o.dl):0,easing:o.e||EASE,fill:o.f||"both"});Lc.anims.push(a);return a;};
+const lcT=(f,ms)=>{const t=setTimeout(()=>{if(Lc.on)f();},T(ms));Lc.timers.push(t);return t;};
+const lcVar=n=>getComputedStyle(phone).getPropertyValue(n).trim();
+function lcData(maxMs,f){const t0=performance.now();const tick=()=>{if(D||performance.now()-t0>=T(maxMs))return f();lcT(tick,40);};tick();} // 數據到就行，最多等 maxMs
+function lcHide(sel){Lc.sel.push(sel);const e=VIEWS.today.querySelector(sel);if(e)e.style.visibility="hidden";}
+function lcHideEl(el){Lc.els.push(el);el.style.visibility="hidden";}
+const lcBg=(dl=40)=>lcA(splash,[{backgroundColor:lcVar("--bg")},{backgroundColor:"rgba(0,0,0,0)"}],{d:220,dl,e:"ease-out",f:"forwards"});
+function lcLand(v){stagger(v,".rise",40,45,6);if(D){heroCount();acctDrawOn(160);const al=v.querySelector("#alloc");if(al)anim(al,[{clipPath:"inset(0 100% 0 0)"},{clipPath:"inset(0 0 0 0)"}],{d:600,dl:320,f:"backwards"});}}
+function charRects(el){const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT),out=[];let n;while((n=w.nextNode()))for(let i=0;i<n.length;i++){const r=document.createRange();r.setStart(n,i);r.setEnd(n,i+1);const q=r.getBoundingClientRect();out.push({x:q.left,y:q.top});}return out;}
+function lcFly(el,d,ms,dl,done){ // el 第一粒字飛去 d；只郁 transform，落地位置對準真正嗰粒字
+  const s=charRects(el)[0],b=el.getBoundingClientRect(),k=d.fs/parseFloat(getComputedStyle(el).fontSize);
+  el.style.transformOrigin=`${s.x-b.left}px ${s.y-b.top}px`;
+  const a=lcA(el,[{transform:"none"},{transform:`translate(${d.x-s.x}px,${d.y-s.y}px) scale(${k})`}],{d:ms,dl,e:IOS_EASE,f:"forwards"});
+  a.onfinish=()=>{if(window.__lcTrace){const g=charRects(el)[0];window.__lcTrace.push(Math.hypot(g.x-d.x,g.y-d.y));}done&&done();};
+  return a;
+}
+const lcTo=(el,i=0)=>{const r=charRects(el)[i];return {x:r.x,y:r.y,fs:parseFloat(getComputedStyle(el).fontSize)};};
+const lcFade=()=>{lcA(splash,[{opacity:1},{opacity:0}],{d:220,e:"cubic-bezier(.2,.7,.2,1)",f:"forwards"}).onfinish=lcFinish;};
+const ICON=`<svg class="sp-icon" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="96" fill="#0d6b58"/><line class="ic-r" x1="96" y1="200" x2="330" y2="200" stroke="#e2f1eb" stroke-width="10" stroke-dasharray="18 16"/><path class="ic-l" pathLength="1" d="M96 360 L200 280 L268 318 L400 170" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><path class="ic-a" pathLength="1" d="M330 170 H400 V240" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LORDER=["a","b","c","d","e","f"];
+const LAUNCH={
+  a:{name:"一息",ms:"0.7 秒",desc:"圖示同個名淡入，即刻淡出。正式 app 而家用緊，最快。",
+    html:()=>`<div class="sp-a">${ICON}<span class="sp-word">龍頭突破</span></div>`,
+    run(){lcA(splash.firstElementChild,[{opacity:0,transform:"translateY(6px)"},{opacity:1,transform:"none"}],{d:240,e:"cubic-bezier(.16,1,.3,1)"});lcT(lcFade,420);}},
+  b:{name:"定位",ms:"0.8 秒",desc:"個名喺中間出現，飛上頁頂變標題，內容跟住升上嚟。demo 而家用緊。",
+    html:()=>`<b id="spName">龍頭突破</b>`,
+    run(v){const sp=$("#spName");lcA(sp,[{opacity:0,transform:"translateY(8px)"},{opacity:1,transform:"none"}],{d:240});
+      lcT(()=>lcData(500,()=>{const t=lcTo(v.querySelector("#mast"));lcHide("#mast");lcFly(sp,t,420,0,lcFinish);lcBg();lcLand(v);}),360);}},
+  c:{name:"燈號",ms:"1.3 秒",desc:"一粒點變成今日燈號（綠燈或者紅燈），飛入頁頂句子。第一眼就知今日點。",
+    html:()=>`<div class="sp-c"><i class="sp-dot"></i><span class="sp-light"></span></div>`,
+    run(v){const dot=splash.querySelector(".sp-dot"),w=splash.querySelector(".sp-light");
+      lcA(dot,[{transform:"scale(0)"},{transform:"scale(1)"}],{d:260,e:SP.pop.e});
+      lcT(()=>lcData(700,()=>{
+        if(!D)return lcFade(); // 數據未到：唔好估燈號，直接淡出入去
+        const up=D.green;w.textContent=up?"綠燈":"紅燈";w.classList.add(up?"up":"dn");buzz("light");
+        lcA(dot,[{transform:"scale(1)",opacity:1,backgroundColor:lcVar("--mut")},{transform:"scale(1.25)",opacity:1,backgroundColor:lcVar(up?"--up":"--dn"),offset:.45},{transform:"scale(.2)",opacity:0,backgroundColor:lcVar(up?"--up":"--dn")}],{d:300,e:"ease-in"});
+        lcA(w,[{opacity:0,transform:"scale(.9)"},{opacity:1,transform:"none"}],{d:260,dl:140,e:SP.press.e});
+        lcT(()=>{const sel=".head-t .up,.head-t .dn",t=lcTo(v.querySelector(sel));lcHide(sel);lcFly(w,t,440,0,()=>{buzz("tick");lcFinish();});lcBg();lcLand(v);},600);
+      }),260);}},
+  d:{name:"落印",ms:"1.6 秒",desc:"四個字由上而下寫出嚟，蓋個印（印色跟今日燈號，會震），再排返做標題。最有性格，亦最慢。",
+    html:()=>`<div class="sp-col">${[..."龍頭突破"].map(c=>`<span>${c}</span>`).join("")}<i class="sp-seal">破</i></div>`,
+    run(v){const col=splash.querySelector(".sp-col"),cs=[...col.querySelectorAll("span")],seal=col.querySelector(".sp-seal");
+      cs.forEach((c,i)=>lcA(c,[{clipPath:"inset(0 0 100% 0)",opacity:.3},{clipPath:"inset(0 0 0% 0)",opacity:1}],{d:220,dl:i*100,e:"cubic-bezier(.3,.1,.2,1)"}));
+      lcT(()=>lcData(300,()=>{
+        if(D)seal.style.background=lcVar(D.green?"--up":"--dn");
+        lcA(seal,[{opacity:0,transform:"rotate(-5deg) scale(1.9)"},{opacity:1,transform:"rotate(-5deg) scale(1)"}],{d:130,e:"cubic-bezier(.5,0,.9,.4)",f:"forwards"});
+        lcT(()=>{buzz("medium");lcA(col,[{transform:"scale(1)"},{transform:"scale(.982)",offset:.3},{transform:"scale(1)"}],{d:220,e:"ease-out"});},130);
+        lcT(()=>{const m=v.querySelector("#mast"),fs=parseFloat(getComputedStyle(m).fontSize),t=charRects(m);lcHide("#mast");
+          cs.forEach((c,i)=>lcFly(c,{x:t[i].x,y:t[i].y,fs},460,i*26,i===3?lcFinish:null));
+          lcA(seal,[{opacity:1,transform:"rotate(-5deg) scale(1)"},{opacity:0,transform:"rotate(-5deg) scale(.6)"}],{d:180,e:"ease-in",f:"forwards"});
+          lcBg(80);lcLand(v);},400);
+      }),620);}},
+  e:{name:"圖示一筆",ms:"1.3 秒",desc:"同手機桌面個圖示一樣：箭嘴畫出嚟，再由圖示放大變成 app。",
+    html:()=>`<div class="sp-win" hidden></div><div class="sp-e">${ICON}</div>`,
+    run(v){const ic=splash.querySelector(".sp-icon"),r=ic.querySelector(".ic-r"),l=ic.querySelector(".ic-l"),ar=ic.querySelector(".ic-a"),win=splash.querySelector(".sp-win");
+      lcA(ic,[{opacity:0,transform:"scale(.9)"},{opacity:1,transform:"none"}],{d:200,e:SP.press.e});
+      lcA(r,[{opacity:0},{opacity:1}],{d:140,dl:100});
+      lcA(l,[{strokeDashoffset:1,opacity:0},{opacity:1,offset:.02},{strokeDashoffset:0,opacity:1}],{d:360,dl:160,e:"cubic-bezier(.5,0,.2,1)"});
+      lcA(ar,[{strokeDashoffset:1,opacity:0},{opacity:1,offset:.05},{strokeDashoffset:0,opacity:1}],{d:130,dl:500,e:"ease-out"});
+      lcT(()=>{buzz("light");lcA(ic,[{transform:"scale(1)"},{transform:"scale(1.05)",offset:.4},{transform:"scale(1)"}],{d:180,e:"ease-out"});},600);
+      lcT(()=>lcData(300,()=>{
+        const P=phone.getBoundingClientRect(),R=ic.getBoundingClientRect();
+        win.hidden=false; // 用真正嘅闊高，唔用 clip-path（電腦模擬手機嗰陣量到 clip-path 動畫畫錯尺寸）
+        lcA(win,[{left:`${R.left-P.left}px`,top:`${R.top-P.top}px`,width:`${R.width}px`,height:`${R.height}px`,borderRadius:`${R.width*96/512}px`},{left:"0px",top:"0px",width:`${P.width}px`,height:`${P.height}px`,borderRadius:"0px"}],{d:420,e:IOS_EASE,f:"forwards"});
+        lcA(ic,[{opacity:1,transform:"none"},{opacity:0,transform:"scale(1.5)"}],{d:200,e:"ease-in",f:"forwards"});
+        lcT(()=>{splash.style.backgroundColor="transparent";lcA(win,[{opacity:1},{opacity:0}],{d:260,e:"ease-out",f:"forwards"}).onfinish=lcFinish;lcLand(v);},260);
+      }),780);}},
+  f:{name:"底欄",ms:"0.8 秒",desc:"深色膠囊喺中間出個名，跌落去變底部分頁，內容同時升上嚟。",
+    html:()=>``,
+    run(v){dock.classList.remove("mini");
+      const P=phone.getBoundingClientRect(),q=dock.getBoundingClientRect(),dy=P.height/2-40-(q.top-P.top+q.height/2),W0=Math.min(196,q.width),L1=q.left-P.left,L0=L1+(q.width-W0)/2;
+      const box=document.createElement("div"),c=dock.cloneNode(true),nm=document.createElement("span");
+      box.className="sp-pill";box.style.cssText=`left:${L0}px;top:${q.top-P.top}px;width:${W0}px;height:${q.height}px`;
+      c.removeAttribute("id");c.inert=true;c.style.cssText=`left:50%;right:auto;top:0;bottom:auto;width:${q.width}px;height:100%;margin-left:${-q.width/2}px;background:none;box-shadow:none;transition:none`; // 分頁掣固定闊度，膠囊拉闊先慢慢露出嚟
+      nm.className="sp-fname";nm.textContent="龍頭突破";box.appendChild(c);box.appendChild(nm);splash.appendChild(box);
+      const items=[...c.querySelectorAll("button")],pill=c.querySelector(".dock-pill i");
+      items.forEach(b=>{b.style.opacity=0;});pill.style.opacity=0;lcHideEl(dock);
+      lcA(box,[{opacity:0,transform:`translateY(${dy}px) scale(.94)`},{opacity:1,transform:`translateY(${dy}px)`}],{d:260,e:SP.press.e});
+      lcT(()=>lcData(300,()=>{
+        const sp=springCSS(320,32);
+        lcA(box,[{transform:`translateY(${dy}px)`,left:`${L0}px`,width:`${W0}px`},{transform:"none",left:`${L1}px`,width:`${q.width}px`}],{d:sp.ms,e:sp.e,f:"forwards"}).onfinish=lcFinish;
+        lcA(nm,[{opacity:1},{opacity:0}],{d:140,e:"ease-in",f:"forwards"});
+        items.forEach((b,i)=>lcA(b,[{opacity:0,transform:"translateY(8px)"},{opacity:1,transform:"none"}],{d:220,dl:160+i*30,e:SP.press.e}));
+        lcA(pill,[{opacity:0,transform:"scale(.8)"},{opacity:1,transform:"none"}],{d:260,dl:180,e:SP.pop.e});
+        lcT(()=>buzz("light"),280);lcBg(60);lcLand(v);
+      }),460);}}
+};
+function lcKey(){const u=new URLSearchParams(location.search).get("launch");if(u&&LAUNCH[u])return u;try{const s=localStorage.getItem("lt_launch");if(s&&LAUNCH[s])return s;}catch(e){}return LC_DEF;}
+function lcFinish(){
+  Lc.on=false;Lc.timers.forEach(clearTimeout);Lc.timers=[];Lc.anims.forEach(a=>a.cancel());Lc.anims=[];
+  splash.hidden=true;splash.innerHTML="";splash.onpointerdown=null;splash.removeAttribute("style");
+  Lc.sel.forEach(s=>{const e=VIEWS.today&&VIEWS.today.querySelector(s);if(e)e.style.visibility="";});Lc.sel=[];
+  Lc.els.forEach(el=>{el.style.visibility="";});Lc.els=[];
+}
+function launch(force,key){
+  lcFinish();closeAllNow();if(cur!=="today")go("today");
+  const v=view("today"),day=new Date().toDateString();
   v.scrollTop=0;paintBar(v);
   let seen=false;try{seen=localStorage.getItem("lt_splash")===day;localStorage.setItem("lt_splash",day);}catch(e){}
-  let timer=0;
-  const finish=()=>{clearTimeout(timer);sp.getAnimations().forEach(x=>x.cancel());splash.getAnimations().forEach(x=>x.cancel());splash.hidden=true;splash.onpointerdown=null;const m=v.querySelector("#mast");if(m)m.style.visibility="";};
-  if(RM||(seen&&!force)){finish();return;}
-  splash.hidden=false;splash.onpointerdown=finish;
-  sp.getAnimations().forEach(a=>a.cancel());
-  splash.getAnimations().forEach(a=>a.cancel());
-  anim(sp,[{opacity:0,transform:"translateY(8px)"},{opacity:1,transform:"none"}],{d:240,f:"backwards"});
-  const t0=performance.now();
-  dataReady.then(()=>{if(splash.hidden)return;timer=setTimeout(()=>{ // 等數據到先飛去標題；數據未到最多等 2.5 秒
-    const mast=v.querySelector("#mast"),a=rel(sp),m=mast.getBoundingClientRect(),P=phone.getBoundingClientRect(),cs=getComputedStyle(mast);mast.style.visibility="hidden";
-    const bx=m.left-P.left,by=m.top-P.top+parseFloat(cs.paddingTop);
-    sp.animate([{transform:"none"},{transform:`translate(${bx-a.x}px,${by-a.y}px)`}],{duration:T(420),easing:IOS_EASE,fill:"forwards"}).onfinish=finish;
-    anim(splash,[{backgroundColor:getComputedStyle(phone).getPropertyValue("--bg")},{backgroundColor:"transparent"}],{d:220,dl:40,e:"ease-out",f:"forwards"});
-    stagger(v,".rise",40,45,6);
-    if(D){heroCount();acctDrawOn(160);const al=v.querySelector("#alloc");if(al)anim(al,[{clipPath:"inset(0 100% 0 0)"},{clipPath:"inset(0 0 0 0)"}],{d:600,dl:320,f:"backwards"});}
-  },Math.max(0,T(360)-(performance.now()-t0)));});
+  if(RM||(!LC_TRIAL&&seen&&!force))return;
+  const L=LAUNCH[key||lcKey()];
+  Lc.on=true;splash.hidden=false;splash.innerHTML=L.html();splash.onpointerdown=lcFinish;
+  lcT(lcFinish,4000); // 保險：任何情況都唔會困住人
+  try{L.run(v);}catch(e){lcFinish();}
 }
+function lcPlay(k){try{localStorage.setItem("lt_launch",k);}catch(e){}launch(true,k);}
+const lcRows=()=>LORDER.map((k,i)=>{const L=LAUNCH[k];return `<button class="lc" data-p="row" data-lc="${k}" aria-pressed="${k===lcKey()}"><i>${i+1}</i><span><b>${L.name}</b><small>${L.desc}</small></span><em>${L.ms}</em></button>`;}).join("");
+const lcSheet=()=>`<div class="sh-head"><div><b class="sh-tt">入 app 動畫</b><small>撳一個即刻播；揀咗嘅下次開 app 都會用</small></div>${sheetX}</div><div class="lc-list">${lcRows()}</div>${tagIn()}`;
 function heroCount(){if(!A.s)return;const to=A.s.v.at(-1);A.num.classList.toggle("up",to>=0);A.num.classList.toggle("dn",to<0);countUp(A.num,to,x=>sg(x));}
 function closeAllNow(){closeNow();if(Se.open){Se.open=false;searchEl.hidden=true;searchEl.innerHTML="";hback();}if(Pu.open){Pu.open=false;setLeave();Pu.mv.stop();pushClean();hback();}if(!$("#rs").hidden)LG.closeRes();}
 
@@ -1888,6 +2007,8 @@ phone.addEventListener("click",e=>{
   const q=s=>e.target.closest(s);let b;
   if(q(".lg"))return; // 正式 app 嘅內容自己處理（佢都用 data-close、data-ev 呢類名）
   if(q("[data-close]"))return closeSheet();
+  if((b=q("[data-lc]")))return lcPlay(b.dataset.lc);
+  if(q("[data-lcopen]"))return openSheet(lcSheet());
   if((b=q("[data-chk]")))return toggleCheck(b.dataset.chk);
   if((b=q("[data-tab]")))return go(b.dataset.tab);
   if((b=q("[data-segb]")))return segTo(b);
@@ -1958,7 +2079,7 @@ const DETAILS=[
  ["search","搜尋","放大鏡拉開變搜尋欄，結果逐行入。字 16px，iPhone 唔會自動放大。",["rauno"],""],
  ["theme","日夜","由你撳嘅位置圓形擴散；其他元素轉色嗰下唔做過渡。",["rauno"],"Telegram（憑記憶）"],
  ["toast","提示","留 4 秒，掃 45px 就走，200 毫秒消失。",["sonner"],""],
- ["splash","開場","每日第一次先播，撳一下即刻跳過，之後直入。數字由 0 數到今日。",["apple"],""],
+ ["splash","開場","播你而家揀緊嗰個版本（上面揀）。撳一下即刻跳過。數字由 0 數到今日。",["apple"],""],
  ["empty","冇嘢做","新數據試到會有呢個情況：冇待辦就話你知，唔會留個空格或者寫「0 件事」。",[],""]
 ];
 const srcHTML=(ss,mem)=>{const a=ss.map(k=>`<a href="${SRC[k][1]}" target="_blank" rel="noopener">${SRC[k][0]}</a>`);if(mem)a.push(mem);return a.length?`<em>參考：${a.join("、")}</em>`:"";};
@@ -1967,12 +2088,15 @@ function syncPanel(){
   set("tgSlow",K>1);set("tgNight",phone.dataset.theme==="night");set("tgRm",RM);
 }
 function initPanel(){
-  $("#panel").innerHTML=`<h2>B + D 混合版</h2><p>紙色同標題嚟自 B，帳戶曲線、四隻腳色塊、剔走同浮動底欄嚟自 D。撳「試」會自動示範；最好亦用滑鼠或者手指撳多次。</p>
+  $("#panel").innerHTML=`<h2>入 app 動畫</h2><p>撳「播」睇落地到今日頁嘅效果；可以開慢動作 ×4 睇細節。揀咗嘅重新載入都會用。手機就撳今日頁頂「試入 app 動畫」。</p>
+  <ul class="dl" id="lcPanel">${LORDER.map((k,i)=>{const L=LAUNCH[k];return `<li><b>${i+1} ${L.name} · ${L.ms}</b><span>${L.desc}</span><button data-lc="${k}" aria-label="播${L.name}">播</button></li>`;}).join("")}</ul>
+  <h2 style="margin-top:18px">B + D 混合版</h2><p>紙色同標題嚟自 B，帳戶曲線、四隻腳色塊、剔走同浮動底欄嚟自 D。撳「試」會自動示範；最好亦用滑鼠或者手指撳多次。</p>
   <div class="tg"><button id="tgSlow" aria-pressed="false">慢動作 ×4</button><button id="tgNight" aria-pressed="false">夜間</button><button id="tgRm" aria-pressed="false">減少動態</button></div>
   <ul class="dl">${DETAILS.map(([k,n,t,ss,mem])=>`<li><b>${n}</b><span>${t}</span>${srcHTML(ss,mem)}<button data-try="${k}" aria-label="試${n}">試</button></li>`).join("")}</ul>
   <p class="pnote">有連結嘅數值今次讀過原文；寫住「憑記憶」嘅係閉源 app 或者未核實。Vercel 嗰份介面指引開唔到（系統安全檢查擋咗兩次）。vaul 作者已經註明唔再維護，所以只係學佢嘅數值同做法，唔裝佢。</p>
   <p class="pnote">新介面嘅殼包住正式 app 嘅程式：每個細分頁、設定、股票詳情都係正式 app 嘅功能，數據即時。設定存喺獨立位置，唔影響正式 app。交易規則冇改。電腦冇震動，所以手機頂會閃「震」字提你。</p>`;
   $("#panel").addEventListener("click",e=>{
+    const lc=e.target.closest("[data-lc]");if(lc)return lcPlay(lc.dataset.lc);
     const b=e.target.closest("[data-try]");if(b)return D&&TRY[b.dataset.try]();
     if(e.target.id==="tgSlow"){K=K>1?1:4;document.documentElement.style.setProperty("--k",K);syncPanel();}
     if(e.target.id==="tgNight")TRY.theme();
@@ -1990,9 +2114,9 @@ function shellBoot(){
   initPanel();
   if(RM)phone.setAttribute("data-rm","");
   window.__booted=true;
-  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,gen:M.gen,events:M.events};shellData();}}).catch(()=>{});
+  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,gen:M.gen,events:M.events};evArrived();}}).catch(()=>{});
   shellData();
-  if(new URLSearchParams(location.search).get("nosplash")==null)launch();
+  if(new URLSearchParams(location.search).get("nosplash")==null)launch();else lcFinish();
   {const idle=window.requestIdleCallback||(f=>setTimeout(f,300));(function pre(i){if(i<ORDER.length)idle(()=>{view(ORDER[i]);pre(i+1);});})(0);} // 有空閒就預先砌好其他分頁，第一次撳先唔會卡一格
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{Object.values(VIEWS).forEach(v=>v.querySelectorAll(".seg").forEach(s=>moveInd(s,true)));});
   let rzT;addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(relayout,160);});
