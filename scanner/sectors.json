@@ -71,6 +71,12 @@
   "sector": "Industrials",
   "src": "yahoo"
  },
+ "CNC": {
+  "date": "2026-11-06",
+  "industry": "Healthcare Plans",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "CNQ": {
   "date": "2026-11-03",
   "industry": "Oil & Gas E&P",
@@ -207,6 +213,12 @@
   "date": "2026-09-27",
   "industry": "Capital Markets",
   "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "HUM": {
+  "date": "2026-11-06",
+  "industry": "Healthcare Plans",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "HURN": {
@@ -477,6 +489,12 @@
   "date": "2026-10-15",
   "industry": "Diagnostics & Research",
   "sector": "Healthcare",
+  "src": "yahoo"
+ },
+ "TRGP": {
+  "date": "2026-11-06",
+  "industry": "Oil & Gas Midstream",
+  "sector": "Energy",
   "src": "yahoo"
  },
  "TSLA": {
