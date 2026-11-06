@@ -1,0 +1,382 @@
+// app 全面測試。喺 build.py --test 出嘅頁，加 ?nosplash=1&data=snap/ 用（固定 11-03 快照），用法見 app-src/README.md
+// 只驗邏輯、排版同對比；流暢度同手感要真機。回傳 {pass, fail:[...]}。
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const until = async (f, ms = 6000) => { const t = performance.now(); while (performance.now() - t < ms) { if (f()) return true; await sleep(30); } return false; };
+const res = { pass: 0, fail: [] }, ok = (name, c, info) => { if (c) res.pass++; else res.fail.push(info === undefined ? name : name + "：" + JSON.stringify(info)); };
+const ev = (el, type, x, y, o = {}) => el.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, pointerType: "mouse", pointerId: 1, view: window, ...o }));
+const center = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+const touch = (el, type, x, y) => { const t = new Touch({ identifier: 7, target: el, clientX: x, clientY: y }); const e = new TouchEvent(type, { bubbles: true, cancelable: true, touches: type === "touchend" ? [] : [t], changedTouches: [t] }); el.dispatchEvent(e); return e; };
+const onv = () => Object.values(VIEWS).filter(v => v.classList.contains("on")).map(v => v.dataset.view);
+const settledSheet = () => until(() => Sh.open && !Sh.mv.anims.length && Math.abs(Sh.mv.val) < 1);
+const closedSheet = () => until(() => !Sh.open);
+const touchNC = (el, type, x, y) => { const t = new Touch({ identifier: 7, target: el, clientX: x, clientY: y }); const e = new TouchEvent(type, { bubbles: true, cancelable: false, touches: [t], changedTouches: [t] }); el.dispatchEvent(e); return e; };
+const clean = () => !Sh.open && !Se.open && !Pu.open && !Pu.setting && $("#rs").hidden && HS.n === 0 && HS.ignore === 0 && HS.pend === 0 && stack.style.transform === "" && !stack.inert && !stack.classList.contains("carded") && mainEl.style.transform === "" && phone.querySelectorAll(".flyer").length === 0 && layer.innerHTML === "" && pushEl.hidden && searchEl.hidden;
+const hrefStart = location.href;
+const setRM = on => { RM = on; on ? phone.setAttribute("data-rm", "") : phone.removeAttribute("data-rm"); };
+await document.fonts.ready;
+
+// ───── 對比：每粒字對佢真正嘅底
+const parse = s => { const m = s.match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[ ,/]+/).map(Number); return { r: p[0], g: p[1], b: p[2], a: p[3] === undefined ? 1 : p[3] }; };
+const lum = c => { const f = x => { x /= 255; return x <= .04045 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); }; return .2126 * f(c.r) + .7152 * f(c.g) + .0722 * f(c.b); };
+const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a), a: 1 });
+const bgOf = el => {
+  const layers = [];
+  if (el.matches("[aria-selected=true]") && el.closest(".seg")) layers.push(parse(getComputedStyle(el.closest(".seg").querySelector(".seg-ind")).backgroundColor));
+  if (el.closest(".dock button[aria-current=page]")) layers.push(parse(getComputedStyle(dock.querySelector(".dock-pill i")).backgroundColor));
+  for (let n = el; n; n = n.parentElement) { const c = parse(getComputedStyle(n).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a === 1) break; } }
+  let out = { r: 0, g: 0, b: 0, a: 1 };
+  layers.reverse().forEach(c => { out = over(c, out); });
+  return out;
+};
+function audit(tag, root) {
+  const bad = [], small = [];
+  phone.getAnimations({ subtree: true }).forEach(a => { try { a.finish(); } catch (e) {} }); // 查最後嘅顏色，唔查過渡中途（視窗俾其他嘢遮住嗰陣動畫會停）
+  root.querySelectorAll("*").forEach(el => {
+    if (el.closest(".flyer,.ptr,#splash,.rs-lg")) return; // .rs-lg = 代號圓標，旁邊已經印住代號，當圖示
+    const isT = el.tagName === "text";
+    if (el.closest("svg") && !isT) return;
+    if (![...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) return;
+    const cs = getComputedStyle(el), fs = parseFloat(cs.fontSize), fw = +cs.fontWeight || 400;
+    if (fs < 12) small.push([el.textContent.trim().slice(0, 12), fs]);
+    const fg = parse(isT ? cs.fill : cs.color); if (!fg) return;
+    const bg = bgOf(el), ratio = cr(over(fg, bg), bg), large = fs >= 24 || (fs >= 18.66 && fw >= 700);
+    if (ratio < (large ? 3 : 4.5)) bad.push([el.textContent.trim().slice(0, 14), +ratio.toFixed(2)]);
+  });
+  ok(tag + " 冇細過 12px", !small.length, small.slice(0, 5));
+  ok(tag + " 字同底色夠對比", !bad.length, bad.slice(0, 6));
+}
+const settled = async root => { let last = -1; for (let i = 0; i < 40; i++) { const n = root.textContent.length; if (n === last && n > 0 && !root.textContent.includes("載入緊")) return; last = n; await sleep(120); } };
+
+// ───── 1 全部頁、日夜
+const SUBLEN = {};
+for (const th of ["night", "day"]) {
+  setTheme(th); await sleep(60);
+  for (const tab of ORDER) {
+    go(tab); await until(() => onv().length === 1 && onv()[0] === tab); await sleep(40);
+    const v = view(tab);
+    const subs = TABS[tab] ? TABS[tab].sub : [""];
+    for (let i = 0; i < subs.length; i++) {
+      if (TABS[tab] && i !== (ST.sub[tab] || 0)) { segTo(v.querySelector(`[data-segb="${i}"]`)); await sleep(340); }
+      if (TABS[tab]) await settled(v.querySelector(".pane"));
+      ok(`${th}/${tab}/${subs[i]} 冇橫向出界`, v.scrollWidth - v.clientWidth <= 1, v.scrollWidth - v.clientWidth);
+      if (TABS[tab]) { const p = v.querySelector(".pane"), t = p.textContent.trim(); ok(`${th}/${tab}/${subs[i]} 有內容，唔係佔位`, !!p.querySelector("#app") && t.length > 20 && !t.includes("未搬") && !t.includes("原封不動"), t.slice(0, 40)); if (th === "day") SUBLEN[TABS[tab].keys[i]] = t.length; }
+      audit(`${th}/${tab}/${subs[i]}`, v);
+    }
+    if (TABS[tab]) { segTo(v.querySelector('[data-segb="0"]')); await sleep(300); }
+  }
+  // 詳情、推入頁、搜尋、設定、股票詳情都查埋
+  go("today"); await sleep(300);
+  view("today").querySelector(".it-open").click(); await settledSheet(); audit(th + "/詳情", Sh.el); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(60);
+  view("today").querySelector('[data-sheet="warn"]').click(); await settledSheet(); audit(th + "/警告詳情", Sh.el); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(60);
+  pushArticle(0); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1); audit(th + "/文章", pushEl); popPage(); await until(() => pushEl.hidden); await sleep(60);
+  openSheet(evSheet(EV.events.length - 1)); await settledSheet(); audit(th + "/事件詳情", Sh.el); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(60);
+  pushEvents(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1); audit(th + "/全部事件", pushEl); popPage(); await until(() => pushEl.hidden); await sleep(60);
+  openSearch(); await sleep(350); audit(th + "/搜尋", searchEl); closeSearch(); await until(() => searchEl.hidden); await sleep(60);
+  phone.querySelector("[data-act=set]").click(); await until(() => Pu.setting && !Pu.mv.anims.length && Pu.mv.val < 1); await settled(pushEl); ok(th + "/設定 冇橫向出界", pushEl.scrollWidth - pushEl.clientWidth <= 1, pushEl.scrollWidth - pushEl.clientWidth); pushEl.querySelectorAll("details").forEach(d => { d.open = true; }); await sleep(60); audit(th + "/設定", pushEl); popPage(); await until(() => pushEl.hidden); await until(() => HS.ignore === 0); await sleep(60);
+  LG.openStock("NVDA"); await until(() => !$("#rs").hidden); await settled($("#rs")); await sleep(300); audit(th + "/股票詳情", $("#rs")); ok(th + "/股票詳情 冇橫向出界", $("#rs").scrollWidth - $("#rs").clientWidth <= 1, $("#rs").scrollWidth - $("#rs").clientWidth); LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(80);
+  toast("測試提示"); await sleep(80); audit(th + "/提示", toastsEl); toastsEl.innerHTML = "";
+  ok(th + " 開關之後狀態乾淨", clean(), { n: HS.n, i: HS.ignore, p: HS.pend, st: stack.style.transform });
+}
+setTheme("day"); go("today"); await sleep(300);
+const v0 = view("today");
+v0.scrollTop = 0; await sleep(60);
+
+// ───── 2 市況顏色
+// 卡係正式 app 嘅 mktTiles（顏色門檻喺 stock-app 自己嘅測試驗過），呢度驗接到、撳得、顏色跟新介面嘅 token
+const mts = [...v0.querySelectorAll(".mtiles .mt")];
+ok("市況一覽有卡", mts.length >= 3, mts.length);
+const colOf = el => getComputedStyle(el).color;
+{ const tok = n => { const t = document.createElement("span"); t.style.color = `var(--${n})`; v0.appendChild(t); const c = getComputedStyle(t).color; t.remove(); return c; };
+  const up = tok("up"), dn = tok("dn"), wr = tok("warn");
+  const want = { up, upc: up, dn, dnc: dn, warnc: wr, warn: wr, wr };
+  const badT = mts.flatMap(m => [m.querySelector("b"), m.querySelector("em")].filter(x => x.className && want[x.className] && colOf(x) !== want[x.className]).map(x => [x.textContent, x.className, colOf(x)]));
+  ok("市況顏色跟新介面（紅跌綠升、警告黃）", !badT.length, badT); }
+ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySelector("em").textContent.trim().length > 0 || m.dataset.mkt === "val"), mts.map(m => m.textContent));
+
+// ───── 3 撳落去
+const hb = v0.querySelector(".head button"); let [x, y] = center(hb);
+ev(hb, "pointerdown", x, y); ok("撳落有反應", hb.classList.contains("is-down")); await until(() => Math.abs(new DOMMatrix(getComputedStyle(hb).transform).a - .975) < .01, 4000);
+ok("縮到約 .975", Math.abs(new DOMMatrix(getComputedStyle(hb).transform).a - .975) < .01, new DOMMatrix(getComputedStyle(hb).transform).a);
+ev(window, "pointermove", x + 20, y); ok("滑走即取消", !hb.classList.contains("is-down")); await sleep(30);
+ev(hb, "pointerdown", x, y); ev(window, "pointerup", x, y); ok("快撳都見到", hb.classList.contains("is-down")); await sleep(120); ok("快撳會放返", !hb.classList.contains("is-down")); await sleep(450);
+
+// ───── 4 分頁
+v0.scrollTop = 300; await until(() => tbBg.style.opacity === "1"); ok("頂部變毛玻璃，寫 app 名", tbBg.style.visibility === "visible" && tbTitle.textContent === "龍頭突破", tbTitle.textContent);
+ok("冇示範字眼", !phone.innerText.includes("示範") && !document.title.includes("示範"));
+ok("AI 今日重點擺「今日要做」上面（老師 10-26）", (() => { const a = v0.querySelector('[data-live="ai"]'), t = v0.querySelector("#todo"); return !!a && !!t && !!(a.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING); })());
+ok("AI 重點每點最多 90 字", aiFirst("字".repeat(200)).length === 89 && aiFirst("短句。後面。") === "短句。");
+ok("今日要做寫明版本同日期", v0.querySelector("#todo").textContent.includes(D.ver + " · " + D.next), v0.querySelector("#todo").textContent.slice(-120));
+dock.querySelector("[data-tab=strat]").click(); ok("轉頁中兩頁都喺度", onv().length === 2); await until(() => onv().length === 1); ok("轉完得一頁", onv()[0] === "strat", onv());
+ok("分頁把標記", dock.querySelector("[aria-current=page]").dataset.tab === "strat" && dock.querySelector(".dock-pill").style.getPropertyValue("--i") === "1");
+dock.querySelector("[data-tab=today]").click(); await until(() => onv().length === 1); ok("記住碌到邊", v0.scrollTop === 300, v0.scrollTop);
+dock.querySelector("[data-tab=today]").click(); await until(() => v0.scrollTop === 0); ok("再撳同一格返頂", v0.scrollTop === 0, v0.scrollTop);
+["strat", "stocks", "info", "cry", "today"].forEach(t => dock.querySelector(`[data-tab=${t}]`).click()); await until(() => onv().length === 1); await sleep(320);
+ok("狂撳分頁最後啱", cur === "today" && onv().join() === "today" && getComputedStyle(v0).opacity === "1", { cur, on: onv(), op: getComputedStyle(v0).opacity });
+
+// ───── 4b 左右掃轉分頁
+const vbox = viewsEl.getBoundingClientRect(), PW = viewsEl.clientWidth, sx0 = vbox.left + PW * .7, sy0 = vbox.top + vbox.height * .45;
+const pgIdle = () => until(() => !Pg.active, 12000);
+const txOf = el => new DOMMatrix(getComputedStyle(el).transform).m41;
+const pill = dock.querySelector(".dock-pill");
+const plain = t => onv().join() === t && cur === t && Object.values(VIEWS).every(v => v.style.transform === "") && pill.style.transform === "" && !viewsEl.classList.contains("pg") && !dock.classList.contains("pg") && !dock.classList.contains("pgd") && [...dock.querySelectorAll("button")].every(b => b.style.color === "") && dock.querySelector("[aria-current=page]").dataset.tab === t && pill.style.getPropertyValue("--i") === String(ORDER.indexOf(t));
+const face = t => view(t).querySelector(".inner");
+const pgInfo = () => ({ cur, on: onv(), active: Pg.active, val: Pg.mv.val, tf: Object.values(VIEWS).map(v => v.style.transform), pill: pill.style.transform });
+// 拖 dx，停一停先放（速度當 0）；fast = 唔停即放（快掃）
+const drag = async (el, dx, { dy = 0, fast = false } = {}) => { touch(el, "touchstart", sx0, sy0); touch(el, "touchmove", sx0 + Math.sign(dx) * 14, sy0 + dy * .1); touch(el, "touchmove", sx0 + dx, sy0 + dy); if (!fast) await sleep(130); touch(el, "touchend", sx0 + dx, sy0 + dy); };
+ok("由瀏覽器決定上下碌（冇 touch-action 鎖死方向）", getComputedStyle(v0).touchAction === "auto", getComputedStyle(v0).touchAction);
+await sleep(360);
+let sf = face("today");
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 6, sy0); ok("未夠 10px 唔郁", !Pg.active);
+const pm1 = touch(sf, "touchmove", sx0 - 16, sy0); ok("橫掃接手，唔俾瀏覽器食", Pg.active && pm1.defaultPrevented);
+ok("接手嗰下唔跳", Math.abs(Pg.mv.val) < 1, Pg.mv.val);
+touch(sf, "touchmove", sx0 - 116, sy0); ok("成頁跟手指", Math.abs(Pg.mv.val + 100) < 1 && Math.abs(txOf(v0) + 100) < 1, Pg.mv.val);
+ok("鄰頁貼住入嚟", onv().includes("strat") && Math.abs(txOf(view("strat")) - (PW - 100)) < 1, txOf(view("strat")));
+ok("底部色塊跟住走", txOf(pill) > 0 && txOf(pill) < pill.offsetWidth, txOf(pill));
+ok("底部字色跟進度漸變", dock.querySelector("[data-tab=today]").style.color.includes("color-mix") && dock.querySelector("[data-tab=strat]").style.color.includes("color-mix"), dock.querySelector("[data-tab=today]").style.color);
+ok("拖緊唔會當下拉", !A_PTR.today.R.on);
+await sleep(130); touch(sf, "touchend", sx0 - 116, sy0); await pgIdle(); ok("唔夠 40% 彈返", plain("today"), pgInfo());
+await sleep(320); { const u = -(PW * .35); await drag(sf, u); await pgIdle(); ok("35% 都唔轉（以前 30% 就轉，易誤觸）", plain("today"), pgInfo()); }
+await sleep(320); await drag(sf, -(PW * .5)); await pgIdle(); ok("過 40% 就轉", plain("strat"), pgInfo());
+await drag(face("strat"), PW * .5); await pgIdle(); ok("掃返轉頭", plain("today"), pgInfo());
+await drag(sf, -40, { fast: true }); ok("快掃即刻轉，放手就換標記", cur === "strat" && dock.querySelector("[aria-current=page]").dataset.tab === "strat"); await pgIdle(); ok("快掃轉到", plain("strat"), pgInfo());
+await drag(face("strat"), 40, { fast: true }); await pgIdle(); ok("快掃返轉頭", plain("today"), pgInfo());
+{ const far = PW * .62; touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - far, sy0); for (let k = 1; k <= 8; k++) { await sleep(16); touch(sf, "touchmove", sx0 - far + k * 6, sy0); } touch(sf, "touchend", sx0 - far + 48, sy0); ok("拖過 40% 再掉頭，手指速度係向返轉頭", Math.abs(Pg.mv.val) > PW * .4, Pg.mv.val); await pgIdle(); ok("反方向就取消", plain("today"), pgInfo()); }
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 + 14, sy0); touch(sf, "touchmove", sx0 + 214, sy0); ok("頭一頁有橡筋", Pg.mv.val > 0 && Pg.mv.val < 70, Pg.mv.val); await sleep(130); touch(sf, "touchend", sx0 + 214, sy0); await pgIdle(); ok("頭一頁掃唔走", plain("today"), pgInfo());
+go("cry"); await until(() => onv().join() === "cry"); await sleep(60); const fc = face("cry");
+touch(fc, "touchstart", sx0, sy0); touch(fc, "touchmove", sx0 - 14, sy0); touch(fc, "touchmove", sx0 - 214, sy0); ok("尾一頁有橡筋", Pg.mv.val < 0 && Pg.mv.val > -70, Pg.mv.val); await sleep(130); touch(fc, "touchend", sx0 - 214, sy0); await pgIdle(); ok("尾一頁掃唔走", plain("cry"), pgInfo());
+go("today"); await until(() => onv().join() === "today"); await sleep(60);
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0, sy0 - 30); touch(sf, "touchmove", sx0 - 200, sy0 - 30); ok("直碌開始之後唔會變橫掃", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0 - 30); await sleep(40);
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 20, sy0 - 18); ok("斜斜地當直碌", !Pg.active); touch(sf, "touchend", sx0 - 20, sy0 - 18); await sleep(40);
+// 老師 11-05「想上下又有時會左右」：起手方向要明顯橫（橫移 > 直移 2 倍，Android ViewPager 嘅標準）先當左右
+{ touch(sf, "touchstart", sx0, sy0); const m1 = touch(sf, "touchmove", sx0 - 30, sy0 - 20); ok("橫 30 直 20：當上下", !Pg.active && !m1.defaultPrevented); touch(sf, "touchmove", sx0 - 200, sy0 - 22); ok("之後橫晒都唔會變左右", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0 - 22); await sleep(40);
+  touch(sf, "touchstart", sx0, sy0); const m2 = touch(sf, "touchmove", sx0 - 30, sy0 + 16); ok("橫 30 直 16（啱啱唔夠 2 倍）：當上下，瀏覽器照碌", !Pg.active && !m2.defaultPrevented); touch(sf, "touchend", sx0 - 30, sy0 + 16); await sleep(40);
+  touch(sf, "touchstart", sx0, sy0); const m3 = touch(sf, "touchmove", sx0 - 30, sy0 - 14); ok("橫 30 直 14：先當左右", Pg.active && m3.defaultPrevented); await sleep(130); touch(sf, "touchend", sx0 - 30, sy0 - 14); await pgIdle(); ok("短橫移彈返", plain("today"), pgInfo()); await sleep(320);
+  v0.scrollTop = 40; await until(() => performance.now() - (v0._sAt || 0) < 100, 500); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 60, sy0); ok("啱啱碌完 300 毫秒內，橫掃都唔轉頁", !Pg.active); touch(sf, "touchend", sx0 - 60, sy0); v0.scrollTop = 0; await sleep(360);
+  touch(sf, "touchstart", sx0, sy0); touchNC(sf, "touchmove", sx0 - 60, sy0); ok("瀏覽器已經開始碌（唔可以取消）就唔搶", !Pg.active); touch(sf, "touchmove", sx0 - 200, sy0); ok("之後都唔搶", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); await sleep(40);
+  touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 8, sy0 - 3); ok("未過 10px 唔決定", !Pg.active); touch(sf, "touchmove", sx0 - 24, sy0 - 4); ok("過咗先決定：明顯橫就左右", Pg.active); await sleep(130); touch(sf, "touchend", sx0 - 24, sy0 - 4); await pgIdle(); await sleep(320);
+  touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 12, sy0); touch(sf, "touchmove", sx0 - 20, sy0); touch(sf, "touchend", sx0 - 20, sy0); await pgIdle(); ok("快掃未夠 25px 唔轉", plain("today"), pgInfo()); await sleep(320); }
+for (const [nm, el] of [["帳戶曲線", A.el], ["時段掣", A.seg], ["事件線", v0.querySelector(".evch")]]) { touch(el, "touchstart", sx0, sy0); touch(el, "touchmove", sx0 - 14, sy0); touch(el, "touchmove", sx0 - 200, sy0); ok(`喺${nm}上面掃唔轉頁`, !Pg.active && cur === "today"); touch(el, "touchend", sx0 - 200, sy0); await sleep(30); }
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0, sy0 + 30); ok("下拉先", A_PTR.today.R.on); touch(sf, "touchmove", sx0 - 300, sy0 + 30); ok("下拉緊唔會變橫掃", !Pg.active); touch(sf, "touchend", sx0 - 300, sy0 + 30); await until(() => !A_PTR.today.R.busy && A_PTR.today.R.y < .5, 2500); await sleep(60);
+v0.scrollTop = 200; await sleep(360); await drag(sf, -(PW * .5)); await pgIdle(); await drag(face("strat"), PW * .5); await pgIdle(); ok("掃走掃返記住碌到邊", plain("today") && v0.scrollTop === 200, v0.scrollTop); v0.scrollTop = 0; await sleep(360);
+const rowS = v0.querySelector(".it-open"); await drag(rowS, -60); rowS.click(); ok("由卡上面起手，放手唔會當撳", !Sh.open, Sh.open); await pgIdle(); await sleep(320);
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - PW * .6, sy0); await sleep(100); touch(sf, "touchcancel", sx0 - PW * .6, sy0); await pgIdle(); ok("系統搶走手勢（返回手勢）就彈返，唔轉頁", plain("today"), pgInfo()); await sleep(320);
+{ const t1 = new Touch({ identifier: 7, target: sf, clientX: sx0, clientY: sy0 }), t2 = new Touch({ identifier: 8, target: sf, clientX: sx0 - 100, clientY: sy0 + 90 }); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 120, sy0); sf.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [t1, t2], changedTouches: [t2] })); await pgIdle(); ok("第二隻手指唔會卡喺半路", plain("today"), pgInfo()); touch(sf, "touchend", sx0, sy0); await sleep(320); }
+await drag(sf, -(PW * .5)); await sleep(60); ok("放手之後彈緊", Pg.active && Pg.mv.anims.length > 0); const liveX = txOf(view(cur)); touch(face(cur), "touchstart", sx0, sy0); ok("彈緊捉得住", Pg.mv.anims.length === 0); ok("捉住嗰下唔跳", Math.abs(Pg.mv.val - liveX) < 30, [liveX, Pg.mv.val]); touch(face(cur), "touchmove", sx0 + 4, sy0); await sleep(120); touch(face(cur), "touchend", sx0 + 4, sy0); await pgIdle(); ok("捉住放手冇卡死", plain(cur), pgInfo()); if (cur !== "today") { go("today"); await until(() => onv().join() === "today"); } await sleep(320);
+await drag(sf, -(PW * .5)); await sleep(40); dock.querySelector("[data-tab=info]").click(); await until(() => onv().length === 1); await sleep(320); ok("彈緊撳底部分頁都啱", plain("info") && getComputedStyle(view("info")).opacity === "1", pgInfo()); go("today"); await until(() => onv().join() === "today"); await sleep(320);
+touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 100, sy0); dock.querySelector("[data-tab=stocks]").click(); touch(sf, "touchmove", sx0 - 160, sy0); await sleep(130); touch(sf, "touchend", sx0 - 160, sy0); await until(() => onv().length === 1); await sleep(320); ok("拖緊撳底部分頁都唔會卡", plain("stocks"), pgInfo()); go("today"); await until(() => onv().join() === "today"); await sleep(320);
+await sleep(760); ev(sf, "mousedown", sx0, sy0); ev(window, "mousemove", sx0 - 14, sy0); ev(window, "mousemove", sx0 - PW * .5, sy0); await sleep(130); ev(window, "mouseup", sx0 - PW * .5, sy0); await pgIdle(); ok("滑鼠都拖得", plain("strat"), pgInfo()); await sleep(320); go("today"); await until(() => onv().join() === "today"); await sleep(320);
+setRM(true); await drag(sf, -(PW * .5)); ok("減少動態：即刻轉", plain("strat"), pgInfo()); go("today"); await until(() => onv().join() === "today"); setRM(false); await sleep(320);
+{ const r = v0.querySelector(".it-open"); r.click(); await settledSheet(); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 200, sy0); ok("開住詳情唔轉頁", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420);
+  pushArticle(0); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 200, sy0); ok("開住推入頁唔轉頁", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); popPage(); await until(() => pushEl.hidden); await sleep(120); }
+ok("左右掃做完狀態乾淨", clean() && plain("today"), pgInfo());
+
+// ───── 5 底部詳情（數值跟 vaul）
+const row = v0.querySelector(".it-open"), src = row.querySelector("[data-fly]");
+row.click(); ok("代號飛緊", !!phone.querySelector(".flyer") && src.style.visibility === "hidden"); ok("背景唔撳得", stack.inert);
+await settledSheet(); await until(() => !phone.querySelector(".flyer"));
+ok("標題接住代號", Sh.to.style.visibility === "" && Sh.el.querySelector(".sh-sym").textContent === D.todo[0].sym);
+ok("焦點入詳情", document.activeElement === Sh.el);
+let grab = Sh.el.querySelector(".sh-grab"); [x, y] = center(grab);
+const H = Sh.H, justUnder = Math.floor(H * SHEET.close) - 4, justOver = Math.ceil(H * SHEET.close) + 12;
+ev(grab, "mousedown", x, y); ev(window, "mousemove", x, y + 10); ev(window, "mousemove", x, y + 10 + justUnder); ok("跟手指", Math.abs(Sh.mv.val - justUnder) < 1, Sh.mv.val); await sleep(130); ev(window, "mouseup", x, y + 10 + justUnder);
+await until(() => !Sh.mv.anims.length && Math.abs(Sh.mv.val) < 1); ok("唔夠 25% 彈返", Sh.open && Math.abs(Sh.mv.val) < 1, Sh.mv.val);
+[x, y] = center(grab); ev(grab, "mousedown", x, y); ev(window, "mousemove", x, y + 10); ev(window, "mousemove", x, y + 10 + justOver); await sleep(130); ev(window, "mouseup", x, y + 10 + justOver);
+await closedSheet(); await sleep(420); ok("過 25% 就關，全部還原", clean() && src.style.visibility === "", { clean: clean(), v: src.style.visibility });
+row.click(); await settledSheet(); grab = Sh.el.querySelector(".sh-grab"); [x, y] = center(grab);
+ev(grab, "mousedown", x, y); ev(window, "mousemove", x, y + 10); ev(window, "mousemove", x, y + 40); ev(window, "mousemove", x, y + 90); ev(window, "mouseup", x, y + 90); await closedSheet(); await sleep(420); ok("快甩就關", clean());
+row.click(); await settledSheet(); grab = Sh.el.querySelector(".sh-grab"); [x, y] = center(grab);
+ev(grab, "mousedown", x, y); ev(window, "mousemove", x, y + 10); ev(window, "mousemove", x, y + 7); ev(window, "mousemove", x, y - 200); ok("拖上有阻力", Sh.mv.val < 0 && Sh.mv.val > -46, Sh.mv.val); ev(window, "mouseup", x, y - 200); await until(() => !Sh.mv.anims.length && Math.abs(Sh.mv.val) < 1); ok("拖上彈返", Math.abs(Sh.mv.val) < 1);
+// 打斷
+Sh.el.querySelector("[data-close]").click(); await sleep(60); ok("關緊", Sh.closing); await closedSheet(); await sleep(420);
+row.click(); await sleep(70); const mid = new DOMMatrix(getComputedStyle(Sh.el).transform).m42; closeSheet(); await closedSheet(); await sleep(420); ok("開到一半即刻關", clean(), { mid });
+row.click(); await sleep(90); grab = Sh.el.querySelector(".sh-grab"); [x, y] = center(grab); ev(grab, "mousedown", x, y); const mid0 = new DOMMatrix(getComputedStyle(Sh.el).transform).m42; ev(window, "mousemove", x, y + 10); ok("開到一半捉得住", Sh.mv.anims.length === 0); ok("捉住嗰下唔跳", Math.abs(Sh.mv.val - mid0) < 40, [mid0, Sh.mv.val]); ev(window, "mousemove", x, y + 14); await sleep(120); ev(window, "mouseup", x, y + 14);
+await until(() => !Sh.mv.anims.length && (!Sh.open || Math.abs(Sh.mv.val) < 1)); if (Sh.open) { Sh.el.querySelector("[data-close]").click(); } await closedSheet(); await sleep(420); ok("捉住放手冇卡死", clean(), { n: HS.n });
+row.click(); await settledSheet(); window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); await closedSheet(); await sleep(420); ok("Esc 關", clean());
+row.click(); await settledSheet(); history.back(); await closedSheet(); await sleep(420); ok("Android 返回掣關詳情", clean(), { n: HS.n, i: HS.ignore, p: HS.pend });
+// 碌完內容 100ms 內唔當拖
+view("today").querySelector("[data-leg=lead]").click(); await settledSheet(); Sh.scrollAt = performance.now(); const body = Sh.el.querySelector(".sh-body"); [x, y] = center(body);
+ev(body, "mousedown", x, y); ev(window, "mousemove", x, y + 40); ok("碌完 100 毫秒內唔當拖", Math.abs(Sh.mv.val) < 1, Sh.mv.val); ev(window, "mouseup", x, y + 40);
+// 詳情入面再開詳情
+const inner = Sh.el.querySelector("[data-hold]"); if (inner) { inner.click(); await settledSheet(); ok("詳情入面開詳情", Sh.el.querySelector(".sh-sym") !== null && HS.n === 1, HS.n); }
+Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420); ok("詳情入詳情關完乾淨", clean(), { n: HS.n, i: HS.ignore, p: HS.pend });
+
+// 手指
+row.click(); await settledSheet(); const b2 = Sh.el.querySelector(".sh-body"), br = b2.getBoundingClientRect();
+touch(b2, "touchstart", br.left + 100, br.top + 60); touch(b2, "touchmove", br.left + 100, br.top + 80); const m2 = touch(b2, "touchmove", br.left + 100, br.top + 320); ok("手指接手唔碌頁", m2.defaultPrevented); await sleep(120); touch(b2, "touchend", br.left + 100, br.top + 320); await closedSheet(); await sleep(800); ok("手指拖關", clean());
+
+// ───── 6 推入新頁（數值跟 Ionic）
+v0.querySelector('[data-art="1"]').click(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1); ok("推入到位", Pu.mv.val === 0);
+ok("舊頁退後 33%", Math.abs(new DOMMatrix(mainEl.style.transform).m41 + Pu.W * .33) < 1, mainEl.style.transform);
+const pr = phone.getBoundingClientRect();
+ev(pushEl, "mousedown", pr.left + 10, 300); ev(window, "mousemove", pr.left + 24, 300); ev(window, "mousemove", pr.left + 80, 300); ok("掃返跟手指", Pu.mv.val > 50, Pu.mv.val); await sleep(130); ev(window, "mouseup", pr.left + 80, 300); await until(() => !Pu.mv.anims.length); ok("唔夠一半彈返", Pu.open && Math.abs(Pu.mv.val) < 1, Pu.mv.val);
+ev(pushEl, "mousedown", pr.left + 40, 300); ev(window, "mousemove", pr.left + 54, 300); ok("50px 內起手得", Pu.mv.val > 0, Pu.mv.val); ev(window, "mousemove", pr.left + 300, 300); await sleep(130); ev(window, "mouseup", pr.left + 300, 300); await until(() => pushEl.hidden); await sleep(120); ok("過一半就返", clean(), { n: HS.n });
+v0.querySelector('[data-art="0"]').click(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1);
+ev(pushEl, "mousedown", pr.left + 200, 300); ev(window, "mousemove", pr.left + 320, 300); ok("唔喺邊緣唔掃", Pu.mv.val === 0, Pu.mv.val); ev(window, "mouseup", pr.left + 320, 300);
+ok("標題唔拆字", pushEl.querySelector("h1").getBoundingClientRect().height < 90, pushEl.querySelector("h1").getBoundingClientRect().height);
+pushEl.querySelector("[data-back]").click(); await until(() => pushEl.hidden); await sleep(120); ok("返回掣", clean());
+v0.querySelector('[data-art="0"]').click(); await sleep(120); popPage(); await until(() => pushEl.hidden); await sleep(120); ok("推到一半即刻返", clean());
+
+// ───── 6b 大市事件線
+const E0 = EV, evc = v0.querySelector("#evCard"), mini = evc.querySelector(".evch"), G0 = mini._g;
+ok("事件線：有全段走勢同全部事件", E0.c.length === 713 && E0.events.length === 42, [E0.c.length, E0.events.length]);
+ok("事件日子對得上走勢", E0.events.every(e => E0.d[e.i] === e.d), E0.events.filter(e => E0.d[e.i] !== e.d).slice(0, 3));
+ok("走勢尾同今日頁收市一樣", Math.abs(E0.c.at(-1) - D.ndx.c) < 1, [E0.c.at(-1), D.ndx.c]);
+ok("每個事件都有點撳到", mini.querySelectorAll(".evm [data-ev]").length === E0.events.length, mini.querySelectorAll(".evm [data-ev]").length);
+const labelled = [...mini.querySelectorAll(".tag")]; ok("圖上寫 6 個大事", labelled.length === 6, labelled.length);
+ok("圖上只寫有名嘅事件", labelled.every(g => { const e = E0.events[+g.dataset.ev]; return e.ai || e.kind === "light"; }));
+const boxes = labelled.map(g => g.querySelector("rect.box").getBoundingClientRect()), mr0 = mini.getBoundingClientRect();
+ok("標籤唔重疊", boxes.every((a, i) => boxes.every((b, j) => j <= i || a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)));
+ok("標籤冇出界", boxes.every(b => b.left >= mr0.left - .5 && b.right <= mr0.right + .5), boxes.map(b => [b.left - mr0.left, mr0.right - b.right]));
+ok("標籤字冇出框", labelled.every(g => g.querySelector("text").getBBox().width <= +g.querySelector("rect.box").getAttribute("width") + .5), labelled.map(g => [g.querySelector("text").getBBox().width, g.querySelector("rect.box").getAttribute("width")]));
+ok("顏色跟升跌：大升綠、大跌紅、轉燈黃", [...mini.querySelectorAll(".evm [data-ev]")].every(g => { const e = E0.events[+g.dataset.ev]; return g.classList.contains("e-" + (e.kind === "big" ? (e.chg >= 0 ? "up" : "dn") : "wr")); }));
+ok("點落喺條線上面", labelled.every(g => { const e = E0.events[+g.dataset.ev], r = g.querySelector(".ring"); return Math.abs(+r.getAttribute("cx") - G0.X(e.i)) < .1 && Math.abs(+r.getAttribute("cy") - G0.Y(E0.c[e.i])) < .1; }));
+ok("對數刻度：翻一倍距離一樣", Math.abs((G0.Y(10000) - G0.Y(20000)) - (G0.Y(20000) - G0.Y(40000))) < .01);
+ok("最高收市喺最高，最低喺最低", Math.abs(G0.Y(Math.max(...E0.c)) - (+mini.querySelector(".cross").getAttribute("y1"))) < .1 && Math.abs(G0.Y(Math.min(...E0.c)) - (+mini.querySelector(".cross").getAttribute("y2"))) < .1);
+ok("條線冇壓扁", +mini.querySelector(".cross").getAttribute("y2") - +mini.querySelector(".cross").getAttribute("y1") === 136);
+const rows0 = [...evc.querySelectorAll(".evr")], newest = E0.events.map((e, k) => ({ ...e, k })).sort((a, b) => b.i - a.i).slice(0, 4);
+ok("列最新 4 個", rows0.length === 4 && rows0.every((r, i) => +r.dataset.ev === newest[i].k), rows0.map(r => r.dataset.ev));
+ok("列表有原因", rows0.every(r => r.querySelector("small").textContent.length > 8));
+ok("圖例", evc.querySelector(".ev-lg").textContent.includes("大升") && evc.querySelector(".ev-lg").textContent.includes("大跌") && evc.querySelector(".ev-lg").textContent.includes("轉燈"));
+v0.scrollTo({ top: evc.offsetTop - 90 }); await until(() => mini._shown, 2000); ok("碌到先畫", mini._shown === true); await sleep(1100);
+const evG = labelled.at(-1), ev0 = E0.events[+evG.dataset.ev];
+evG.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); await settledSheet();
+ok("撳標籤開說明", Sh.open && Sh.el.querySelector(".sh-tt").textContent === ev0.label && Sh.el.querySelector(".why").textContent === ev0.detail, Sh.open && Sh.el.querySelector(".sh-tt").textContent);
+ok("說明有日子、收市、升跌", Sh.el.querySelector(".sh-head small").textContent.includes(E0.d[ev0.i]) && Sh.el.querySelector(".sh-head small").textContent.includes(n2(E0.c[ev0.i])));
+const lks = [...Sh.el.querySelectorAll(".ev-src a")]; ok("有來源連結，新分頁開", ev0.kind === "light" ? lks.length === 0 : lks.length > 0 && lks.every(a => /^https?:/.test(a.href) && a.target === "_blank" && a.rel === "noopener"), lks.length);
+Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420); ok("關完乾淨", clean());
+ok("AI 字會 escape", esc('<img src=x onerror="a()">') === "&lt;img src=x onerror=&quot;a()&quot;&gt;"); ok("唔接受 javascript 連結", safeUrl("javascript:alert(1)") === "#" && safeUrl("https://a.b/c") === "https://a.b/c");
+rows0[0].click(); await settledSheet(); ok("撳列表都開到", Sh.el.querySelector(".sh-tt").textContent === newest[0].label); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420);
+{ const mr = mini.getBoundingClientRect(), i = newest[0].i, px = mr.left + G0.X(i), py = mr.top + 60, pe = { pointerType: "touch" };
+  ev(mini, "pointerdown", px, py, pe); ok("撳住有十字線", mini.classList.contains("on")); const tp = mini.querySelector(".tip");
+  ok("提示有日子同收市", tp.textContent.includes(E0.d[i]) && tp.textContent.includes(n0(E0.c[i])), tp.textContent); ok("近大事會寫名", tp.textContent.includes(newest[0].label), tp.textContent);
+  const chg = E0.c[i] / E0.c[i - 1] - 1; ok("當日升跌啱", tp.textContent.includes(evPct(chg)), [tp.textContent, evPct(chg)]);
+  ev(mini, "pointermove", mr.left + 40, py, pe); ok("掃到左邊日子變", !tp.textContent.includes(E0.d[i]), tp.textContent);
+  const tb0 = tp.getBoundingClientRect(); ok("提示冇出界（左）", tb0.left >= mr.left - 1, [tb0.left, mr.left]);
+  ev(mini, "pointermove", mr.right - 4, py, pe); const tb1 = tp.getBoundingClientRect(); ok("提示冇出界（右）", tb1.right <= mr.right + 1, [tb1.right, mr.right]); ok("掃到尾係最後一日", tp.textContent.includes(E0.d.at(-1)), tp.textContent);
+  ev(mini, "pointerup", mr.right - 4, py, pe); ok("掃完放手唔當撳", performance.now() < noClickUntil); evG.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); ok("掃完唔會彈說明", !Sh.open); await until(() => !mini.classList.contains("on"), 3200); ok("放手之後收埋", !mini.classList.contains("on")); await sleep(320);
+  const redraw = mini.querySelectorAll(".tag").length; evDraw(mini); ok("重畫（轉闊度）冇壞", mini.querySelectorAll(".tag").length === redraw && mini._g.tip === mini.querySelector(".tip")); }
+evc.querySelector("[data-evall]").click(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1);
+ok("睇晒全部事件", pushEl.querySelectorAll(".evr").length === E0.events.length, pushEl.querySelectorAll(".evr").length);
+const dates = [...pushEl.querySelectorAll(".evr .d")].map(d => d.textContent); ok("新到舊", dates.every((d, i) => !i || dates[i - 1] >= d));
+ok("全頁圖有畫", pushEl.querySelectorAll(".evch .tag").length === 7 && pushEl.querySelector(".evch")._g.W > 200, pushEl.querySelectorAll(".evch .tag").length);
+ok("全頁圖唔出界", pushEl.scrollWidth - pushEl.clientWidth <= 1, pushEl.scrollWidth - pushEl.clientWidth);
+ok("全頁寫明更新時間", pushEl.textContent.includes(E0.gen));
+pushEl.querySelector(".evr").click(); await settledSheet(); ok("全頁撳事件開說明", Sh.open && Pu.open);
+history.back(); await closedSheet(); await sleep(300); ok("返回掣先關說明", !Sh.open && Pu.open && HS.n === 1, { n: HS.n, pu: Pu.open });
+history.back(); await until(() => pushEl.hidden); await sleep(300); ok("再按返回先退頁", clean(), { n: HS.n, i: HS.ignore, p: HS.pend });
+v0.scrollTop = 0; await sleep(60);
+
+// ───── 7 曲線
+const sc = A.el, rc = sc.getBoundingClientRect();
+ev(sc, "pointerdown", rc.left + 60, rc.top + 50); ok("掃圖：大數字跟手指", sc.classList.contains("on") && /^\d{4}-/.test(A.lab.textContent), A.lab.textContent);
+const n1 = A.num.textContent; ev(sc, "pointermove", rc.left + rc.width - 20, rc.top + 50); ok("掃到另一日數字變", A.num.textContent !== n1);
+ev(sc, "pointerleave", rc.left - 10, rc.top); ok("放手返今日", !sc.classList.contains("on") && A.num.textContent === sg(D.ret.ytd), A.num.textContent);
+for (const [i, want] of [[0, D.ret.m1], [3, D.ret.y1], [2, D.ret.ytd]]) { A.seg.querySelector(`[data-rng="${i}"]`).click(); await until(() => A.num.textContent === sg(want), 20000); ok(`時段 ${RANGES[i].l} 數字啱`, A.num.textContent === sg(want), A.num.textContent); ok(`時段 ${RANGES[i].l} 顏色跟正負`, sc.classList.contains("neg") === (want < 0) && A.num.classList.contains(want < 0 ? "dn" : "up")); }
+await sleep(400);
+
+// ───── 8 剔走
+const s1 = D.todo[0].key, s2 = D.todo[1].key, it = v0.querySelector(`[data-it="${s1}"]`), c = document.querySelector("#todoC");
+it.querySelector(".chk").click(); ok("撳圈唔開詳情", !Sh.open); ok("唔彈提示", !toastsEl.querySelector(".toast")); await until(() => c.textContent === "仲有 1 件"); ok("計數", c.textContent === "仲有 1 件"); await until(() => new DOMMatrix(getComputedStyle(it.querySelector(".f")).transform).a > .98 && getComputedStyle(it.querySelector(".t")).strokeDashoffset === "0px" && getComputedStyle(it.querySelector(".strike")).backgroundSize.startsWith("100%"), 6000);
+ok("圈填滿、剔號畫出、文字劃線", new DOMMatrix(getComputedStyle(it.querySelector(".f")).transform).a > .98 && getComputedStyle(it.querySelector(".t")).strokeDashoffset === "0px" && getComputedStyle(it.querySelector(".strike")).backgroundSize.startsWith("100%"));
+it.querySelector(".chk").click(); await until(() => c.textContent === "仲有 2 件"); ok("再撳還原", !it.classList.contains("done"));
+it.querySelector(".chk").click(); v0.querySelector(`[data-it="${s2}"] .chk`).click(); await until(() => c.textContent === "做晒，等收市"); ok("全部做晒", document.querySelector("#todo").classList.contains("alldone"));
+it.querySelector(".chk").click(); v0.querySelector(`[data-it="${s2}"] .chk`).click(); await until(() => c.textContent === "仲有 2 件"); ok("還原晒", c.textContent === "仲有 2 件");
+const chkR = it.querySelector(".chk").getBoundingClientRect(), rowR = it.getBoundingClientRect(); ok("圈嘅撳位冇死位", Math.abs(chkR.height - rowR.height) < 2 && chkR.width >= 44, [chkR.height, rowR.height]);
+
+// ───── 9 下拉
+const P = A_PTR.today, vr = v0.getBoundingClientRect(), tgt = v0.querySelector(".head-d");
+ev(tgt, "mousedown", vr.left + 150, vr.top + 200); ev(window, "mousemove", vr.left + 150, vr.top + 260); const y1 = P.R.y; ev(window, "mousemove", vr.left + 150, vr.top + 500); ok("橡筋阻力", P.R.y > y1 && P.R.y < 300, [y1, P.R.y]); ok("過界", P.R.armed); await sleep(90); ev(window, "mouseup", vr.left + 150, vr.top + 500);
+ok("轉緊", P.R.busy && v0.querySelector(".ptr").classList.contains("spin")); await until(() => v0.querySelector(".ptr").classList.contains("done"), 3000); ok("出剔號", v0.querySelector(".ptr").classList.contains("done"));
+await until(() => v0.querySelector(".mast-d").textContent.startsWith("剛剛"), 2000); ok("更新時間喺原位", v0.querySelector(".mast-d").textContent.startsWith("剛剛")); ok("下拉唔彈提示", !toastsEl.querySelector(".toast"));
+await until(() => !P.R.busy && P.R.y < .5, 4000); ok("收返", v0.querySelector(".inner").style.transform === "" && !P.R.busy);
+await until(() => !v0.querySelector(".mast-d").textContent.startsWith("剛剛"), 5000); ok("時間文字還原", !v0.querySelector(".mast-d").textContent.startsWith("剛剛"));
+ev(tgt, "mousedown", vr.left + 150, vr.top + 200); ev(window, "mousemove", vr.left + 150, vr.top + 260); await sleep(90); ev(window, "mouseup", vr.left + 150, vr.top + 260); await until(() => P.R.y < .5, 2000); ok("拉唔夠彈返", !P.R.busy);
+touch(tgt, "touchstart", vr.left + 50, vr.top + 200); touch(tgt, "touchmove", vr.left + 50, vr.top + 215); const p2 = touch(tgt, "touchmove", vr.left + 50, vr.top + 460); ok("手指下拉", p2.defaultPrevented && P.R.y > 50, P.R.y); await sleep(90); touch(tgt, "touchend", vr.left + 50, vr.top + 460); await until(() => !P.R.busy && P.R.y < .5, 8000); ok("手指下拉收返", !P.R.busy); await sleep(800);
+
+// ───── 10 正式 app 嘅功能全部喺度（老師 11-05：「我要求以前啲功能都要喺度，好似app健康度，api用量等等」）
+const allSubs = Object.values(LG.GROUPS).flat().map(x => x[0]).filter(k => k !== "today");
+const covered = new Set(Object.values(TABS).flatMap(t => t.keys.map(k => k.split(":")[0])));
+ok("正式 app 每個細分頁都有位", allSubs.every(k => covered.has(k)), allSubs.filter(k => !covered.has(k)));
+ok("每個細分頁都有內容", allSubs.every(k => Object.keys(SUBLEN).some(x => x.split(":")[0] === k && SUBLEN[x] > 20)), SUBLEN);
+// 策略頁：跟單（我嘅帳戶）同歷史
+const vs = view("strat"); go("strat"); await until(() => onv().join() === "strat"); await sleep(120);
+ok("策略頁係正式 app 嘅我嘅帳戶", vs.querySelector("#app") && vs.querySelector(".pane").textContent.length > 200);
+ok("策略頁有帳戶曲線", !!vs.querySelector(".pane .ch[data-ch]"));
+vs.querySelector('[data-segb="1"]').click(); await sleep(340); await settled(vs.querySelector(".pane")); ok("歷史分頁", ST.sub.strat === 1 && vs.querySelector(".pane").textContent.length > 200); vs.querySelector('[data-segb="0"]').click(); await sleep(340);
+// 細分頁掃過去都有靜態內容：鄰頁唔會空白
+{ const sv0 = view("stocks"); ok("鄰頁預先有內容", sv0.querySelector(".pane").textContent.trim().length > 20); ok("鄰頁係唔撳得嘅拷貝", !!sv0.querySelector(".pane .lg-static") && !sv0.querySelector(".pane #app")); ok("拷貝冇重複 id", document.querySelectorAll("#app").length === 1 && document.querySelectorAll("#capital").length <= 1); }
+// 股票頁
+const sv = view("stocks"); go("stocks"); await until(() => onv().join() === "stocks"); ok("細分頁指示塊有闊度", parseFloat(sv.querySelector(".seg-ind").style.width) > 20); ok("#app 跟咗過嚟", !!sv.querySelector("#app"));
+sv.querySelector('[data-segb="1"]').click(); await until(() => LG.getTab() === "rank", 6000); await settled(sv.querySelector(".pane")); ok("排名細分頁係正式 app", LG.getTab() === "rank" && sv.querySelector(".pane").textContent.includes(D.rank[0].sym), LG.getTab());
+{ const hrefRS = location.href, s = sv.querySelector(".pane [data-stock]"), sym = s && s.dataset.stock; ok("排名有股票可以撳", !!s); s.click(); await until(() => !$("#rs").hidden); ok("撳代號開正式 app 嘅股票頁", !$("#rs").hidden && $("#rs").textContent.includes(sym)); await settled($("#rs")); ok("股票頁喺手機入面", Math.abs($("#rs").getBoundingClientRect().width - phone.getBoundingClientRect().width) < 2, $("#rs").getBoundingClientRect().width);
+  $("#rsBack").click(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(120); ok("詳情返回掣", clean() && cur === "stocks" && location.href === hrefRS, { n: HS.n, i: HS.ignore });
+  s.isConnected ? s.click() : sv.querySelector(".pane [data-stock]").click(); await until(() => !$("#rs").hidden); history.back(); await until(() => $("#rs").hidden); await sleep(200); ok("Android 返回鍵收詳情頁，唔會退多一層", clean() && cur === "stocks", { n: HS.n, i: HS.ignore }); }
+sv.querySelector('[data-segb="0"]').click(); await sleep(340);
+// 今日頁連去細分頁
+go("today"); await until(() => onv().join() === "today"); await sleep(120); ok("今日頁 #app 收返起", !v0.querySelector("#app") && !!$("#lgPark #app"));
+{ const b = v0.querySelector('[data-live="cand"] [data-sub]'); if (b) { const k = b.dataset.sub; b.click(); await until(() => cur === "stocks" && onv().join() === "stocks"); await sleep(120); ok("揀股參考連去股票頁", cur === "stocks" && LG.getTab() === k, [cur, LG.getTab()]); go("today"); await until(() => onv().join() === "today"); } }
+{ const b = v0.querySelector("[data-news]"); b.click(); await until(() => cur === "info" && onv().join() === "info"); await sleep(120); ok("新聞全文連去資訊頁", LG.getTab() === "news", LG.getTab()); go("today"); await until(() => onv().join() === "today"); }
+{ const t = v0.querySelector(".mt"); t.click(); await until(() => { const s = $("#rsSheet"); return s && !s.hidden; }, 1500); const s = $("#rsSheet"); ok("市況卡撳得（開正式 app 嘅說明）", !!s && !s.hidden && s.textContent.includes("知道") && !!s.closest("#phone")); const c = s && s.querySelector("[data-close]"); if (c) c.click(); await until(() => !s || s.hidden, 1500); ok("市況說明關得返", !s || s.hidden); await until(() => HS.ignore === 0); }
+// 設定：app 健康度、AI／API 用量、暫停、備份、進階、策略規則
+phone.querySelector("[data-act=set]").click(); await until(() => Pu.setting && !Pu.mv.anims.length && Pu.mv.val < 1); await settled(pushEl);
+{ const t = pushEl.textContent; for (const w of ["系統健康", "AI 用量", "暫停", "匯出設定", "匯入設定", "進階", "策略規則", "儲存", "重新讀數據"]) ok("設定有「" + w + "」", t.includes(w)); ok("設定標題唔重複", [...pushEl.querySelectorAll("#setHost h2")].filter(h => h.textContent.trim() === "設定" && h.offsetHeight > 0).length === 0); ok("設定係正式 app 嘅功能", LG.getTab() === "set" && !!pushEl.querySelector("#capital")); ok("設定存去獨立位置（唔郁正式 app）", (() => { try { const a = localStorage.getItem("signals-app"), before = a; const c = pushEl.querySelector("#capital"); c.value = "12345"; pushEl.querySelector("#saveSet").click(); const after = localStorage.getItem("signals-app"), d = JSON.parse(localStorage.getItem("signals-app-demo") || "{}"); return before === after && d.capital === 12345; } catch (e) { return false; } })(), localStorage.getItem("signals-app-demo")); pushEl.querySelector("#capital") && (pushEl.querySelector("#capital").value = ""); pushEl.querySelector("#saveSet") && pushEl.querySelector("#saveSet").click(); await sleep(120); }
+{ const r = pushEl.getBoundingClientRect(); ev(pushEl, "mousedown", r.left + 10, 300); ev(window, "mousemove", r.left + 24, 300); ev(window, "mousemove", r.left + 300, 300); await sleep(130); ev(window, "mouseup", r.left + 300, 300); await until(() => pushEl.hidden); await until(() => HS.ignore === 0); await sleep(120); ok("設定由左邊掃得返，狀態乾淨", clean() && !$("#setHost") && LG.getTab() === "today", { n: HS.n, tab: LG.getTab() }); }
+go("stocks"); await until(() => onv().join() === "stocks"); await sleep(120); phone.querySelector("[data-act=set]").click(); await until(() => Pu.setting && !Pu.mv.anims.length && Pu.mv.val < 1); ok("由其他分頁入設定都得", !!pushEl.querySelector("#capital") && !view("stocks").querySelector("#app")); pushEl.querySelector("[data-back]").click(); await until(() => pushEl.hidden); await until(() => HS.ignore === 0); await sleep(120); ok("返嚟 #app 返到去嗰頁", !!view("stocks").querySelector("#app") && LG.getTab() === lgKey("stocks").split(":")[0] && clean(), LG.getTab());
+go("today"); await until(() => onv().join() === "today"); await sleep(80);
+// 要做嘅文字同正式 app 一樣（賣出、轉倉、改止蝕、冇嘢做）
+{ const Y = { key: "x", sym: "TQQQ → IEF", side: "轉", leg: "trend", when: "收市前", frac: .45, reason: "大市轉紅燈，掛 buy-stop", out: true };
+  ok("轉倉：寫動作", todoAct(Y) === "TQQQ → IEF"); ok("轉倉：術語譯做中文", zh(Y.reason).includes("突破單") && !zh(Y.reason).includes("buy-stop")); const h = todoSheet(Y); ok("轉倉詳情寫金額同原因", h.includes("佔帳戶 45%") && h.includes("原因：") && h.includes("收市前"), h.slice(0, 200));
+  const S0 = { key: "y", sym: "NVDA", side: "賣出", leg: "lead", when: "開市", reason: "跌穿 200 日線" }; ok("賣出：寫動作", todoAct(S0) === "賣出 NVDA");
+  const U = { key: "z", sym: "NVDA", ups: true, old: 100, new: 120, be: true }; ok("改止蝕：寫動作同價錢", todoAct(U) === "改止蝕 NVDA" && itRow(U).includes("由 100.00 推高到 120.00") && todoSheet(U).includes("保本"));
+  ok("冇嘢做：有講", todoEmpty().includes("今日冇嘢要做")); }
+
+// ───── 11 搜尋
+phone.querySelector("[data-act=search]").click(); await sleep(350); const inp = searchEl.querySelector("input"); ok("搜尋開到有焦點", document.activeElement === inp);
+ok("搜尋字 ≥ 16px", parseFloat(getComputedStyle(inp).fontSize) >= 16); ok("搜尋冇打字有持倉同候選", searchEl.querySelectorAll(".sr").length > 0); inp.value = "crwd"; inp.dispatchEvent(new Event("input")); ok("搵到", [...searchEl.querySelectorAll(".sr b")].map(b => b.textContent).join() === "CRWD");
+ok("名單以外嘅都搵到", ALL.length > D.rank.length || ALL.length >= 20, ALL.length);
+inp.value = "zzzz"; inp.dispatchEvent(new Event("input")); ok("名單冇嘅代號都可以試開", searchEl.querySelector(".sr").dataset.open === "ZZZZ"); inp.value = "!!!"; inp.dispatchEvent(new Event("input")); ok("搵唔到有講", !!searchEl.querySelector(".ph")); inp.value = "<img src=x>"; inp.dispatchEvent(new Event("input")); ok("搜尋字唔會當 HTML", !searchEl.querySelector("img")); inp.value = "crwd"; inp.dispatchEvent(new Event("input")); searchEl.querySelector(".sr").click(); await until(() => !$("#rs").hidden); ok("由搜尋開正式 app 股票頁", !$("#rs").hidden && $("#rs").textContent.includes("CRWD") && !Se.open); await until(() => searchEl.hidden); await settled($("#rs")); history.back(); await until(() => $("#rs").hidden); await sleep(420); ok("由搜尋開詳情關完唔會彈走", clean() && location.href === hrefStart, { n: HS.n, i: HS.ignore, p: HS.pend, u: location.href });
+// 底部詳情嘅「完整資料」連去正式 app 股票頁
+row.click(); await settledSheet(); { const b = Sh.el.querySelector('[data-sopen$=":"]'); ok("詳情有完整資料掣", !!b); const sym = b.dataset.sopen.split(":")[0]; b.click(); await until(() => !$("#rs").hidden && !Sh.open); ok("開到股票頁", $("#rs").textContent.includes(sym)); await settled($("#rs")); $("#rsBack").click(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(300); ok("由詳情開股票頁返嚟乾淨", clean(), { n: HS.n, i: HS.ignore, p: HS.pend }); }
+phone.querySelector("[data-act=search]").click(); await sleep(60); searchEl.querySelector("[data-act=search-close]").click(); phone.querySelector("[data-act=search]").click(); await sleep(420); ok("關咗即刻再開冇壞", !!searchEl.querySelector("input")); closeSearch(); await until(() => searchEl.hidden); await sleep(120); ok("搜尋關完乾淨", clean());
+
+// ───── 12 日夜、提示、開場、減少動態
+const tb = phone.querySelector("[data-act=theme]"); tb.click(); await until(() => phone.dataset.theme === "night"); await until(() => !phone.classList.contains("no-tr")); ok("轉夜間", getComputedStyle(v0).backgroundColor === "rgb(21, 19, 16)"); await sleep(600); tb.click(); await until(() => phone.dataset.theme === "day"); await sleep(600); ok("轉返日間", phone.dataset.theme === "day");
+toast("測試"); await sleep(250); const t = toastsEl.querySelector(".toast"), tr = t.getBoundingClientRect(); ev(t, "mousedown", tr.left + 10, tr.top + 10); ev(window, "mousemove", tr.left + 10 + TOASTC.swipe, tr.top + 10); ev(window, "mouseup", tr.left + 10 + TOASTC.swipe, tr.top + 10); await until(() => !toastsEl.querySelector(".toast"), 6000); ok("提示掃 45px 就走", !toastsEl.querySelector(".toast"));
+toast("測試"); await sleep(120); const t2 = toastsEl.querySelector(".toast"), t2r = t2.getBoundingClientRect(); ev(t2, "mousedown", t2r.left + 10, t2r.top + 10); ev(window, "mousemove", t2r.left + 20, t2r.top + 10); ev(window, "mouseup", t2r.left + 20, t2r.top + 10); await sleep(300); ok("掃唔夠留低", !!toastsEl.querySelector(".toast")); toastsEl.innerHTML = "";
+launch(true); ok("開場顯示", !splash.hidden); await sleep(100); splash.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); ok("撳一下跳過", splash.hidden && document.querySelector("#mast").style.visibility === ""); await sleep(500);
+launch(true); await until(() => splash.hidden, 5000); ok("開場播完", splash.hidden); await until(() => A.num.textContent === sg(D.ret.ytd), 6000); ok("開場數字啱", A.num.textContent === sg(D.ret.ytd), A.num.textContent);
+// ───── 12a 入 app 動畫「圖示一筆」（老師 11-06 揀；日夜）
+const lcClean = () => splash.hidden && splash.innerHTML === "" && !splash.getAttribute("style") && !Lc.on && !Lc.anims.length && !Lc.timers.length && phone.querySelectorAll(".sp-win,.sp-e").length === 0;
+ok("試用掣、揀版本、側邊說明都拎走咗", !phone.querySelector("[data-lcopen],[data-lc]") && !document.querySelector("#panel,#hapt") && typeof LAUNCH === "undefined" && typeof TRY === "undefined");
+{ const P0 = phone.getBoundingClientRect(); for (const th of ["day", "night"]) {
+  setTheme(th); await sleep(60);
+  const t0 = performance.now(); launch(true); ok(th + " 開始播", !splash.hidden && Lc.on && !!splash.querySelector(".sp-icon"));
+  await until(() => !splash.querySelector(".sp-win") || !splash.querySelector(".sp-win").hidden, 15000); const win = splash.querySelector(".sp-win"), hm = performance.now() - t0; ok(th + " 圖示畫完先放大", !!win && hm >= T(700), Math.round(hm));
+  await until(() => splash.hidden, 15000); await sleep(40); ok(th + " 播完冇留低嘢", lcClean(), { sty: splash.getAttribute("style"), on: Lc.on, t: Lc.timers.length });
+  await until(() => A.num.textContent === sg(D.ret.ytd), 8000); ok(th + " 落地頁面正常", A.num.textContent === sg(D.ret.ytd) && getComputedStyle(v0.querySelector(".head")).visibility === "visible", A.num.textContent);
+  for (const at of [30, 300, 700, 1000]) { launch(true); await sleep(at); splash.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); if (!lcClean()) ok(`${th} ${at}ms 跳過即刻乾淨`, false, { sty: splash.getAttribute("style") }); } ok(th + " 任何階段跳過都乾淨", lcClean());
+  { const keep = D; D = null; let err = null; const oe = e => { err = String(e.message); }; addEventListener("error", oe); launch(true); await until(() => splash.hidden, 15000); removeEventListener("error", oe); D = keep; ok(th + " 數據未到都入到去", splash.hidden && !err && lcClean(), err); }
+  await sleep(60);
+} ok("手機尺寸冇郁", Math.abs(phone.getBoundingClientRect().width - P0.width) < 1); }
+setTheme("day"); await sleep(60);
+// 綠色窗放到滿版：用真闊高，慢動作捉最尾嗰格
+{ K = 8; launch(true); await until(() => { const w = splash.querySelector(".sp-win"); return w && !w.hidden; }, 15000); const w = splash.querySelector(".sp-win"), a = w.getAnimations()[0]; a.finish(); const r = w.getBoundingClientRect(), p = phone.getBoundingClientRect(); ok("綠色窗放到滿版", Math.abs(r.width - p.width) < 1 && Math.abs(r.height - p.height) < 1 && Math.abs(r.left - p.left) < 1 && Math.abs(r.top - p.top) < 1, [r.width, r.height, p.width, p.height]); lcFinish(); K = 1; }
+// 每日第一次先播
+try { localStorage.removeItem("lt_open"); } catch (e) {}
+launch(); ok("今日第一次開會播", !splash.hidden && Lc.on); lcFinish(); launch(); ok("今日第二次直入", splash.hidden && !Lc.on);
+setRM(true); launch(true); ok("減少動態：唔播", splash.hidden && !Lc.on); setRM(false);
+setRM(true); row.click(); ok("減少動態：即刻開", Sh.open && Math.abs(Sh.mv.val) < 1); closeSheet(); ok("減少動態：即刻關", !Sh.open); await sleep(150); setRM(false);
+// 記得：日夜、剔走（同一份收市數據）
+{ const before = localStorage.getItem("lt_theme"); tb.click(); await until(() => phone.dataset.theme === "night"); ok("日夜記住", localStorage.getItem("lt_theme") === "night"); await sleep(600); tb.click(); await until(() => phone.dataset.theme === "day"); await sleep(600); ok("轉返日間都記住", localStorage.getItem("lt_theme") === "day"); if (before === null) localStorage.removeItem("lt_theme"); }
+{ const k = D.todo[0].key, was = ST.done.has(k); if (was) toggleCheck(k); toggleCheck(k); const o = JSON.parse(localStorage.getItem("lt_done")); ok("剔走記低", o.d === D.asof && o.k.includes(k)); ST.done = new Set(); doneLoad(); ok("重開仲係剔咗", ST.done.has(k)); localStorage.setItem("lt_done", JSON.stringify({ d: "2000-01-01", k: [k] })); doneLoad(); ok("舊收市日嘅剔走唔算", !ST.done.has(k)); localStorage.setItem("lt_done", JSON.stringify({ d: D.asof, k: ["冇呢件|9", k] })); doneLoad(); ok("數據冇嘅項目唔計", ST.done.size === 1 && ST.done.has(k)); ST.done = new Set(); doneSave(); todayRender(); }
+// 掛突破單嘅詳情：時間、腳、價錢、金額、原因都要有，同舊 app 嘅 v24Todo 一樣
+{ const t = D.todo.find(x => x.trigger); if (t) { const h = stockSheet(t), b = LG.base(); ok("詳情寫時間同哪隻腳", h.includes(zh(t.when)) && h.includes(LG.LEGN[t.leg])); ok("詳情寫突破價同止蝕", h.includes(n2(t.trigger)) && h.includes(n2(t.stop))); ok("詳情寫金額", h.includes("佔帳戶 " + fracTxt(t.frac))); ok("詳情寫原因", h.includes("原因：")); ok("冇術語", !/buy-stop/i.test(h)); const S1 = LG.state().S, keep = S1.capital; S1.capital = 100000; const h2 = stockSheet(t), bb = LG.base(); ok("填咗本金：寫美元同股數", bb > 0 && h2.includes("美元") && h2.includes(n0(Math.floor(bb * t.frac / t.trigger)) + " 股"), h2.slice(-300)); S1.capital = keep; } }
+
+// ───── 12b 空狀態
+const todoCard = v0.querySelector("#todo"), keptTodo = todoCard.innerHTML;
+todoCard.innerHTML = todoEmpty(); audit("空狀態", todoCard); ok("空狀態冇寫 0 件事", !todoCard.textContent.includes("0 件") && todoCard.textContent.includes("今日冇嘢要做")); todoCard.innerHTML = keptTodo;
+
+closeAllNow(); toastsEl.innerHTML = ""; if (phone.dataset.theme !== "day") { setTheme("day"); } if (ST.done.has(s1)) toggleCheck(s1);
+await until(() => HS.ignore === 0 && !Pg.active, 2000); await sleep(200); ok("全部做完狀態乾淨", clean() && !Pg.active && location.href === hrefStart, { n: HS.n, i: HS.ignore, p: HS.pend, pg: Pg.active });
+return res;
