@@ -105,6 +105,8 @@ ev(hb, "pointerdown", x, y); ev(window, "pointerup", x, y); ok("快撳都見到"
 v0.scrollTop = 300; await until(() => tbBg.style.opacity === "1"); ok("頂部變毛玻璃，寫 app 名", tbBg.style.visibility === "visible" && tbTitle.textContent === "龍頭突破", tbTitle.textContent);
 ok("冇示範字眼", !phone.innerText.includes("示範") && !document.title.includes("示範"));
 ok("AI 今日重點擺「今日要做」上面（老師 10-26）", (() => { const a = v0.querySelector('[data-live="ai"]'), t = v0.querySelector("#todo"); return !!a && !!t && !!(a.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING); })());
+ok("恐慌、反彈訊號擺「今日要做」下面（同舊 app 一樣）", (() => { const e = v0.querySelector('[data-live="extras"]'), t = v0.querySelector("#todo"); return !!e && !!(t.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING); })());
+{ const S0 = LG.state().SCAN, keepF = S0.fear; S0.fear = { ...(keepF || {}), vix: 28, active: false }; todayLive(); const e = v0.querySelector('[data-live="extras"]'); ok("VIX ≥ 25：恐慌卡有出到，唔會俾人漏咗", e.textContent.includes("VIX"), e.textContent.slice(0, 80)); S0.fear = keepF; todayLive(); }
 ok("AI 重點每點最多 90 字", aiFirst("字".repeat(200)).length === 89 && aiFirst("短句。後面。") === "短句。");
 ok("今日要做寫明版本同日期", v0.querySelector("#todo").textContent.includes(D.ver + " · " + D.next), v0.querySelector("#todo").textContent.slice(-120));
 dock.querySelector("[data-tab=strat]").click(); ok("轉頁中兩頁都喺度", onv().length === 2); await until(() => onv().length === 1); ok("轉完得一頁", onv()[0] === "strat", onv());
@@ -377,6 +379,9 @@ setRM(true); row.click(); ok("減少動態：即刻開", Sh.open && Math.abs(Sh.
 const todoCard = v0.querySelector("#todo"), keptTodo = todoCard.innerHTML;
 todoCard.innerHTML = todoEmpty(); audit("空狀態", todoCard); ok("空狀態冇寫 0 件事", !todoCard.textContent.includes("0 件") && todoCard.textContent.includes("今日冇嘢要做")); todoCard.innerHTML = keptTodo;
 
+// ───── 13 每個細分頁行兩轉：離開再返嚟切細分頁，內容唔可以俾舊樣式收埋（2026-11-07 真網址踩到，加密頁成頁空白）
+closeAllNow(); go("today"); await until(() => cur === "today" && !Pg.active); await sleep(120);
+for (let round = 0; round < 2; round++) { for (const m of ["strat", "stocks", "info", "cry"]) { go(m); await until(() => cur === m && !Pg.active); await sleep(100); for (let i = 0; i < TABS[m].keys.length; i++) { view(m).querySelector(`.seg [data-segb="${i}"]`).click(); await sleep(340); const p = view(m).querySelector(".pane"), r = TABS[m].keys[i]; if (getComputedStyle(p).visibility !== "visible" || !p.innerText.trim()) ok(`第 ${round + 1} 轉 ${r} 睇到內容`, false, getComputedStyle(p).visibility); } } go("today"); await until(() => cur === "today" && !Pg.active); await sleep(120); } ok("行兩轉細分頁都睇到內容", true);
 closeAllNow(); toastsEl.innerHTML = ""; if (phone.dataset.theme !== "day") { setTheme("day"); } if (ST.done.has(s1)) toggleCheck(s1);
 await until(() => HS.ignore === 0 && !Pg.active, 2000); await sleep(200); ok("全部做完狀態乾淨", clean() && !Pg.active && location.href === hrefStart, { n: HS.n, i: HS.ignore, p: HS.pend, pg: Pg.active });
 return res;

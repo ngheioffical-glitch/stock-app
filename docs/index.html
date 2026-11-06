@@ -47,10 +47,10 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 #main{position:absolute;inset:0}
 .phone.no-tr *,.phone.no-tr *::before,.phone.no-tr *::after{transition:none!important}
 .views{position:absolute;inset:0}
-.view{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:none;visibility:hidden;background:var(--bg)} /* 唔鎖 touch-action：方向由瀏覽器定，斜斜地都照碌；只有明顯橫掃先由手勢接手 */
+.view{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:none;visibility:hidden;--on:0;background:var(--bg)} /* 唔鎖 touch-action：方向由瀏覽器定，斜斜地都照碌；只有明顯橫掃先由手勢接手 */
 .views.pg .view.on{will-change:transform}
 .view::-webkit-scrollbar,.sh-body::-webkit-scrollbar,.seg::-webkit-scrollbar,.push::-webkit-scrollbar,.sr-list::-webkit-scrollbar{display:none}
-.view.on{visibility:visible}
+.view.on{visibility:visible;--on:1} /* --on 逼入面每個元素重新計樣式：只轉 visibility 嘅話，郁緊或者郁過動畫嘅元素（細分頁內容）會用舊樣式，切細分頁之後一直收埋（2026-11-07 踩到） */
 .inner{position:relative;z-index:1;min-height:100%;padding:var(--sat) 16px 124px}
 
 /* 撳落去：撳落快、放手彈；scale 只郁合成層 */
@@ -808,6 +808,7 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .lg main{max-width:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
 .lg-sec{display:flex;flex-direction:column;gap:14px}.lg-sec:empty{display:none}
 .lg-sec[data-live=alerts]{margin:12px 0 22px}
+.lg-sec[data-live=extras]{margin:14px 0 0}
 .lg .subnav{display:none}
 #setHost main>h2:first-of-type{display:none}
 .lg-ov{height:0}
@@ -1197,6 +1198,7 @@ function todayInner(){
   ${headHTML()}
   <div data-live="ai"></div>
   <section class="card todo rise${D.todo.length&&!left?" alldone":""}" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">${left?`仲有 ${left} 件`:"做晒，等收市"}</span></div>${D.todo.map(itRow).join("")}<p class="note"><b class="num">${esc(D.ver||"")} · ${esc(D.next||"")}</b>。${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
+  ${lgSec("extras")}
   <section class="card acct rise" id="acct"><span class="acct-lab" id="acctLab">模型帳戶 · 今年</span><b class="hero num up" id="acctNum">${sg(D.ret.ytd)}</b>
     <div class="row3"><div><b>${ch(D.ret.day)}</b>上一日</div><div><b class="num dn">${sg(D.ret.dd)}</b>由高位</div><div><b class="num">${pc(D.cash,0)}</b>現金</div></div>
     <div class="scrub" id="scrub" role="img" aria-label="模型帳戶回報曲線；撳住左右掃睇每日"></div>
@@ -1221,9 +1223,10 @@ function todayLive(){
   const v=VIEWS.today;if(!v)return;
   const {FEED}=LG.state(),dg=FEED.news&&FEED.news.digest,pts=dg&&dg.points?dg.points.slice(0,3):[];
   AI=pts;AI.gen=dg&&dg.generated;
-  let ch_=liveSet(v,"alerts",LG.aiBanner()+LG.pauseBanner()+LG.janCard()+LG.dataAlert()+LG.extras());
+  let ch_=liveSet(v,"alerts",LG.aiBanner()+LG.pauseBanner()+LG.janCard()+LG.dataAlert());
   if(D){
     const n=LG.state().SCAN?LG.signals().list.length:0;
+    ch_=liveSet(v,"extras",LG.extras())||ch_; // 恐慌、反彈訊號：同舊 todayTodo 一樣擺「今日要做」下面，唔好遮住要做嘅嘢
     ch_=liveSet(v,"light",LG.lightCard())||ch_;
     ch_=liveSet(v,"tiles",LG.mktTiles())||ch_;
     ch_=liveSet(v,"cand",n?`<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>`:"")||ch_;
