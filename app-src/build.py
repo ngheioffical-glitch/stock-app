@@ -130,6 +130,7 @@ def build_html(test=False):
         rep('const KEY = "signals-app";', 'const KEY = "signals-app-demo";')
         rep('dataUrl: "scan.json",', 'dataUrl: (window.__DATA_BASE||"")+"scan.json",')
         rep('let S = load(), SCAN = null, TAB = "today", ERR = null;', 'let S = load(), SCAN = null, TAB = "today", ERR = null;if(window.__DATA_BASE)S.dataUrl=window.__DATA_BASE+"scan.json";')
+        rep('const IN_APK = /; wv\\)/.test(navigator.userAgent);', 'const IN_APK = new URLSearchParams(location.search).has("apk");')   # ?apk 扮 APK，試複製、貼上設定
     cut("// 左右掃切換分頁", "let DATA_AT = 0;")   # 手勢由殼負責
     cut("// ───────────────────────── 開 app 動畫", "fetchScan();\nfetchModel();")   # 入 app 動畫同 service worker 註冊由殼負責
     rep('TAB !== "today"){ TAB = "today"; render("f"); window.scrollTo(0, 0); } });', 'TAB !== "today"){ go("today"); } });')
@@ -164,7 +165,7 @@ return {
   LEGN,tqYellow,trendHold,signals,detKeys,
   aiBanner,pauseBanner,janCard,dataAlert,lightCard,mktTiles,
   extras:()=>{const F=SCAN&&SCAN.fear,B=SCAN&&SCAN.bounce;return (F&&(F.active||F.vix>=25)?fearCard():"")+(B&&B.zone&&B.signal&&B.signal.active?bounceCard():"");},
-  openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,
+  openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,exportBox,pasteBox,
   reload:()=>Promise.allSettled([fetchScan(),fetchModel(),fetchFeeds(true)])
 };
 })();

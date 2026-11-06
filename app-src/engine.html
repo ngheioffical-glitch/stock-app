@@ -245,6 +245,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 /* 2026-11-02 app 自己嘅確認框（Android 外殼唔支援 confirm／alert） */
 .askbox{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.6)}
 .askbox .card{width:min(100%,380px);margin:0}
+.askbox textarea{display:block;width:100%;height:170px;margin:0 0 10px;padding:10px;border:1px solid var(--line2);border-radius:10px;background:var(--panel2);color:var(--ink);font:13px/1.5 var(--mono);resize:none;-webkit-user-select:text;user-select:text}
 .ask-msg{white-space:pre-line;margin:0 0 12px;line-height:1.6}
 /* 研究生成步驟 */
 .jobsteps{list-style:none;margin:6px 0 0;padding:0}
@@ -2138,26 +2139,54 @@ function aiUseCard(){
 
 // 設定備份／還原（2026-10-24 界面第二期；/codex 兩邊同意）：主設定 + 研究頁「我的部位」+ 一月提示；唔包 GitHub token（token 唔應該離開呢部手機）
 const BACKUP_KEYS = ["res-pos", "jan-done"];
-function exportSettings(){
+// 2026-11-07：Android 外殼（MainActivity.kt）冇下載（blob）同揀檔（<input type=file>），匯出匯入喺 APK 撳咗都冇反應；換 APK 又會冇晒手機資料 → APK 入面改用複製、貼上文字（WebView 嘅 UA 有「; wv)」）
+const IN_APK = /; wv\)/.test(navigator.userAgent);
+function backupText(){
   const keep = {...S}; delete keep.ghToken;
   const extra = {}; for (const k of BACKUP_KEYS){ try { const v = localStorage.getItem(k); if (v != null) extra[k] = v; } catch(e){} }
-  const blob = new Blob([JSON.stringify({app: "龍頭突破", ver: 1, at: new Date().toISOString(), settings: keep, extra}, null, 2)], {type: "application/json"});
+  return JSON.stringify({app: "龍頭突破", ver: 1, at: new Date().toISOString(), settings: keep, extra}, null, 2);
+}
+function exportSettings(){
+  if (IN_APK) return exportBox();
+  const blob = new Blob([backupText()], {type: "application/json"});
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `龍頭突破設定-${parts(HK, new Date()).date}.json`;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
+function restoreBackup(txt){
+  try {
+    const j = JSON.parse(txt);
+    if (j.app !== "龍頭突破" || !j.settings || typeof j.settings !== "object") throw new Error("唔係呢個 app 嘅設定");
+    const tok = S.ghToken; S = {...defaults, ...j.settings, ghToken: tok};          // token 照用呢部手機原本嗰個
+    for (const [k, v] of Object.entries(j.extra || {})) if (BACKUP_KEYS.includes(k)) localStorage.setItem(k, String(v));
+    if (!save()) throw new Error("瀏覽器唔俾寫入");
+    noteBox("還原咗設定，會重新載入 app。").then(() => location.reload());
+  } catch(e){ noteBox("還原唔到：" + e.message); }
+}
 function importSettings(file){
   const rd = new FileReader();
-  rd.onload = () => {
-    try {
-      const j = JSON.parse(rd.result);
-      if (j.app !== "龍頭突破" || !j.settings || typeof j.settings !== "object") throw new Error("唔係呢個 app 嘅設定檔");
-      const tok = S.ghToken; S = {...defaults, ...j.settings, ghToken: tok};          // token 照用呢部手機原本嗰個
-      for (const [k, v] of Object.entries(j.extra || {})) if (BACKUP_KEYS.includes(k)) localStorage.setItem(k, String(v));
-      if (!save()) throw new Error("瀏覽器唔俾寫入");
-      noteBox("還原咗設定，會重新載入 app。").then(() => location.reload());
-    } catch(e){ noteBox("還原唔到：" + e.message); }
-  };
+  rd.onload = () => restoreBackup(rd.result);
   rd.readAsText(file);
+}
+function textBox(msg, value, okText, onOk){
+  const w = document.createElement("div");
+  w.className = "askbox"; w.setAttribute("role", "dialog"); w.setAttribute("aria-modal", "true");
+  w.innerHTML = `<div class="card"><p class="ask-msg"></p><textarea spellcheck="false" autocomplete="off" aria-label="設定內容"></textarea><div class="row" style="justify-content:flex-end"><button class="ask-no">關閉</button><button class="primary ask-ok"></button></div></div>`;
+  w.querySelector(".ask-msg").textContent = msg;
+  const ta = w.querySelector("textarea"), ok = w.querySelector(".ask-ok"), close = () => w.remove();
+  ta.value = value; ok.textContent = okText;
+  w.querySelector(".ask-no").onclick = close;
+  ok.onclick = () => onOk(ta, ok, close);
+  document.body.appendChild(w);
+}
+async function copyText(ta){
+  try { ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length); if (document.execCommand("copy")) return true; } catch(e){}
+  try { await Promise.race([navigator.clipboard.writeText(ta.value), new Promise((_, no) => setTimeout(no, 1500))]); return true; } catch(e){ return false; }
+}
+function exportBox(){
+  textBox("撳「複製」，貼去記事本或者 WhatsApp 收好。換 APK 之後，喺「設定 → 匯入設定」貼返。GitHub token 唔包喺入面，要另外再填。", backupText(), "複製", async (ta, ok) => { ok.textContent = await copyText(ta) ? "複製咗" : "複製唔到：撳住文字自己揀"; });
+}
+function pasteBox(){
+  textBox("貼上之前複製嘅設定，撳「還原」。而家嘅設定會被取代（GitHub token 照留）。", "", "還原", (ta, ok, close) => { const t = ta.value; close(); restoreBackup(t); });
 }
 // ───────────────────────── 暫停鍵（2026-11-02 老師：「冇撳暫停就照依家咁樣排程 有就咩都唔好郁 淨係更新ai今日重點」）
 // 狀態喺 docs/pause.json；撳掣用 GitHub token 觸發 pause.yml 寫入。暫停中雲端排程唔做（scanner/pause.py），feeds 淨係新聞 + AI 今日重點。
@@ -2204,8 +2233,8 @@ function viewSet(){
   <div class="card"><b>一般</b>
     <label>資金（美元，可以唔填；填咗先計股數）<input id="capital" type="number" step="any" inputmode="decimal" value="${S.capital || ""}" placeholder="例如 100000"></label>
     <div class="row"><button class="primary" id="saveSet">儲存</button><button id="reload">重新讀數據</button></div>
-    <p class="small muted" style="margin:6px 0 0"><b>設定備份</b>：換手機或者清咗瀏覽器資料之前匯出；新手機匯入就返晒（資金、跟單、加密模型倉、研究頁「我的部位」）。GitHub token 唔會匯出。</p>
-    <div class="row"><button id="expSet">匯出設定</button><label class="btnlike">匯入設定<input id="impSet" type="file" accept="application/json,.json" hidden></label></div></div>`
+    <p class="small muted" style="margin:6px 0 0"><b>設定備份</b>：換手機、換 APK 或者清咗瀏覽器資料之前匯出；之後匯入就返晒（資金、跟單、加密模型倉、研究頁「我的部位」）。GitHub token 唔會匯出。</p>
+    <div class="row"><button id="expSet">匯出設定</button>${IN_APK ? `<button id="impPaste">匯入設定</button>` : `<label class="btnlike">匯入設定<input id="impSet" type="file" accept="application/json,.json" hidden></label>`}</div></div>`
   + pauseCard() + healthCard() + aiUseCard() + `
   <details class="card"><summary><b>進階</b> <span class="small muted">· 數據網址、GitHub token</span></summary><div class="grid2">
     <label>數據網址<input id="dataUrl" value="${esc(S.dataUrl)}"></label>
@@ -3461,6 +3490,7 @@ function bind(){
     if (!save()) noteBox("儲存唔到：瀏覽器唔俾寫入（可能係私密瀏覽模式或者儲存空間滿）。今次改動關咗 app 就會冇。");
     FEED.at = 0; fetchScan(); fetchLive(); });
   on("#expSet", () => exportSettings());
+  on("#impPaste", () => pasteBox());
   const imp = $("#impSet"); if (imp) imp.onchange = async () => { const f = imp.files && imp.files[0]; imp.value = "";
     if (f && await askBox("用呢個檔還原設定？而家嘅設定會被取代（GitHub token 照留）。")) importSettings(f); };
   on("#reload", () => fetchScan());

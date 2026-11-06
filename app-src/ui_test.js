@@ -379,6 +379,17 @@ setRM(true); row.click(); ok("減少動態：即刻開", Sh.open && Math.abs(Sh.
 const todoCard = v0.querySelector("#todo"), keptTodo = todoCard.innerHTML;
 todoCard.innerHTML = todoEmpty(); audit("空狀態", todoCard); ok("空狀態冇寫 0 件事", !todoCard.textContent.includes("0 件") && todoCard.textContent.includes("今日冇嘢要做")); todoCard.innerHTML = keptTodo;
 
+// ───── 12c 震動：新 APK 用原生；冇就用 navigator.vibrate；出錯都唔影響 app
+{ const calls = []; window.AndroidHaptics = { buzz: k => calls.push(k) }; for (const k of ["tick", "light", "medium", "success"]) buzz(k); ok("APK：每種震動都叫原生", calls.join() === "tick,light,medium,success", calls); window.AndroidHaptics = { buzz() { throw new Error("x"); } }; let err = null; try { buzz("tick"); } catch (e) { err = e; } ok("原生出錯唔會弄壞 app", !err); delete window.AndroidHaptics; let e2 = null; try { buzz("tick"); } catch (e) { e2 = e; } ok("冇原生都唔會出錯", !e2); ok("最短 10 毫秒（太短好多手機感覺唔到）", HAPT.tick >= 10 && HAPT.light >= 10 && HAPT.medium >= 10); }
+// ───── 12d 備份：APK 冇下載同揀檔，要複製、貼上得到
+{ const S0 = LG.state().S, keepCap = S0.capital, keepTok = S0.ghToken, OV = "#lgOv .askbox"; S0.capital = 54321; S0.ghToken = "測試用唔准匯出";
+  LG.exportBox(); const box = $(OV), ta = box.querySelector("textarea"), txt = ta.value, j = JSON.parse(txt);
+  ok("匯出有本金", j.settings.capital === 54321); ok("匯出冇 token", !txt.includes("測試用唔准匯出") && !("ghToken" in j.settings)); ok("匯出框喺手機入面見到", ta.offsetHeight > 100 && box.getBoundingClientRect().width <= phone.getBoundingClientRect().width + 1);
+  box.querySelector(".ask-ok").click(); await until(() => box.querySelector(".ask-ok").textContent !== "複製", 2500); ok("撳複製有回應", box.querySelector(".ask-ok").textContent !== "複製", box.querySelector(".ask-ok").textContent); box.querySelector(".ask-no").click(); ok("關到", !$(OV));
+  LG.pasteBox(); $(OV).querySelector("textarea").value = "亂打嘢"; $(OV).querySelector(".ask-ok").click(); await sleep(60); ok("貼錯有講", $(OV).textContent.includes("還原唔到"), $(OV).textContent); document.querySelectorAll(OV).forEach(x => x.remove());
+  LG.pasteBox(); $(OV).querySelector("textarea").value = JSON.stringify({ app: "其他", settings: {} }); $(OV).querySelector(".ask-ok").click(); await sleep(60); ok("其他 app 嘅唔收", $(OV).textContent.includes("還原唔到")); document.querySelectorAll(OV).forEach(x => x.remove());
+  S0.capital = 1; LG.pasteBox(); $(OV).querySelector("textarea").value = txt; $(OV).querySelector(".ask-ok").click(); await sleep(60); const S1 = LG.state().S; ok("貼返本金返晒", S1.capital === 54321); ok("還原之後 token 照留", S1.ghToken === "測試用唔准匯出"); ok("還原之後講明會重新載入", $(OV).textContent.includes("還原咗")); document.querySelectorAll(OV).forEach(x => x.remove());
+  S1.capital = keepCap; S1.ghToken = keepTok; localStorage.setItem("signals-app-demo", JSON.stringify(S1)); }
 // ───── 13 每個細分頁行兩轉：離開再返嚟切細分頁，內容唔可以俾舊樣式收埋（2026-11-07 真網址踩到，加密頁成頁空白）
 closeAllNow(); go("today"); await until(() => cur === "today" && !Pg.active); await sleep(120);
 for (let round = 0; round < 2; round++) { for (const m of ["strat", "stocks", "info", "cry"]) { go(m); await until(() => cur === m && !Pg.active); await sleep(100); for (let i = 0; i < TABS[m].keys.length; i++) { view(m).querySelector(`.seg [data-segb="${i}"]`).click(); await sleep(340); const p = view(m).querySelector(".pane"), r = TABS[m].keys[i]; if (getComputedStyle(p).visibility !== "visible" || !p.innerText.trim()) ok(`第 ${round + 1} 轉 ${r} 睇到內容`, false, getComputedStyle(p).visibility); } } go("today"); await until(() => cur === "today" && !Pg.active); await sleep(120); } ok("行兩轉細分頁都睇到內容", true);

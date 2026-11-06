@@ -34,6 +34,12 @@ ok("有 manifest 同圖示", all(x in H for x in ('rel="manifest"', 'href="icon.
 ok("入 app 動畫係圖示一筆", "function lcRun(" in H and 'sp.classList.add("out")' not in H)
 ok("長網址會斷行（Trump 頁）", re.search(r"\.lg\{[^}]*overflow-wrap:break-word", H) is not None)
 ok("service worker 快取有版本號", re.search(r'const CACHE = "signals-app-\d+";', (ROOT / "docs" / "sw.js").read_text(encoding="utf-8")) is not None)
+ANDROID = ROOT / "android" / "app" / "src" / "main"
+ok("APK 有震動權限", "android.permission.VIBRATE" in (ANDROID / "AndroidManifest.xml").read_text(encoding="utf-8"))
+KT = (ANDROID / "java" / "hk" / "longtou" / "app" / "MainActivity.kt").read_text(encoding="utf-8")
+ok("APK 接駁到網頁嘅震動", 'addJavascriptInterface(Haptics(), "AndroidHaptics")' in KT and "@JavascriptInterface" in KT and "window.AndroidHaptics.buzz(kind)" in H)
+ok("APK 冇揀檔同下載，備份用複製貼上", "; wv" in H and "function exportBox(" in H and "function pasteBox(" in H and 'id="impPaste"' in H)
+ok("demo 刪咗", not (ROOT / "docs" / "demo.html").exists())
 T2 = build_html(test=True)
 ok("測試版先有 ?data= 同獨立設定", "signals-app-demo" in T2 and "__DATA_BASE" in T2)
 print(f"\n全部 {n} 項通過")

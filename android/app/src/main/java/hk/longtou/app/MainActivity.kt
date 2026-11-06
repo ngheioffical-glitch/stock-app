@@ -2,9 +2,14 @@ package hk.longtou.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -15,6 +20,36 @@ import android.webkit.WebViewClient
 class MainActivity : Activity() {
     private lateinit var web: WebView
 
+    /** 網頁嘅 buzz() 經呢度震（window.AndroidHaptics）。淨係得呢一個方法，網頁攞唔到手機其他嘢；外部網址唔會喺呢個 WebView 開。 */
+    @Suppress("DEPRECATION")
+    inner class Haptics {
+        private val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+
+        @JavascriptInterface
+        fun buzz(kind: String) {
+            val v = vibrator ?: return
+            if (Build.VERSION.SDK_INT >= 29) {   // 系統預設效果：每部手機都調校過，短而清晰
+                v.vibrate(VibrationEffect.createPredefined(when (kind) {
+                    "tick" -> VibrationEffect.EFFECT_TICK
+                    "light" -> VibrationEffect.EFFECT_CLICK
+                    "medium" -> VibrationEffect.EFFECT_HEAVY_CLICK
+                    "success" -> VibrationEffect.EFFECT_DOUBLE_CLICK
+                    else -> return
+                }))
+                return
+            }
+            val ms = when (kind) {
+                "tick" -> 10L
+                "light" -> 15L
+                "medium" -> 25L
+                "success" -> 40L
+                else -> return
+            }
+            if (Build.VERSION.SDK_INT >= 26) v.vibrate(VibrationEffect.createOneShot(ms, VibrationEffect.DEFAULT_AMPLITUDE))
+            else v.vibrate(ms)
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,6 +58,7 @@ class MainActivity : Activity() {
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
         web.settings.cacheMode = WebSettings.LOAD_DEFAULT
+        web.addJavascriptInterface(Haptics(), "AndroidHaptics")
         val home = Uri.parse(BuildConfig.APP_URL)
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {

@@ -553,10 +553,13 @@ function countUp(el,to,fmt,d=850){
   const f=now=>{const p=Math.min(1,(now-t0)/T(d)),e=1-Math.pow(1-p,4);el.textContent=fmt(to*e);if(p<1)requestAnimationFrame(f);};
   requestAnimationFrame(f);
 }
-// 震動：支援先震（APK 冇 VIBRATE 權限嗰陣唔會震，亦唔會出錯）
-const HAPT={tick:3,light:7,medium:14,success:[10,50,14]};
+// 震動：新 APK 用原生震動（MainActivity.kt 嘅 AndroidHaptics）；手機瀏覽器用 navigator.vibrate，太短好多手機感覺唔到，所以最短 10 毫秒；舊 APK 冇權限，唔會震，亦唔會出錯
+const HAPT={tick:10,light:14,medium:22,success:[14,60,22]};
 function buzz(kind){
-  try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.hasBeenActive))navigator.vibrate(HAPT[kind]);}catch(e){}
+  try{
+    if(window.AndroidHaptics){window.AndroidHaptics.buzz(kind);return;}
+    if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.hasBeenActive))navigator.vibrate(HAPT[kind]);
+  }catch(e){}
 }
 // 手指 + 滑鼠共用：touchmove 可以 preventDefault，由手勢接手碌動
 let lastTouch=0;
