@@ -379,6 +379,13 @@ setRM(true); row.click(); ok("減少動態：即刻開", Sh.open && Math.abs(Sh.
 const todoCard = v0.querySelector("#todo"), keptTodo = todoCard.innerHTML;
 todoCard.innerHTML = todoEmpty(); audit("空狀態", todoCard); ok("空狀態冇寫 0 件事", !todoCard.textContent.includes("0 件") && todoCard.textContent.includes("今日冇嘢要做")); todoCard.innerHTML = keptTodo;
 
+// ───── 12b2 新一日由背景返嚟都要播（APK 唔會重新載入）
+{ const vis = v => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v }), back = v => { vis(v); document.dispatchEvent(new Event("visibilitychange")); };
+  const today = new Date().toDateString(), rm0 = RM; setRM(false); lcFinish(); localStorage.setItem("lt_open", "Mon Jan 01 2001");
+  back("hidden"); ok("收埋 app 唔會播", !Lc.on && splash.hidden);
+  back("visible"); ok("新一日返嚟會播", Lc.on && !splash.hidden); ok("播咗就記低今日", localStorage.getItem("lt_open") === today); lcFinish();
+  back("visible"); ok("同一日再返嚟唔播", !Lc.on && splash.hidden);
+  delete document.visibilityState; setRM(rm0); await sleep(60); }
 // ───── 12c 震動：新 APK 用原生；冇就用 navigator.vibrate；出錯都唔影響 app
 { const calls = []; window.AndroidHaptics = { buzz: k => calls.push(k) }; for (const k of ["tick", "light", "medium", "success"]) buzz(k); ok("APK：每種震動都叫原生", calls.join() === "tick,light,medium,success", calls); window.AndroidHaptics = { buzz() { throw new Error("x"); } }; let err = null; try { buzz("tick"); } catch (e) { err = e; } ok("原生出錯唔會弄壞 app", !err); delete window.AndroidHaptics; let e2 = null; try { buzz("tick"); } catch (e) { e2 = e; } ok("冇原生都唔會出錯", !e2); ok("最短 10 毫秒（太短好多手機感覺唔到）", HAPT.tick >= 10 && HAPT.light >= 10 && HAPT.medium >= 10); }
 // ───── 12d 備份：APK 冇下載同揀檔，要複製、貼上得到

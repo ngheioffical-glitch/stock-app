@@ -1880,6 +1880,12 @@ function lcRun(v){
     lcT(()=>{splash.style.backgroundColor="transparent";lcA(win,[{opacity:1},{opacity:0}],{d:260,e:"ease-out",f:"forwards"}).onfinish=lcFinish;lcLand(v);},260);
   }),780);
 }
+// APK 放喺背景過夜，返前景唔會重新載入，shellBoot 唔會再行：新一日第一次返嚟都要播（老師 11-07：「入app好似冇動畫？」）
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState!=="visible"||!window.__booted||Lc.on)return;
+  let seen=true;try{seen=localStorage.getItem("lt_open")===new Date().toDateString();}catch(e){}
+  if(!seen)launch();
+});
 function lcFinish(){
   Lc.on=false;Lc.timers.forEach(clearTimeout);Lc.timers=[];Lc.anims.forEach(a=>a.cancel());Lc.anims=[];
   splash.hidden=true;splash.innerHTML="";splash.onpointerdown=null;splash.removeAttribute("style");
