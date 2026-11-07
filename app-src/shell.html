@@ -580,6 +580,30 @@ function bindDrag(el,h){
   el.addEventListener("touchcancel",e=>{lastTouch=performance.now();fin(e);});
 }
 
+// ───── 撳定碌（老師 11-07：上下左右滑動好易誤觸）
+// 瀏覽器要手指郁超過約 8 點先當碌，輕輕一掃、或者上一下掃完仲碌緊再落手，都會變成撳。所以自己再把關：
+// 手指郁過 TAP.move，或者落手嗰陣內容仲碌緊，呢下都唔當撳。瀏覽器可能冇報細嘅 touchmove，所以放手位置都要睇。
+// 底部分頁、返回掣、輸入框唔隨內容郁，唔受限制；程式自己碌（例如分頁膠囊置中）唔算碌緊，連撳兩下都得。
+const TAP={move:6,settle:160,hold:400,free:".dock,input,select,textarea,label,[data-back],#rsBack"};
+const TG={sAt:-1e9,sEl:null,flick:false,moved:false,x:0,y:0,bad:false,end:-1e9};
+const tgOff=(x,y)=>Math.hypot(x-TG.x,y-TG.y)>TAP.move;
+const tgCoast=el=>TG.flick&&performance.now()-TG.sAt<TAP.settle&&(TG.sEl===document||!!(TG.sEl&&TG.sEl.contains&&TG.sEl.contains(el)));
+addEventListener("scroll",e=>{TG.sAt=performance.now();TG.sEl=e.target;},{capture:true,passive:true});
+addEventListener("touchstart",e=>{
+  if(e.touches.length>1){TG.moved=TG.bad=true;return;}
+  const p=e.touches[0];TG.bad=tgCoast(e.target);TG.moved=false;TG.x=p.clientX;TG.y=p.clientY;
+},{capture:true,passive:true});
+addEventListener("touchmove",e=>{const p=e.touches[0];if(p&&tgOff(p.clientX,p.clientY))TG.moved=TG.bad=true;},{capture:true,passive:true});
+addEventListener("touchend",e=>{
+  const p=e.changedTouches[0];if(p&&tgOff(p.clientX,p.clientY))TG.moved=TG.bad=true;
+  if(!e.touches.length){TG.flick=TG.moved;TG.end=performance.now();}
+},{capture:true,passive:true});
+addEventListener("touchcancel",()=>{TG.moved=TG.bad=TG.flick=true;TG.end=performance.now();},{capture:true,passive:true});
+addEventListener("click",e=>{ // 掛喺 window，快過所有 document 同元素上面嘅撳
+  if(!TG.bad||performance.now()-TG.end>TAP.hold||(e.target.closest&&e.target.closest(TAP.free)))return;
+  e.stopPropagation();e.preventDefault();
+},true);
+
 // ───── 撳落去
 let PR=null;
 function prDown(){if(PR&&!PR.down){PR.down=true;PR.t=performance.now();PR.el.classList.add("is-down");}}
@@ -588,10 +612,11 @@ phone.addEventListener("pointerdown",e=>{
   const el=e.target.closest("[data-p]");if(!el||e.button)return;
   prCancel();
   const inScroll=!!el.closest(".view,.sh-body,.push,.sr-list")&&e.pointerType!=="mouse";
+  if(inScroll&&tgCoast(e.target))return; // 碌緊落手只係停，唔閃撳落去嘅樣
   PR={el,x:e.clientX,y:e.clientY,down:false,t:0,timer:0};
   if(inScroll)PR.timer=setTimeout(prDown,45);else prDown(); // 碌動區入面等 45 毫秒，分清撳定碌
 },true);
-addEventListener("pointermove",e=>{if(PR&&Math.hypot(e.clientX-PR.x,e.clientY-PR.y)>8)prCancel();},{passive:true});
+addEventListener("pointermove",e=>{if(PR&&Math.hypot(e.clientX-PR.x,e.clientY-PR.y)>TAP.move)prCancel();},{passive:true});
 addEventListener("pointerup",()=>{
   if(!PR)return;const p=PR;PR=null;clearTimeout(p.timer);
   if(!p.down){p.el.classList.add("is-down");setTimeout(()=>p.el.classList.remove("is-down"),T(80));return;} // 太快都要見到

@@ -162,6 +162,19 @@ for (const [nm, el] of [["帳戶曲線", A.el], ["時段掣", A.seg], ["事件�
 touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0, sy0 + 30); ok("下拉先", A_PTR.today.R.on); touch(sf, "touchmove", sx0 - 300, sy0 + 30); ok("下拉緊唔會變橫掃", !Pg.active); touch(sf, "touchend", sx0 - 300, sy0 + 30); await until(() => !A_PTR.today.R.busy && A_PTR.today.R.y < .5, 2500); await sleep(60);
 v0.scrollTop = 200; await sleep(360); await drag(sf, -(PW * .5)); await pgIdle(); await drag(face("strat"), PW * .5); await pgIdle(); ok("掃走掃返記住碌到邊", plain("today") && v0.scrollTop === 200, v0.scrollTop); v0.scrollTop = 0; await sleep(360);
 const rowS = v0.querySelector(".it-open"); await drag(rowS, -60); rowS.click(); ok("由卡上面起手，放手唔會當撳", !Sh.open, Sh.open); await pgIdle(); await sleep(320);
+// 撳定碌：輕掃、碌緊落手都唔當撳；真撳照入
+const tapAt = (dx, dy, opt = {}) => { touch(rowS, "touchstart", sx0, sy0); if (opt.move) touch(rowS, "touchmove", sx0 + dx, sy0 + dy); touch(rowS, "touchend", sx0 + dx, sy0 + dy); rowS.click(); };
+tapAt(0, -7, { move: true }); ok("直掃 7 點唔當撳", !Sh.open, Sh.open);
+tapAt(7, 0, { move: true }); ok("橫掃 7 點唔當撳", !Sh.open, Sh.open);
+tapAt(0, -7); ok("瀏覽器冇報 touchmove，放手位置都分到", !Sh.open, Sh.open);
+await sleep(200);
+tapAt(3, 3); ok("手指郁少少仍然係撳", Sh.open, Sh.open); await settledSheet(); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(60);
+const flickNow = async () => { touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0, sy0 - 40); touch(sf, "touchend", sx0, sy0 - 40); v0.scrollTop = v0.scrollTop === 150 ? 170 : 150; const a = TG.sAt; await until(() => TG.sEl === v0 && TG.sAt > a, 5000); }; // 要等 v0 真係報咗碌動：視窗唔喺前面時畫面慢，碌動事件會遲好多
+await flickNow(); tapAt(0, 0); ok("碌緊落手只係停，唔當撳", !Sh.open, Sh.open);
+await sleep(220); tapAt(0, 0); ok("停咗再撳就入到", Sh.open, Sh.open); await settledSheet(); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(60);
+{ const tb = dock.querySelector("[data-tab=strat]"); await flickNow(); touch(tb, "touchstart", sx0, sy0); touch(tb, "touchend", sx0, sy0); tb.click(); ok("碌緊撳底部分頁照入", cur === "strat", cur); await until(() => onv().length === 1); dock.querySelector("[data-tab=today]").click(); await until(() => onv().length === 1 && cur === "today"); }
+v0.scrollTop = 150; await sleep(30); tapAt(0, 0); ok("程式自己碌唔算碌緊", Sh.open, Sh.open); await settledSheet(); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(60);
+v0.scrollTop = 0; await sleep(360);
 touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - PW * .6, sy0); await sleep(100); touch(sf, "touchcancel", sx0 - PW * .6, sy0); await pgIdle(); ok("系統搶走手勢（返回手勢）就彈返，唔轉頁", plain("today"), pgInfo()); await sleep(320);
 { const t1 = new Touch({ identifier: 7, target: sf, clientX: sx0, clientY: sy0 }), t2 = new Touch({ identifier: 8, target: sf, clientX: sx0 - 100, clientY: sy0 + 90 }); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 120, sy0); sf.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [t1, t2], changedTouches: [t2] })); await pgIdle(); ok("第二隻手指唔會卡喺半路", plain("today"), pgInfo()); touch(sf, "touchend", sx0, sy0); await sleep(320); }
 await drag(sf, -(PW * .5)); await sleep(60); ok("放手之後彈緊", Pg.active && Pg.mv.anims.length > 0); const liveX = txOf(view(cur)); touch(face(cur), "touchstart", sx0, sy0); ok("彈緊捉得住", Pg.mv.anims.length === 0); ok("捉住嗰下唔跳", Math.abs(Pg.mv.val - liveX) < 30, [liveX, Pg.mv.val]); touch(face(cur), "touchmove", sx0 + 4, sy0); await sleep(120); touch(face(cur), "touchend", sx0 + 4, sy0); await pgIdle(); ok("捉住放手冇卡死", plain(cur), pgInfo()); if (cur !== "today") { go("today"); await until(() => onv().join() === "today"); } await sleep(320);
