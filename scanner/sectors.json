@@ -89,6 +89,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "COP": {
+  "date": "2026-11-07",
+  "industry": "Oil & Gas E&P",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "COST": {
   "date": "2026-10-12",
   "industry": "Discount Stores",
@@ -135,6 +141,12 @@
   "date": "2026-10-15",
   "industry": "Oil & Gas Integrated",
   "sector": "Energy",
+  "src": "yahoo"
+ },
+ "DE": {
+  "date": "2026-11-07",
+  "industry": "Farm & Heavy Construction Machinery",
+  "sector": "Industrials",
   "src": "yahoo"
  },
  "DELL": {
@@ -347,6 +359,12 @@
   "sector": "Communication Services",
   "src": "yahoo"
  },
+ "NEM": {
+  "date": "2026-11-07",
+  "industry": "Gold",
+  "sector": "Basic Materials",
+  "src": "yahoo"
+ },
  "NFLX": {
   "date": "2026-09-27",
   "industry": "Entertainment",
@@ -399,6 +417,12 @@
   "date": "2026-10-31",
   "industry": "Oil & Gas Integrated",
   "sector": "Energy",
+  "src": "yahoo"
+ },
+ "PG": {
+  "date": "2026-11-07",
+  "industry": "Household & Personal Products",
+  "sector": "Consumer Defensive",
   "src": "yahoo"
  },
  "PLTR": {
