@@ -1410,7 +1410,10 @@ function toggleTheme(btn){
 
 // ───── 入 app 動畫「圖示一筆」（老師 11-06 由 6 個版本揀：「5都幾好」；其他 5 個喺 stock-app commit 7ef1844 嘅 docs/demo.html）：同手機桌面個圖示一樣，箭嘴畫出嚟，再由圖示放大變成 app
 // 守則（10-26 老師揀「一息入場」嗰陣定低）：唔用轉圈、假進度、模糊；唔叫人等數據（等得最耐都係一陣，等唔到就入去）；撳一下即刻跳過；減少動態 = 唔播
-// 每日第一次開先播，之後直入（Apple HIG：常用動作避免多餘動畫）
+// 老師 11-07：「1小時內重開app先唔使動畫 超過就有」：由最後離開 app 計（lt_seen），用得耐先走再即刻返嚟都唔播
+const LC_GAP=3600e3;
+function lcDue(){try{const t=+localStorage.getItem("lt_seen");return !t||Date.now()-t>LC_GAP;}catch(e){return true;}}
+function lcSeen(){try{localStorage.setItem("lt_seen",Date.now());}catch(e){}}
 const Lc={on:false,anims:[],timers:[]};
 const lcA=(el,fr,o)=>{const a=el.animate(fr,{duration:T(o.d),delay:o.dl?T(o.dl):0,easing:o.e||EASE,fill:o.f||"both"});Lc.anims.push(a);return a;};
 const lcT=(f,ms)=>{const t=setTimeout(()=>{if(Lc.on)f();},T(ms));Lc.timers.push(t);return t;};
@@ -1432,22 +1435,22 @@ function lcRun(v){
     lcT(()=>{splash.style.backgroundColor="transparent";lcA(win,[{opacity:1},{opacity:0}],{d:260,e:"ease-out",f:"forwards"}).onfinish=lcFinish;lcLand(v);},260);
   }),780);
 }
-// APK 放喺背景過夜，返前景唔會重新載入，shellBoot 唔會再行：新一日第一次返嚟都要播（老師 11-07：「入app好似冇動畫？」）
+// APK 放喺背景，返前景唔會重新載入，shellBoot 唔會再行：離開超過 1 小時返嚟都要播；離開嗰下記低時間
 document.addEventListener("visibilitychange",()=>{
-  if(document.visibilityState!=="visible"||!window.__booted||Lc.on)return;
-  let seen=true;try{seen=localStorage.getItem("lt_open")===new Date().toDateString();}catch(e){}
-  if(!seen)launch();
+  if(document.visibilityState==="hidden"){lcSeen();return;}
+  if(document.visibilityState==="visible"&&window.__booted&&!Lc.on&&lcDue())launch();
 });
+addEventListener("pagehide",lcSeen);
 function lcFinish(){
   Lc.on=false;Lc.timers.forEach(clearTimeout);Lc.timers=[];Lc.anims.forEach(a=>a.cancel());Lc.anims=[];
   splash.hidden=true;splash.innerHTML="";splash.onpointerdown=null;splash.removeAttribute("style");
 }
 function launch(force){
   lcFinish();closeAllNow();if(cur!=="today")go("today");
-  const v=view("today"),day=new Date().toDateString();
+  const v=view("today"),due=lcDue();
   v.scrollTop=0;paintBar(v);
-  let seen=false;try{seen=localStorage.getItem("lt_open")===day;localStorage.setItem("lt_open",day);}catch(e){}
-  if(RM||(seen&&!force))return;
+  lcSeen();
+  if(RM||(!due&&!force))return;
   Lc.on=true;splash.hidden=false;splash.innerHTML=`<div class="sp-win" hidden></div><div class="sp-e">${ICON}</div>`;splash.onpointerdown=lcFinish;
   lcT(lcFinish,4000); // 保險：任何情況都唔會困住人
   try{lcRun(v);}catch(e){lcFinish();}

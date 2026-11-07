@@ -364,9 +364,9 @@ ok("試用掣、揀版本、側邊說明都拎走咗", !phone.querySelector("[da
 setTheme("day"); await sleep(60);
 // 綠色窗放到滿版：用真闊高，慢動作捉最尾嗰格
 { K = 8; launch(true); await until(() => { const w = splash.querySelector(".sp-win"); return w && !w.hidden; }, 15000); const w = splash.querySelector(".sp-win"), a = w.getAnimations()[0]; a.finish(); const r = w.getBoundingClientRect(), p = phone.getBoundingClientRect(); ok("綠色窗放到滿版", Math.abs(r.width - p.width) < 1 && Math.abs(r.height - p.height) < 1 && Math.abs(r.left - p.left) < 1 && Math.abs(r.top - p.top) < 1, [r.width, r.height, p.width, p.height]); lcFinish(); K = 1; }
-// 每日第一次先播
-try { localStorage.removeItem("lt_open"); } catch (e) {}
-launch(); ok("今日第一次開會播", !splash.hidden && Lc.on); lcFinish(); launch(); ok("今日第二次直入", splash.hidden && !Lc.on);
+// 第一次開會播；啱啱開過再開直入（1 小時規則喺 12b2）
+try { localStorage.removeItem("lt_seen"); } catch (e) {}
+launch(); ok("第一次開會播", !splash.hidden && Lc.on); lcFinish(); launch(); ok("啱啱開過再開直入", splash.hidden && !Lc.on);
 setRM(true); launch(true); ok("減少動態：唔播", splash.hidden && !Lc.on); setRM(false);
 setRM(true); row.click(); ok("減少動態：即刻開", Sh.open && Math.abs(Sh.mv.val) < 1); closeSheet(); ok("減少動態：即刻關", !Sh.open); await sleep(150); setRM(false);
 // 記得：日夜、剔走（同一份收市數據）
@@ -379,12 +379,17 @@ setRM(true); row.click(); ok("減少動態：即刻開", Sh.open && Math.abs(Sh.
 const todoCard = v0.querySelector("#todo"), keptTodo = todoCard.innerHTML;
 todoCard.innerHTML = todoEmpty(); audit("空狀態", todoCard); ok("空狀態冇寫 0 件事", !todoCard.textContent.includes("0 件") && todoCard.textContent.includes("今日冇嘢要做")); todoCard.innerHTML = keptTodo;
 
-// ───── 12b2 新一日由背景返嚟都要播（APK 唔會重新載入）
+// ───── 12b2 老師 11-07：1 小時內重開唔使動畫，超過就有。由最後離開計；APK 唔會重新載入，所以返前景都要檢查
 { const vis = v => Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v }), back = v => { vis(v); document.dispatchEvent(new Event("visibilitychange")); };
-  const today = new Date().toDateString(), rm0 = RM; setRM(false); lcFinish(); localStorage.setItem("lt_open", "Mon Jan 01 2001");
-  back("hidden"); ok("收埋 app 唔會播", !Lc.on && splash.hidden);
-  back("visible"); ok("新一日返嚟會播", Lc.on && !splash.hidden); ok("播咗就記低今日", localStorage.getItem("lt_open") === today); lcFinish();
-  back("visible"); ok("同一日再返嚟唔播", !Lc.on && splash.hidden);
+  const rm0 = RM, MIN = 60e3, ago = ms => localStorage.setItem("lt_seen", Date.now() - ms), fresh = () => Date.now() - +localStorage.getItem("lt_seen") < 2000, off = () => !Lc.on && splash.hidden, on = () => Lc.on && !splash.hidden; setRM(false); lcFinish();
+  ago(300 * MIN); back("hidden"); ok("離開嗰下唔播，記低時間", off() && fresh());
+  back("visible"); ok("啱啱離開返嚟唔播", off());
+  ago(59 * MIN); back("visible"); ok("離開 59 分鐘返嚟唔播", off());
+  ago(61 * MIN); back("visible"); ok("離開 61 分鐘返嚟會播", on()); ok("播咗重新計時", fresh()); lcFinish();
+  back("visible"); ok("播完再返嚟唔播", off());
+  ago(59 * MIN); launch(); ok("閂咗 59 分鐘重開唔播", off()); ok("重開都重新計時", fresh());
+  ago(61 * MIN); launch(); ok("閂咗 61 分鐘重開會播", on()); lcFinish();
+  ago(120 * MIN); setRM(true); back("visible"); ok("減少動態：幾耐都唔播", off()); setRM(false);
   delete document.visibilityState; setRM(rm0); await sleep(60); }
 // ───── 12c 震動：新 APK 用原生；冇就用 navigator.vibrate；出錯都唔影響 app
 { const calls = []; window.AndroidHaptics = { buzz: k => calls.push(k) }; for (const k of ["tick", "light", "medium", "success"]) buzz(k); ok("APK：每種震動都叫原生", calls.join() === "tick,light,medium,success", calls); window.AndroidHaptics = { buzz() { throw new Error("x"); } }; let err = null; try { buzz("tick"); } catch (e) { err = e; } ok("原生出錯唔會弄壞 app", !err); delete window.AndroidHaptics; let e2 = null; try { buzz("tick"); } catch (e) { e2 = e; } ok("冇原生都唔會出錯", !e2); ok("最短 10 毫秒（太短好多手機感覺唔到）", HAPT.tick >= 10 && HAPT.light >= 10 && HAPT.medium >= 10); }
