@@ -253,6 +253,11 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .evch .ring{fill:var(--evbg);stroke:var(--e);stroke-width:2.2}
 .ev-lg{display:flex;flex-wrap:wrap;gap:2px 12px;margin-top:6px;font-size:12px;line-height:1.5;color:var(--mut)}
 .ev-lg i{font-style:normal}
+.evch .bk{font:700 12px var(--sans)} /* K 線技術圖：BOS／MSS 名同現價 */
+.ev-kx{display:none}.ev-k>.ev-kx{display:block}.ev-k>.ev-l{display:none}
+.ev-st{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.ev-st span{display:block;font-size:12px;color:var(--mut)}
+.ev-st b{font:700 15px var(--num);color:var(--ink)}
 .evl{margin-top:8px}
 .evr{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;width:100%;min-height:44px;padding:10px 0;border-top:1px solid var(--line);text-align:left}
 .evr:first-child{border-top:0}
@@ -678,11 +683,45 @@ const evHost=u=>{try{return new URL(u).hostname.replace(/^www\./,"");}catch(e){r
 const evTone=e=>e.kind==="big"?(e.chg>=0?"up":"dn"):"wr"; // 大升綠、大跌紅、轉燈黃
 const evPct=x=>`${x>=0?"▲":"▼"}${Math.abs(x*100).toFixed(1)}%`;
 const evWhy=e=>{const s=String(e.detail||"").split(/(?<=[。！？])/)[0];return s.length>70?s.slice(0,68)+"…":s;};
-const evLegend=()=>`<div class="ev-lg"><span><i class="up">●</i> 大升</span><span><i class="dn">●</i> 大跌</span><span><i class="wr">●</i> 轉燈</span><span>${EV.d[0].slice(0,4)} 年起 · 對數刻度 · 長按睇說明</span></div>`;
+const evLegend=()=>`<div class="ev-lg ev-l"><span><i class="up">●</i> 大升</span><span><i class="dn">●</i> 大跌</span><span><i class="wr">●</i> 轉燈</span><span>${EV.d[0].slice(0,4)} 年起 · 對數刻度 · 長按睇說明</span></div>${EV.ta&&EV.ta.c?evTaLegend():""}`;
 const evRows=n=>EV.events.map((e,k)=>({...e,k})).sort((a,b)=>b.i-a.i).slice(0,n).map(e=>`<button class="evr" data-p="row" data-ev="${e.k}"><span class="d num">${EV.d[e.i].slice(2)}</span><span><b class="${evTone(e)}">${esc(e.label)}</b>${e.ai&&e.chg!=null?`<span class="chg">${ch(e.chg)}</span>`:""}<small>${e.ai||e.kind==="light"?esc(evWhy(e)):"等 AI 搵原因（每晚補）"}</small></span></button>`).join("");
 const evAria=()=>`納指 100 由 ${EV.d[0].slice(0,4)} 年起嘅走勢，標住大事；下面列表有晒文字`;
 const evCard=()=>!EV?"":`<h2 class="sec">大市事件線 <small>納指 100 · ${EV.events.length} 個事件</small></h2><section class="card" id="evCard"><div class="ch evch" data-evch="6" role="img" aria-label="${evAria()}"></div>${evLegend()}<div class="evl">${evRows(4)}</div><button class="more-b" data-p="btn" data-evall>睇晒 ${EV.events.length} 個事件</button></section>`;
+// 2026-11-09 老師：「想大市事件嗰度都有線同k線，線就好似依家咁樣，k線就顯示翻技術分析」→ 揀 K 線：納指 100 近 120 日日 K + BOS／MSS 線
+// + ADR、距 52 週高、距 50 日線（同個股技術圖一樣，scanner/events.py 嘅 ta）。只供參考。冇 ta（舊數據）就照舊畫事件線嘅 K 線
+const evSg=x=>(x>0?"+":x<0?"−":"")+Math.abs(x*100).toFixed(1)+"%";
+const evNum=v=>Math.abs(v)>=1000?n0(v):n2(v);
+const evAtr=x=>(x>0?"+":x<0?"−":"")+Math.abs(x)+" 個 ATR"; // 負號同上面一樣用 −
+function evTaLegend(){
+  const T=EV.ta,st=T.stat||{};
+  return `<div class="ev-kx"><div class="ev-lg"><span><i class="up">━</i> 向上 BOS／MSS</span><span><i class="dn">━</i> 向下</span><span>近 ${T.c.length} 日 · 長按睇日子 · 只供參考</span></div>
+  <div class="ev-st"><div><span>ADR（20 日）</span><b>${st.adr!=null?st.adr+"%":"—"}</b></div><div><span>距 52 週高</span><b>${st.off52!=null?evSg(st.off52):"—"}</b></div><div><span>距 50 日線</span><b>${st.atr50!=null?evAtr(st.atr50):"—"}</b></div></div></div>`;
+}
+function evTaDraw(el,T){
+  const n=T.c.length,W=el.clientWidth||340,lc=T.c[n-1],lab=evNum(lc),pl=8,pr=Math.round(16+lab.length*7.2),pt=38,pb=20,LINE=190,H=pt+LINE+pb,xr=W-pr;
+  const brk=(T.brk||[]).filter(b=>b.i>=0&&b.i<n&&b.s>=0);
+  const lo=Math.min(...T.l,...brk.map(b=>b.lv)),hi=Math.max(...T.h,...brk.map(b=>b.lv)),step=(xr-pl)/Math.max(1,n-1);
+  const X=i=>pl+i*step,Y=v=>pt+(1-(v-lo)/((hi-lo)||1))*LINE;
+  const B={bars:T.c.map((c,i)=>({i0:i,i1:i,o:T.o[i],h:Math.max(T.h[i],c,T.o[i]),l:Math.min(T.l[i],c,T.o[i]),c})),wk:false};
+  let g=`<g class="lines">${LG.ckSvg(B,X,Y,step,"var(--up)","var(--dn)")}</g>`;
+  brk.forEach(b=>{ // BOS／MSS：由轉角位畫到收穿嗰支，中間寫名
+    const col=b.dir>0?"var(--up)":"var(--dn)",y=Y(b.lv),x0=X(b.s),x1=X(b.i);
+    g+=`<line x1="${x0.toFixed(1)}" x2="${x1.toFixed(1)}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:${col}" stroke-width="1.6"/><text class="bk" x="${clamp((x0+x1)/2,16,xr-16).toFixed(1)}" y="${(b.dir>0?y-4:y+13).toFixed(1)}" text-anchor="middle" style="fill:${col}">${esc(b.k)}</text>`;
+  });
+  const col=n>1&&lc>=T.c[n-2]?"var(--up)":"var(--dn)",yl=Y(lc); // 現價：細三角 + 粗字
+  g+=`<path d="M${(xr+4).toFixed(1)} ${yl.toFixed(1)}l5 -4v8z" style="fill:${col}"/><text class="bk" x="${(xr+11).toFixed(1)}" y="${(yl+4).toFixed(1)}" style="fill:${col}">${lab}</text>`;
+  el.style.height=H+"px";
+  el.setAttribute("aria-label",`納指 100 近 ${n} 日 K 線，畫咗 BOS／MSS 突破線，只供參考；下面有 ADR、距 52 週高同距 50 日線`);
+  el.innerHTML=`${LG.ckSeg()}<svg height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}<text x="${pl}" y="${H-4}">${T.d[0].slice(2)} · 日 K</text><text x="${xr}" y="${H-4}" text-anchor="end">${T.d[n-1].slice(2)}</text><line class="cross" y1="${pt}" y2="${H-pb}"/><circle class="pt" r="4.5" fill="var(--l1)"/></svg><div class="tip"></div>`;
+  el._g={c:T.c,d:T.d,o:T.o,h:T.h,l:T.l,n,W,pl,pr,X,Y,evs:brk.map(b=>({i:b.i,k:null,label:`${b.dir>0?"向上":"向下"} ${b.k}（收穿 ${evNum(b.lv)}）`})),cross:el.querySelector(".cross"),pt:el.querySelector(".pt"),tip:el.querySelector(".tip")};
+  evBind(el);
+}
 function evDraw(el){
+  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);
+  const TA=LG.chartK()&&EV.ta&&EV.ta.c&&EV.ta.c.length>1&&["o","h","l"].every(k=>(EV.ta[k]||[]).length===EV.ta.c.length);
+  if(el.parentElement)el.parentElement.classList.toggle("ev-k",!!TA);
+  if(TA)return evTaDraw(el,EV.ta);
+  el.setAttribute("aria-label",evAria());
   const cap=+el.dataset.evch,c=EV.c,d=EV.d,n=c.length,W=el.clientWidth||340,pl=10,pr=12,pb=20,LINE=136; // 條線嘅高度固定，標籤多幾行都唔會壓扁
   const X=i=>pl+i/(n-1)*(W-pl-pr);
   const all=EV.events.map((e,k)=>({...e,k})).filter(e=>e.i>=0&&e.i<n);
@@ -698,7 +737,6 @@ function evDraw(el){
   const T0=30,pt=T0+rows.length*22+12,H=pt+LINE+pb,lo=Math.log(K?Math.min(...B.bars.map(b=>b.l)):Math.min(...c)),hi=Math.log(K?Math.max(...B.bars.map(b=>b.h)):Math.max(...c));
   const Y=v=>pt+(1-(Math.log(v)-lo)/((hi-lo)||1))*LINE;
   const line=c.map((v,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join("");
-  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);
   const dotH=dots.map(e=>{const x=X(e.i).toFixed(1),y=Y(c[e.i]).toFixed(1);return `<g class="e-${evTone(e)}" data-ev="${e.k}"><circle class="dot" cx="${x}" cy="${y}" r="3.4"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`;}).join("");
   const tagH=tags.map(e=>{const x=X(e.i).toFixed(1),y=Y(c[e.i]),ty=T0+e.row*22+2;return `<g class="tag e-${evTone(e)}" data-ev="${e.k}"><line class="lnk" x1="${x}" x2="${x}" y1="${ty+18}" y2="${(y-6).toFixed(1)}"/><rect x="${e.tx.toFixed(1)}" y="${ty-2}" width="${e.tw.toFixed(1)}" height="22" fill="transparent"/><rect class="box" x="${e.tx.toFixed(1)}" y="${ty}" width="${e.tw.toFixed(1)}" height="18" rx="5"/><text x="${(e.tx+e.tw/2).toFixed(1)}" y="${ty+13}" text-anchor="middle">${esc(e.label)}</text><circle class="ring" cx="${x}" cy="${y.toFixed(1)}" r="5"/><circle cx="${x}" cy="${y.toFixed(1)}" r="13" fill="transparent"/></g>`;}).join("");
   el.style.height=H+"px";
@@ -714,7 +752,7 @@ function evBind(el){
     const G=el._g,r=el.getBoundingClientRect(),i=clamp(Math.round((cx-r.left-G.pl)/(G.W-G.pl-G.pr)*(G.n-1)),0,G.n-1),span=Math.max(1,Math.round(G.n/250));
     const near=G.evs.filter(e=>Math.abs(e.i-i)<=span).sort((a,b)=>Math.abs(a.i-i)-Math.abs(b.i-i))[0],x=G.X(i),chg=i?G.c[i]/G.c[i-1]-1:null;
     G.cross.setAttribute("x1",x);G.cross.setAttribute("x2",x);G.pt.setAttribute("cx",x);G.pt.setAttribute("cy",G.Y(G.c[i]));
-    G.tip.innerHTML=`<b>${G.d[i]}</b> · ${n0(G.c[i])}${chg==null?"":" "+evPct(chg)}${near?`<br>${esc(near.label)}`:""}`;
+    G.tip.innerHTML=`<b>${G.d[i]}</b> · ${n0(G.c[i])}${chg==null?"":" "+evPct(chg)}${G.o?`<br>開 ${n0(G.o[i])} 高 ${n0(G.h[i])} 低 ${n0(G.l[i])}`:""}${near?`<br>${esc(near.label)}`:""}`;
     el.classList.add("on");
     G.tip.style.left=clamp(x-G.tip.offsetWidth/2,0,Math.max(0,G.W-G.tip.offsetWidth))+"px";
     const k=near?near.k:null;if(down&&k!=null&&k!==last)buzz("tick");last=k; // 掃過大事輕震
@@ -738,7 +776,7 @@ function evBind(el){
     show(e.clientX);
   });
   el.addEventListener("pointerup",e=>{
-    if(armed&&!moved){const ev=nearAt(xl);noClickUntil=performance.now()+400;if(ev)openSheet(evSheet(ev.k));} // 長按冇拖：開附近事件說明
+    if(armed&&!moved){const ev=nearAt(xl);noClickUntil=performance.now()+400;if(ev&&ev.k!=null)openSheet(evSheet(ev.k));} // 長按冇拖：開附近事件說明（K 線技術圖嘅 BOS／MSS 冇說明頁）
     else if(down&&moved)noClickUntil=performance.now()+300; // 掃完放手唔當撳事件
     stop();hide();});
   el.addEventListener("pointerleave",()=>{stop();hide();});el.addEventListener("pointercancel",()=>{stop();hide();});
@@ -751,9 +789,10 @@ function evReveal(el){ // 第一次碌到先畫出嚟，之後唔再播；冇觸
   const io=new IntersectionObserver(es=>{
     if(!es[0].isIntersecting)return;io.disconnect();el._shown=true;
     if(RM)return;
-    anim(el.querySelector(".lines"),[{clipPath:"inset(-10px 100% -10px 0)"},{clipPath:"inset(-10px 0 -10px 0)"}],{d:620});
-    anim(el.querySelector(".ar"),[{opacity:0},{opacity:1}],{d:400,dl:200,f:"backwards"});
-    anim(el.querySelector(".evm"),[{opacity:0},{opacity:1}],{d:260,dl:420,f:"backwards"});
+    const a=(s,fr,o)=>{const x=el.querySelector(s);if(x)anim(x,fr,o);}; // K 線模式冇 .ar／.evm
+    a(".lines",[{clipPath:"inset(-10px 100% -10px 0)"},{clipPath:"inset(-10px 0 -10px 0)"}],{d:620});
+    a(".ar",[{opacity:0},{opacity:1}],{d:400,dl:200,f:"backwards"});
+    a(".evm",[{opacity:0},{opacity:1}],{d:260,dl:420,f:"backwards"});
   },{threshold:.35});
   io.observe(el);
 }
@@ -1544,7 +1583,7 @@ function shellBoot(){
   if(RM)phone.setAttribute("data-rm","");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
   window.__booted=true;
-  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,gen:M.gen,events:M.events};evArrived();}}).catch(()=>{});
+  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,gen:M.gen,events:M.events,ta:M.ta||null};evArrived();}}).catch(()=>{});
   shellData();
   if(new URLSearchParams(location.search).get("nosplash")==null)launch();else lcFinish();
   {const idle=window.requestIdleCallback||(f=>setTimeout(f,300));(function pre(i){if(i<ORDER.length)idle(()=>{view(ORDER[i]);pre(i+1);});})(0);} // 有空閒就預先砌好其他分頁，第一次撳先唔會卡一格

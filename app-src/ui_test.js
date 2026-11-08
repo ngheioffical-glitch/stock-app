@@ -281,10 +281,22 @@ rows0[0].click(); await settledSheet(); ok("撳列表都開到", Sh.el.querySele
   ok("長按事件放手先開說明", Sh.open && !!Sh.el.querySelector(".why"), Sh.open); if (Sh.open){ Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420); }
   await until(() => !mini.classList.contains("on"), 3200);
   // 2026-11-09 老師：「所有圖表有冇可能做到可以比我揀睇依家呢啲線定係K線？」
+  // 同日：「想大市事件嗰度都有線同k線，線就好似依家咁樣，k線就顯示翻技術分析」→ K 線 = 近 120 日日 K + BOS／MSS + ADR／52 週高／50 日線
+  const TA = E0.ta; ok("測試數據有大市技術結構", !!(TA && TA.c && TA.brk && TA.stat), TA && Object.keys(TA));
   mini.querySelector('[data-ck="1"]').click(); await sleep(80);
-  ok("揀 K 線：大市事件線變陰陽燭（2 年合做週 K）", LG.chartK() && mini.querySelectorAll(".lines rect").length > 50 && mini.querySelector("svg text").textContent.includes("週 K"), [LG.chartK(), mini.querySelectorAll(".lines rect").length]);
-  ok("K 線都有晒事件點", mini.querySelectorAll(".evm [data-ev]").length === E0.events.length && mini.querySelector('[data-ck="1"]').getAttribute("aria-pressed") === "true");
-  mini.querySelector('[data-ck="0"]').click(); await sleep(80); ok("揀返線", !LG.chartK() && !!mini.querySelector(".ln") && !mini.querySelector(".lines rect")); }
+  ok("揀 K 線：大市事件線變技術圖（每日一支陰陽燭）", LG.chartK() && mini.querySelectorAll(".lines rect").length === TA.c.length && [...mini.querySelectorAll("svg text")].some(t => t.textContent.includes("日 K")), [LG.chartK(), mini.querySelectorAll(".lines rect").length, TA.c.length]);
+  const bk = [...mini.querySelectorAll("text.bk")].map(t => t.textContent);
+  ok("有 BOS／MSS 線同名", bk.filter(t => t === "BOS" || t === "MSS").length === TA.brk.length && TA.brk.length > 0, [bk, TA.brk.length]);
+  ok("K 線技術圖唔畫事件點", !mini.querySelector(".evm") && mini.querySelector('[data-ck="1"]').getAttribute("aria-pressed") === "true");
+  ok("現價標喺右邊", bk.includes(evNum(TA.c.at(-1))), [bk.at(-1), evNum(TA.c.at(-1))]);
+  const kx = evc.querySelector(".ev-kx"), lgL = evc.querySelector(".ev-l");
+  ok("K 線圖例換做 BOS／MSS 同三個數", evc.classList.contains("ev-k") && getComputedStyle(kx).display !== "none" && getComputedStyle(lgL).display === "none" && kx.textContent.includes("ADR") && kx.textContent.includes("距 52 週高") && kx.textContent.includes("距 50 日線") && kx.textContent.includes("只供參考"), kx && kx.textContent);
+  ok("三個數同數據一樣", kx.textContent.includes(TA.stat.adr + "%") && kx.textContent.includes(evSg(TA.stat.off52)) && kx.textContent.includes(evAtr(TA.stat.atr50)) && !/-\d/.test(kx.textContent), kx.textContent);
+  { const r = mini.getBoundingClientRect(), b = TA.brk.at(-1), bx = r.left + mini._g.X(b.i);
+    ev(mini, "pointerdown", bx, r.top + 80, pe); await sleep(540); const t = mini.querySelector(".tip").textContent;
+    ok("K 線長按：提示有開高低同 BOS／MSS", mini.classList.contains("on") && t.includes(TA.d[b.i]) && t.includes("開 ") && t.includes("高 ") && t.includes(b.k), t);
+    ev(mini, "pointerup", bx, r.top + 80, pe); await sleep(150); ok("長按 BOS／MSS 放手唔會彈事件說明", !Sh.open); await until(() => !mini.classList.contains("on"), 3200); }
+  mini.querySelector('[data-ck="0"]').click(); await sleep(80); ok("揀返線", !LG.chartK() && !!mini.querySelector(".ln") && !mini.querySelector(".lines rect") && !evc.classList.contains("ev-k") && getComputedStyle(evc.querySelector(".ev-kx")).display === "none" && mini.querySelectorAll(".evm [data-ev]").length === E0.events.length); }
 evc.querySelector("[data-evall]").click(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1);
 ok("睇晒全部事件", pushEl.querySelectorAll(".evr").length === E0.events.length, pushEl.querySelectorAll(".evr").length);
 const dates = [...pushEl.querySelectorAll(".evr .d")].map(d => d.textContent); ok("新到舊", dates.every((d, i) => !i || dates[i - 1] >= d));
