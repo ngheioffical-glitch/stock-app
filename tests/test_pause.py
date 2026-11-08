@@ -57,7 +57,8 @@ check(o["full"] == 1 and o["paused"] == 0, "冇暫停：照舊全部更新")
 
 # 3. workflow：排程嗰啲一開始檢查暫停
 W = APP / ".github" / "workflows"
-for n, job in (("daily-scan", "scan"), ("intraday", "scan"), ("radar", "radar"), ("events", "events"), ("research", "research"), ("serenity", "serenity")):
+for n, job in (("daily-scan", "scan"), ("intraday", "scan"), ("radar", "radar"), ("events", "events"), ("research", "research"), ("serenity", "serenity"),
+               ("crypto_research", "crypto")):
     y = (W / f"{n}.yml").read_text(encoding="utf-8")
     check("scanner/pause.py gate" in y and re.search(rf"\n  {job}:\n    needs: pz\n    if: needs.pz.outputs.skip != '1'", y) and "docs/pause.json" in y,
           f"{n}.yml：先行暫停檢查，暫停中主 job 唔做")

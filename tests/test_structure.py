@@ -39,17 +39,15 @@ check(ta is not None and len(ta["c"]) == len(rows), "夠 30 支就有結果，�
 check([(b["k"], b["dir"], b["i"], b["s"], b["lv"]) for b in ta["brk"]] == [("BOS", 1, B + 7, B + 1, 11.0), ("MSS", -1, B + 13, B + 11, 11.3)],
       f"向上突破記喺收穿嗰支（BOS），之後向下突破方向相反 = MSS：{ta['brk']}")
 check(not any(b["i"] == B + 3 for b in ta["brk"]), "實體 50% 收穿唔算（要 ≥ 60%）")
-z = {(x["dir"], x["brk"]): x for x in ta["fvg"]}
-check((-1, True) in z and z[(-1, True)]["top"] == 11.5 and z[(-1, True)]["bot"] == 11.0 and z[(-1, True)]["ce"] and z[(-1, True)]["i"] == B + 12,
-      "向下突破 FVG（11.0–11.5）由第 1 支起畫，仲有 CE")
-check((-1, False) in z and z[(-1, False)]["top"] == 10.2 and z[(-1, False)]["bot"] == 10.1, "普通 FVG 都畫（冇突破嗰種）")
-check(not any(x["dir"] > 0 for x in ta["fvg"]), "向上 FVG 穿底之後刪咗")
-ta2 = S.analyze(d[:-1], o[:-1], h[:-1], l[:-1], c[:-1])
-up = [x for x in ta2["fvg"] if x["dir"] > 0]
-check(len(up) == 1 and up[0]["top"] == 9.8 and up[0]["bot"] == 9.7 and up[0]["ot"] == 10.0 and not up[0]["ce"] and up[0]["brk"],
-      "影線入咗就縮細（10.0 → 9.8），淨返少過一半 CE 唔畫；佢係向上突破 FVG")
-check(ta["piv"]["hi"] and ta["piv"]["lo"], "有最近轉角高同轉角低")
-check(any("MSS" in f for f in ta["facts"]) and any("FVG" in f for f in ta["facts"]), "白話有最近突破同未填 FVG")
+# 2026-11-09 老師：「依家暫時先試下BOS／MSS 線先，其他唔好掂住」→ 冇 FVG、轉角線、EMA；三個數字保留
+check(not any(k in ta for k in ("fvg", "piv", "e21")), "淨係 BOS／MSS：冇 FVG、轉角線、EMA")
+check(set(ta["stat"]) == {"adr", "off52", "atr50"}, "ADR、距 52 週高、距 50 日線 ATR 保留")
+check(any("MSS" in f for f in ta["facts"]) and not any("FVG" in f for f in ta["facts"]) and any("ADR" in f for f in ta["facts"]),
+      "白話有最近突破同三個數字，冇 FVG")
+noFvg = list(rows)
+noFvg[B + 8] = (11.5, 12, 9.6, 11.8)                         # 第 3 支低位 9.6 < 第 1 支高位 9.7：冇 FVG
+tn = S.analyze(d, *[list(x) for x in zip(*noFvg)])
+check(not any(b["i"] == B + 7 for b in tn["brk"]), "收穿但唔係 FVG 中間支：唔算突破")
 line = S.facts_line(ta)
 check("只係參考" in line and "BOS" in line and "MSS" in line, "俾 AI 嘅一行寫明只係參考")
 check(S.facts_line(None) == "", "冇數據就空")
@@ -70,6 +68,13 @@ check(True, "結果可以寫做 JSON")
 import events as E  # noqa: E402
 E.RAW = None
 check(E.tech("AAA") is None, "events.tech 冇數據返 None")
+check(E.add_ohlc({"d": ["2026-01-02"], "c": [1.0]}, "AAA") == {"d": ["2026-01-02"], "c": [1.0]}, "events.add_ohlc 冇數據就唔加")
+import pandas as pd  # noqa: E402
+ix = pd.to_datetime(["2026-01-02", "2026-01-05"])
+E.RAW = pd.concat({"AAA": pd.DataFrame({"Open": [1.0, 2.0], "High": [1.5, 2.5], "Low": [0.9, 1.9], "Close": [1.2, 2.2]}, index=ix)}, axis=1)
+oc = E.add_ohlc({"d": ["2026-01-02", "2026-01-03", "2026-01-05"], "c": [1.2, 1.2, 2.2]}, "AAA")
+check(oc["o"] == [1.0, 1.2, 2.0] and oc["h"] == [1.5, 1.2, 2.5] and oc["l"] == [0.9, 1.2, 1.9], "事件線加開高低（對返日子；冇嗰日用收市補）")
+E.RAW = None
 
 # research：AI 提示有技術結構；寫作格式有 tech_view
 import research as R  # noqa: E402

@@ -263,14 +263,28 @@ Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(42
 ok("AI 字會 escape", esc('<img src=x onerror="a()">') === "&lt;img src=x onerror=&quot;a()&quot;&gt;"); ok("唔接受 javascript 連結", safeUrl("javascript:alert(1)") === "#" && safeUrl("https://a.b/c") === "https://a.b/c");
 rows0[0].click(); await settledSheet(); ok("撳列表都開到", Sh.el.querySelector(".sh-tt").textContent === newest[0].label); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420);
 { const mr = mini.getBoundingClientRect(), i = newest[0].i, px = mr.left + G0.X(i), py = mr.top + 60, pe = { pointerType: "touch" };
-  ev(mini, "pointerdown", px, py, pe); ok("撳住有十字線", mini.classList.contains("on")); const tp = mini.querySelector(".tip");
+  // 2026-11-09 老師：「唔好一掂到就即刻出詳細，要長按一下先出，唔係好易誤觸」
+  ev(mini, "pointerdown", px, py, pe); ok("手指一掂唔會即刻出十字線", !mini.classList.contains("on")); ev(mini, "pointerup", px, py, pe);
+  evG.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); await sleep(150); ok("手指短撳事件唔開說明", !Sh.open);
+  ev(mini, "pointerdown", px, py, pe); ev(mini, "pointermove", px, py + 20, pe); await sleep(520); ok("落手之後郁咗（碌頁）唔會出", !mini.classList.contains("on")); ev(mini, "pointerup", px, py + 20, pe);
+  ev(mini, "pointerdown", px, py, pe); await sleep(200); ok("未夠長按都未出", !mini.classList.contains("on")); await sleep(330);
+  ok("長按先有十字線", mini.classList.contains("on")); const tp = mini.querySelector(".tip");
   ok("提示有日子同收市", tp.textContent.includes(E0.d[i]) && tp.textContent.includes(n0(E0.c[i])), tp.textContent); ok("近大事會寫名", tp.textContent.includes(newest[0].label), tp.textContent);
   const chg = E0.c[i] / E0.c[i - 1] - 1; ok("當日升跌啱", tp.textContent.includes(evPct(chg)), [tp.textContent, evPct(chg)]);
   ev(mini, "pointermove", mr.left + 40, py, pe); ok("掃到左邊日子變", !tp.textContent.includes(E0.d[i]), tp.textContent);
   const tb0 = tp.getBoundingClientRect(); ok("提示冇出界（左）", tb0.left >= mr.left - 1, [tb0.left, mr.left]);
   ev(mini, "pointermove", mr.right - 4, py, pe); const tb1 = tp.getBoundingClientRect(); ok("提示冇出界（右）", tb1.right <= mr.right + 1, [tb1.right, mr.right]); ok("掃到尾係最後一日", tp.textContent.includes(E0.d.at(-1)), tp.textContent);
   ev(mini, "pointerup", mr.right - 4, py, pe); ok("掃完放手唔當撳", performance.now() < noClickUntil); evG.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window })); ok("掃完唔會彈說明", !Sh.open); await until(() => !mini.classList.contains("on"), 3200); ok("放手之後收埋", !mini.classList.contains("on")); await sleep(320);
-  const redraw = mini.querySelectorAll(".tag").length; evDraw(mini); ok("重畫（轉闊度）冇壞", mini.querySelectorAll(".tag").length === redraw && mini._g.tip === mini.querySelector(".tip")); }
+  const redraw = mini.querySelectorAll(".tag").length; evDraw(mini); ok("重畫（轉闊度）冇壞", mini.querySelectorAll(".tag").length === redraw && mini._g.tip === mini.querySelector(".tip"));
+  const e1 = E0.events[+labelled.at(-1).dataset.ev], ex = mr.left + mini._g.X(e1.i);
+  ev(mini, "pointerdown", ex, py, pe); await sleep(540); ev(mini, "pointerup", ex, py, pe); await settledSheet();
+  ok("長按事件放手先開說明", Sh.open && !!Sh.el.querySelector(".why"), Sh.open); if (Sh.open){ Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420); }
+  await until(() => !mini.classList.contains("on"), 3200);
+  // 2026-11-09 老師：「所有圖表有冇可能做到可以比我揀睇依家呢啲線定係K線？」
+  mini.querySelector('[data-ck="1"]').click(); await sleep(80);
+  ok("揀 K 線：大市事件線變陰陽燭（2 年合做週 K）", LG.chartK() && mini.querySelectorAll(".lines rect").length > 50 && mini.querySelector("svg text").textContent.includes("週 K"), [LG.chartK(), mini.querySelectorAll(".lines rect").length]);
+  ok("K 線都有晒事件點", mini.querySelectorAll(".evm [data-ev]").length === E0.events.length && mini.querySelector('[data-ck="1"]').getAttribute("aria-pressed") === "true");
+  mini.querySelector('[data-ck="0"]').click(); await sleep(80); ok("揀返線", !LG.chartK() && !!mini.querySelector(".ln") && !mini.querySelector(".lines rect")); }
 evc.querySelector("[data-evall]").click(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1);
 ok("睇晒全部事件", pushEl.querySelectorAll(".evr").length === E0.events.length, pushEl.querySelectorAll(".evr").length);
 const dates = [...pushEl.querySelectorAll(".evr .d")].map(d => d.textContent); ok("新到舊", dates.every((d, i) => !i || dates[i - 1] >= d));
@@ -281,6 +295,20 @@ pushEl.querySelector(".evr").click(); await settledSheet(); ok("全頁撳事件�
 history.back(); await closedSheet(); await sleep(300); ok("返回掣先關說明", !Sh.open && Pu.open && HS.n === 1, { n: HS.n, pu: Pu.open });
 history.back(); await until(() => pushEl.hidden); await sleep(300); ok("再按返回先退頁", clean(), { n: HS.n, i: HS.ignore, p: HS.pend });
 v0.scrollTop = 0; await sleep(60);
+// ───── 6c 打字建議同加密研究（2026-11-09 老師：「打N就應該建議N字頭股票好似NVDA咁」「加密嗰度都可以加類似股票研究咁樣」）
+{ phone.querySelector("[data-act=search]").click(); await until(() => Se.open); await sleep(450); const inp = searchEl.querySelector("input");
+  inp.value = "n"; inp.dispatchEvent(new Event("input")); await sleep(60);
+  const syms = [...searchEl.querySelectorAll(".sr-list .rrow b.num")].slice(0, 5).map(b => b.textContent); ok("搜尋打 N：N 字頭排先", syms.length >= 3 && syms.every(s => s.startsWith("N")), syms);
+  inp.value = "eth"; inp.dispatchEvent(new Event("input")); await until(() => { inp.dispatchEvent(new Event("input")); return !!searchEl.querySelector(".sr-list [data-coin]"); }, 5000);
+  ok("搜尋都建議加密幣", !!searchEl.querySelector('.sr-list [data-coin="ethereum"]'));
+  closeSearch(); await until(() => !Se.open && HS.ignore === 0); await sleep(300); }
+{ await LG.fetchCoins(); const cm = LG.coinMatch("eth"), ch = LG.coinMatch("h");
+  ok("加密建議：打 eth 第一個係 ETH", cm.length > 0 && cm[0].s === "ETH", cm.map(c => c.s)); ok("加密建議：代號開頭排前、按市值", ch.slice(0, 3).some(c => c.s === "HYPE"), ch.map(c => c.s));
+  LG.openCoin("ethereum"); await until(() => !$("#rs").hidden && !!$("#rs").querySelector("#rs-src"), 6000); await settled($("#rs")); await sleep(300);
+  const R = $("#rs"); ok("加密報告有 10 節", R.querySelectorAll(".rs-sec[data-sec]").length === 10, R.querySelectorAll(".rs-sec[data-sec]").length);
+  ok("加密報告有價格圖同 BOS／MSS 圖", !!R.querySelector("#crHero svg") && !!R.querySelector("#taHero svg"));
+  ok("加密報告冇橫向出界", R.scrollWidth - R.clientWidth <= 1, R.scrollWidth - R.clientWidth); audit("加密報告", R);
+  LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(120); }
 
 // ───── 7 曲線
 const sc = A.el, rc = sc.getBoundingClientRect();

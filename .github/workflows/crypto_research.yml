@@ -1,0 +1,71 @@
+name: 加密研究
+# 2026-11-09 老師：「建議加密嗰度都可以加類似股票研究咁樣，輸入代號可以出到研究報告」— scanner/crypto_research.py：
+# 程式攞數據（CoinGecko、DefiLlama、Coinbase）→ AI 上網搜尋 → 固定格式分析；輸出 docs/crypto/。
+# 只有用戶喺 app「加密 → 研究」撳「生成」先做（workflow_dispatch，輸入代號）；排程每星期一次淨係更新 coins.json（打字建議用，唔使 AI、唔使錢）。
+# 每月上限 CRYPTO_MONTH_USD；AI 用量同個股研究同一本帳（docs/ai_usage_research.json）。
+on:
+  schedule:
+    - cron: "41 22 * * 0"      # 星期日 22:41 UTC = 香港星期一 06:41：更新代號清單
+  workflow_dispatch:
+    inputs:
+      coin:
+        description: "代號、CoinGecko id 或者名（空白 = 淨係更新代號清單）"
+        required: false
+        default: ""
+permissions:
+  contents: write
+concurrency:
+  group: crypto-research
+  cancel-in-progress: false
+jobs:
+  pz:                              # 暫停鍵（scanner/pause.py）：暫停中排程唔做；用戶自己撳（app「生成」）照做
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      skip: ${{ steps.p.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: |
+            docs/pause.json
+            scanner/pause.py
+          sparse-checkout-cone-mode: false
+      - id: p
+        run: python3 scanner/pause.py gate "${{ github.event_name }}" "${{ github.event.inputs.relay }}" | tee -a "$GITHUB_OUTPUT"
+  crypto:
+    needs: pz
+    if: needs.pz.outputs.skip != '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scanner/requirements.txt
+      - run: pip install -r scanner/requirements.txt
+      - name: 生成加密研究報告
+        run: |
+          COIN="$(printf '%s' "$COIN_IN" | tr -cd 'A-Za-z0-9 .-' | cut -c1-60 | sed 's/^ *//;s/ *$//')"
+          if [ -n "$COIN" ]; then python scanner/crypto_research.py "$COIN"; else python scanner/crypto_research.py --list; fi
+        timeout-minutes: 25
+        env:
+          COIN_IN: ${{ github.event.inputs.coin }}
+          PYTHONIOENCODING: utf-8
+          CRYPTO_MONTH_USD: "10"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || secrets.DDEEPSEEK_API_KEY }}
+          AI_LEDGER: research
+          DEEPSEEK_PEAK_OK: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+      - name: 提交報告
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/crypto
+          if [ -f docs/ai_usage_research.json ]; then git add docs/ai_usage_research.json; fi
+          if git diff --cached --quiet; then echo "冇新嘢"; exit 0; fi
+          git commit -m "加密研究 $(date -u +%F)"
+          for i in 1 2 3; do git pull --rebase origin main && git push && exit 0; sleep 5; done; exit 1

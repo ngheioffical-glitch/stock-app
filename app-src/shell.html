@@ -242,6 +242,10 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .evch .lnk{stroke:var(--line2);stroke-width:1;stroke-dasharray:2 3}
 .evch .lnk,.evch .last,.evch .cross,.evch .pt{pointer-events:none}
 .evch [data-ev]{cursor:pointer}
+.evch{-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.ck-seg{position:absolute;left:4px;top:0;z-index:2;display:flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;background:var(--evbg,var(--card))} /* 2026-11-09 線／K 線 */
+.ck-seg button{min-height:28px;padding:0 12px;font-size:12px;font-weight:700;color:var(--mut)}
+.ck-seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
 .evch .e-up{--e:var(--up)}.evch .e-dn{--e:var(--dn)}.evch .e-wr{--e:var(--warn)}
 .evch .tag rect.box{fill:var(--evbg);stroke:var(--line2)}
 .evch .tag text{font:700 12px var(--sans);fill:var(--ink)}
@@ -674,7 +678,7 @@ const evHost=u=>{try{return new URL(u).hostname.replace(/^www\./,"");}catch(e){r
 const evTone=e=>e.kind==="big"?(e.chg>=0?"up":"dn"):"wr"; // 大升綠、大跌紅、轉燈黃
 const evPct=x=>`${x>=0?"▲":"▼"}${Math.abs(x*100).toFixed(1)}%`;
 const evWhy=e=>{const s=String(e.detail||"").split(/(?<=[。！？])/)[0];return s.length>70?s.slice(0,68)+"…":s;};
-const evLegend=()=>`<div class="ev-lg"><span><i class="up">●</i> 大升</span><span><i class="dn">●</i> 大跌</span><span><i class="wr">●</i> 轉燈</span><span>${EV.d[0].slice(0,4)} 年起 · 對數刻度 · 撳事件睇說明</span></div>`;
+const evLegend=()=>`<div class="ev-lg"><span><i class="up">●</i> 大升</span><span><i class="dn">●</i> 大跌</span><span><i class="wr">●</i> 轉燈</span><span>${EV.d[0].slice(0,4)} 年起 · 對數刻度 · 長按睇說明</span></div>`;
 const evRows=n=>EV.events.map((e,k)=>({...e,k})).sort((a,b)=>b.i-a.i).slice(0,n).map(e=>`<button class="evr" data-p="row" data-ev="${e.k}"><span class="d num">${EV.d[e.i].slice(2)}</span><span><b class="${evTone(e)}">${esc(e.label)}</b>${e.ai&&e.chg!=null?`<span class="chg">${ch(e.chg)}</span>`:""}<small>${e.ai||e.kind==="light"?esc(evWhy(e)):"等 AI 搵原因（每晚補）"}</small></span></button>`).join("");
 const evAria=()=>`納指 100 由 ${EV.d[0].slice(0,4)} 年起嘅走勢，標住大事；下面列表有晒文字`;
 const evCard=()=>!EV?"":`<h2 class="sec">大市事件線 <small>納指 100 · ${EV.events.length} 個事件</small></h2><section class="card" id="evCard"><div class="ch evch" data-evch="6" role="img" aria-label="${evAria()}"></div>${evLegend()}<div class="evl">${evRows(4)}</div><button class="more-b" data-p="btn" data-evall>睇晒 ${EV.events.length} 個事件</button></section>`;
@@ -690,13 +694,16 @@ function evDraw(el){
     let r=rows.findIndex(end=>end<e.tx-4);if(r<0){r=rows.length;rows.push(0);}
     rows[r]=e.tx+e.tw;e.row=r;
   });
-  const pt=rows.length*22+12,H=pt+LINE+pb,lo=Math.log(Math.min(...c)),hi=Math.log(Math.max(...c));
+  const K=LG.chartK(),B=K?LG.ckBars(EV):null; // 2026-11-09 老師：「所有圖表有冇可能做到可以比我揀睇依家呢啲線定係K線？」→ 揀 K 線就畫陰陽燭（2 年合做週 K）
+  const T0=30,pt=T0+rows.length*22+12,H=pt+LINE+pb,lo=Math.log(K?Math.min(...B.bars.map(b=>b.l)):Math.min(...c)),hi=Math.log(K?Math.max(...B.bars.map(b=>b.h)):Math.max(...c));
   const Y=v=>pt+(1-(Math.log(v)-lo)/((hi-lo)||1))*LINE;
   const line=c.map((v,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join("");
+  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);
   const dotH=dots.map(e=>{const x=X(e.i).toFixed(1),y=Y(c[e.i]).toFixed(1);return `<g class="e-${evTone(e)}" data-ev="${e.k}"><circle class="dot" cx="${x}" cy="${y}" r="3.4"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`;}).join("");
-  const tagH=tags.map(e=>{const x=X(e.i).toFixed(1),y=Y(c[e.i]),ty=e.row*22+2;return `<g class="tag e-${evTone(e)}" data-ev="${e.k}"><line class="lnk" x1="${x}" x2="${x}" y1="${ty+18}" y2="${(y-6).toFixed(1)}"/><rect x="${e.tx.toFixed(1)}" y="${ty-2}" width="${e.tw.toFixed(1)}" height="22" fill="transparent"/><rect class="box" x="${e.tx.toFixed(1)}" y="${ty}" width="${e.tw.toFixed(1)}" height="18" rx="5"/><text x="${(e.tx+e.tw/2).toFixed(1)}" y="${ty+13}" text-anchor="middle">${esc(e.label)}</text><circle class="ring" cx="${x}" cy="${y.toFixed(1)}" r="5"/><circle cx="${x}" cy="${y.toFixed(1)}" r="13" fill="transparent"/></g>`;}).join("");
+  const tagH=tags.map(e=>{const x=X(e.i).toFixed(1),y=Y(c[e.i]),ty=T0+e.row*22+2;return `<g class="tag e-${evTone(e)}" data-ev="${e.k}"><line class="lnk" x1="${x}" x2="${x}" y1="${ty+18}" y2="${(y-6).toFixed(1)}"/><rect x="${e.tx.toFixed(1)}" y="${ty-2}" width="${e.tw.toFixed(1)}" height="22" fill="transparent"/><rect class="box" x="${e.tx.toFixed(1)}" y="${ty}" width="${e.tw.toFixed(1)}" height="18" rx="5"/><text x="${(e.tx+e.tw/2).toFixed(1)}" y="${ty+13}" text-anchor="middle">${esc(e.label)}</text><circle class="ring" cx="${x}" cy="${y.toFixed(1)}" r="5"/><circle cx="${x}" cy="${y.toFixed(1)}" r="13" fill="transparent"/></g>`;}).join("");
   el.style.height=H+"px";
-  el.innerHTML=`<svg height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path class="ar" d="${line}L${X(n-1).toFixed(1)} ${H-pb}L${X(0).toFixed(1)} ${H-pb}Z"/><g class="lines"><path class="ln" d="${line}" stroke="var(--l1)"/></g><text x="${pl}" y="${H-4}">${d[0].slice(2,7)}</text><text x="${W-pr}" y="${H-4}" text-anchor="end">${d[n-1].slice(2)}</text><g class="evm">${dotH}${tagH}</g><circle class="last" cx="${X(n-1).toFixed(1)}" cy="${Y(c[n-1]).toFixed(1)}" r="3"/><line class="cross" y1="${pt}" y2="${H-pb}"/><circle class="pt" r="4.5" fill="var(--l1)"/></svg><div class="tip"></div>`;
+  const body=K?`<g class="lines">${LG.ckSvg(B,X,Y,(W-pl-pr)/Math.max(1,n-1),"var(--up)","var(--dn)")}</g>`:`<path class="ar" d="${line}L${X(n-1).toFixed(1)} ${H-pb}L${X(0).toFixed(1)} ${H-pb}Z"/><g class="lines"><path class="ln" d="${line}" stroke="var(--l1)"/></g>`;
+  el.innerHTML=`${LG.ckSeg()}<svg height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${body}<text x="${pl}" y="${H-4}">${d[0].slice(2,7)}${K?(B.wk?" · 週 K":" · 日 K"):""}</text><text x="${W-pr}" y="${H-4}" text-anchor="end">${d[n-1].slice(2)}</text><g class="evm">${dotH}${tagH}</g><circle class="last" cx="${X(n-1).toFixed(1)}" cy="${Y(c[n-1]).toFixed(1)}" r="3"/><line class="cross" y1="${pt}" y2="${H-pb}"/><circle class="pt" r="4.5" fill="var(--l1)"/></svg><div class="tip"></div>`;
   el._g={c,d,n,W,pl,pr,X,Y,evs:all,cross:el.querySelector(".cross"),pt:el.querySelector(".pt"),tip:el.querySelector(".tip")};
   evBind(el);
 }
@@ -713,15 +720,31 @@ function evBind(el){
     const k=near?near.k:null;if(down&&k!=null&&k!==last)buzz("tick");last=k; // 掃過大事輕震
   };
   const hide=()=>{clearTimeout(tm);tm=setTimeout(()=>el.classList.remove("on"),2500);};
-  el.addEventListener("pointerdown",e=>{down=true;moved=false;x0=e.clientX;last=null;clearTimeout(tm);if(!e.target.closest("[data-ev]"))show(e.clientX);});
+  // 2026-11-09 老師：「大市事件線嗰度，唔好一掂到就即刻出詳細，要長按一下先出，唔係好易誤觸」→ 手指要長按 LPS.ms 先出十字線；
+  // 長按住拖睇其他日子；長按事件放手先開說明；短撳同碌頁乜都唔出。滑鼠照舊（移過顯示、撳事件開說明）
+  const LPS={ms:420,slop:8};let armed=false,lp=0,y0=0,xl=0,pt="mouse";
+  const nearAt=cx=>{const G=el._g,r=el.getBoundingClientRect(),i=clamp(Math.round((cx-r.left-G.pl)/(G.W-G.pl-G.pr)*(G.n-1)),0,G.n-1),span=Math.max(1,Math.round(G.n/250));
+    return G.evs.filter(e=>Math.abs(e.i-i)<=span).sort((a,b)=>Math.abs(a.i-i)-Math.abs(b.i-i))[0];};
+  const stop=()=>{clearTimeout(lp);down=false;armed=false;};
+  el.addEventListener("pointerdown",e=>{pt=e.pointerType;down=true;armed=false;moved=false;x0=xl=e.clientX;y0=e.clientY;last=null;clearTimeout(tm);clearTimeout(lp);
+    if(e.target.closest("[data-ck]"))return;
+    if(pt==="mouse"){if(!e.target.closest("[data-ev]"))show(e.clientX);return;}
+    lp=setTimeout(()=>{if(!down)return;armed=true;buzz("light");show(xl);},LPS.ms);});
   el.addEventListener("pointermove",e=>{
-    if(e.pointerType==="mouse"&&!down){clearTimeout(tm);show(e.clientX);return;}
-    if(!down)return;
+    if(e.pointerType==="mouse"){if(!down){clearTimeout(tm);show(e.clientX);return;}if(Math.abs(e.clientX-x0)>6)moved=true;if(moved)show(e.clientX);return;}
+    if(!down)return;xl=e.clientX;
+    if(!armed){if(Math.hypot(e.clientX-x0,e.clientY-y0)>LPS.slop)stop();return;} // 未夠鐘就郁 = 碌頁，唔理
     if(Math.abs(e.clientX-x0)>6)moved=true;
-    if(moved)show(e.clientX);
+    show(e.clientX);
   });
-  const up=()=>{if(down&&moved)noClickUntil=performance.now()+300;down=false;hide();}; // 掃完放手唔當撳事件
-  el.addEventListener("pointerup",up);el.addEventListener("pointerleave",up);el.addEventListener("pointercancel",up);
+  el.addEventListener("pointerup",e=>{
+    if(armed&&!moved){const ev=nearAt(xl);noClickUntil=performance.now()+400;if(ev)openSheet(evSheet(ev.k));} // 長按冇拖：開附近事件說明
+    else if(down&&moved)noClickUntil=performance.now()+300; // 掃完放手唔當撳事件
+    stop();hide();});
+  el.addEventListener("pointerleave",()=>{stop();hide();});el.addEventListener("pointercancel",()=>{stop();hide();});
+  // 手指短撳圖：唔開說明（淨係長按先開）
+  el.addEventListener("click",e=>{if(pt!=="mouse"&&!e.target.closest("[data-ck]")){e.stopPropagation();e.preventDefault();}},true);
+  el.addEventListener("contextmenu",e=>{if(pt!=="mouse")e.preventDefault();});
 }
 function evReveal(el){ // 第一次碌到先畫出嚟，之後唔再播；冇觸發都唔會有嘢遮住
   if(RM||!window.IntersectionObserver)return;
@@ -1364,16 +1387,19 @@ function searchRows(q){ // 同engine 一樣：掃描入面全部股票都搵得�
     const grp=(t,a)=>a.length?`<h2 class="sec" style="margin-top:6px">${t}</h2>`+[...new Set(a)].slice(0,8).map(x=>srRow(bySym(x))).join(""):"";
     return grp("模型持倉",held)+grp("候選股",cand)||`<div class="ph"><b>打代號</b>例如 NVDA</div>`;
   }
-  const list=ALL.filter(s=>s.sym.includes(q)||(s.industry||"").toUpperCase().includes(q)).sort((a,b)=>(a.sym===q?-1:0)-(b.sym===q?-1:0)||(a.rank||999)-(b.rank||999));
+  // 2026-11-09 老師：「打N就應該建議N字頭股票好似NVDA咁」→ 代號完全一樣 → 開頭 → 包含 → 行業；同級按排名。加密幣都一齊建議
+  const sc=s=>s.sym===q?0:s.sym.startsWith(q)?1:s.sym.includes(q)?2:q.length>=2&&(s.industry||"").toUpperCase().includes(q)?3:9;
+  const list=ALL.map(s=>[sc(s),s]).filter(x=>x[0]<9).sort((a,b)=>a[0]-b[0]||(a[1].rank||999)-(b[1].rank||999)).map(x=>x[1]);
   const extra=TKR.test(q)&&!list.some(s=>s.sym===q)?`<button class="sr rrow" data-p="row" data-open="${esc(q)}"><span><b class="num">${esc(q)}</b><small>掃描名單冇呢隻，都可以試下開</small></span><span></span><span></span></button>`:"";
-  return list.slice(0,14).map(srRow).join("")+extra||`<div class="ph"><b>搵唔到</b>試下打美股代號，例如 NVDA。</div>`;
+  const coins=LG.coinMatch(q,5),cry=coins.length?`<h2 class="sec" style="margin-top:10px">加密</h2>`+coins.map(c=>`<button class="sr rrow" data-p="row" data-coin="${esc(c.id)}"><span><b class="num">${esc(c.s)}</b><small>${esc(c.n)}${c.r?` · 市值排名 #${c.r}`:""}${LG.crItem(c.id)?" · 有研究報告":""}</small></span><span></span><span></span></button>`).join(""):"";
+  return (list.slice(0,10).map(srRow).join("")+extra+cry)||`<div class="ph"><b>搵唔到</b>試下打美股或者加密幣代號，例如 NVDA、ETH。</div>`;
 }
 function openSearch(){
   if(Se.open)return;Se.open=true;searchEl.getAnimations().forEach(a=>a.cancel());searchEl.hidden=false;
-  searchEl.innerHTML=`<div class="sr-top"><label class="sr-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" placeholder="搜尋代號或者行業" enterkeyhint="search" autocomplete="off" spellcheck="false" aria-label="搜尋代號或者行業"></label><button class="sr-x" data-p="btn" data-act="search-close">取消</button></div><div class="sr-list"></div>`;
+  searchEl.innerHTML=`<div class="sr-top"><label class="sr-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" placeholder="搜尋股票、加密代號或者行業" enterkeyhint="search" autocomplete="off" spellcheck="false" aria-label="搜尋股票、加密代號或者行業"></label><button class="sr-x" data-p="btn" data-act="search-close">取消</button></div><div class="sr-list"></div>`;
   const inp=searchEl.querySelector("input"),list=searchEl.querySelector(".sr-list"),bar=searchEl.querySelector(".sr-bar"),x=searchEl.querySelector(".sr-x");
   const fill=()=>{list.innerHTML=searchRows(inp.value);};
-  fill();inp.addEventListener("input",fill);
+  fill();inp.addEventListener("input",fill);LG.fetchCoins().then(()=>{if(Se.open&&inp.value)fill();}); // 加密代號清單（第一次搜尋先下載）
   anim(searchEl,[{opacity:0},{opacity:1}],{d:160,e:"ease-out"});
   const w=bar.offsetWidth;
   anim(bar,[{clipPath:`inset(0 0 0 ${w-44}px round 22px)`},{clipPath:"inset(0 0 0 0 round 22px)"}],{d:400,e:IOS_EASE});
@@ -1498,6 +1524,7 @@ phone.addEventListener("click",e=>{
   if(q("[data-news]"))return window.__shell.route("news");
   if((b=q("[data-sopen]"))){const [sym,sec]=b.dataset.sopen.split(":");closeSheet();afterBack(()=>LG.openStock(sym,sec||undefined));return;}
   if((b=q("[data-open]"))){const sym=b.dataset.open;closeSearch();afterBack(()=>LG.openStock(sym));return;}
+  if((b=q("[data-coin]"))){const id=b.dataset.coin;closeSearch();afterBack(()=>LG.crItem(id)?LG.openCoin(id):(window.__shell.route("cres"),setTimeout(()=>{const i=document.getElementById("crQ");if(i){i.value=b.querySelector("b").textContent;i.dispatchEvent(new Event("input"));}},400)));return;} // 加密：有報告就開；冇就去加密研究頁（已經打好代號）
   if(q("[data-evall]"))return pushEvents();
   if((b=q("[data-ev]")))return openSheet(evSheet(+b.dataset.ev));
   if((b=q("[data-toast]")))return toast(b.dataset.toast);
@@ -1517,7 +1544,7 @@ function shellBoot(){
   if(RM)phone.setAttribute("data-rm","");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
   window.__booted=true;
-  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,gen:M.gen,events:M.events};evArrived();}}).catch(()=>{});
+  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,gen:M.gen,events:M.events};evArrived();}}).catch(()=>{});
   shellData();
   if(new URLSearchParams(location.search).get("nosplash")==null)launch();else lcFinish();
   {const idle=window.requestIdleCallback||(f=>setTimeout(f,300));(function pre(i){if(i<ORDER.length)idle(()=>{view(ORDER[i]);pre(i+1);});})(0);} // 有空閒就預先砌好其他分頁，第一次撳先唔會卡一格

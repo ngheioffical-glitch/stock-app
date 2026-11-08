@@ -154,7 +154,7 @@ viewToday=()=>{if(!FEED.news&&!FEED.err)fetchFeeds();return "";};
 go=t=>window.__shell.route(t);
 const __r=render;render=a=>{__r(a);window.__shell.afterRender();};
 const __cr=closeRes;closeRes=fromPop=>{if(!fromPop&&!$("#rs").hidden&&history.state&&history.state.rs)window.__shell.rsBack();__cr(fromPop);};   // 詳情頁自己退 history：殼唔好當係返回鍵再收多一層
-const __V={model:viewModel,pick:viewPick,rank:viewRank,res:viewRes,news:viewNews,fx:viewFx,people:viewPeople,crypto:viewCrypto,hold:viewHold,ser:viewSer,trump:viewTrump,set:viewSet,theme:()=>viewRadarSec("theme"),narr:()=>viewRadarSec("narr"),proj:()=>viewRadarSec("proj"),meme:()=>viewRadarSec("meme"),drop:()=>viewRadarSec("drop")};
+const __V={model:viewModel,pick:viewPick,rank:viewRank,res:viewRes,cres:viewCres,news:viewNews,fx:viewFx,people:viewPeople,crypto:viewCrypto,hold:viewHold,ser:viewSer,trump:viewTrump,set:viewSet,theme:()=>viewRadarSec("theme"),narr:()=>viewRadarSec("narr"),proj:()=>viewRadarSec("proj"),meme:()=>viewRadarSec("meme"),drop:()=>viewRadarSec("drop")};
 Object.values(GROUPS).flat().forEach(([k])=>{if(k!=="today"&&!__V[k])throw new Error("新介面未接駁細分頁："+k);});
 return {
   state:()=>({SCAN,MCONT,FEED,ERR,PAUSE,S}),
@@ -166,6 +166,7 @@ return {
   aiBanner,pauseBanner,janCard,dataAlert,lightCard,mktTiles,
   extras:()=>{const F=SCAN&&SCAN.fear,B=SCAN&&SCAN.bounce;return (F&&(F.active||F.vix>=25)?fearCard():"")+(B&&B.zone&&B.signal&&B.signal.active?bounceCard():"");},
   openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,exportBox,pasteBox,
+  openCoin,coinMatch,fetchCoins,crItem,chartK,setChartK,ckBars,ckSvg,ckSeg,fp,   // 2026-11-09：加密研究、打字建議、線／K 線
   reload:()=>Promise.allSettled([fetchScan(),fetchModel(),fetchFeeds(true)])
 };
 })();

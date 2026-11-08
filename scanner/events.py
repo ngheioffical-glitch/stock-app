@@ -93,20 +93,44 @@ def download(syms, start):
 RAW = None
 
 
+def _ohlc(sym):
+    df = RAW[sym].dropna(subset=["Open", "High", "Low", "Close"])
+    df.index = pd.to_datetime(df.index).tz_localize(None)
+    ny = datetime.now(NYT)
+    if ny.hour * 60 + ny.minute < 16 * 60 + 15:
+        df = df[df.index.date < ny.date()]
+    return df
+
+
 def tech(sym):
-    """技術結構（BOS／MSS／FVG，只供參考）：用 download 留低嘅開高低收；冇就返 None（唔影響事件線）。"""
+    """技術結構（BOS／MSS，只供參考）：用 download 留低嘅開高低收；冇就返 None（唔影響事件線）。"""
     try:
         import structure
-        df = RAW[sym].dropna(subset=["Open", "High", "Low", "Close"])
-        df.index = pd.to_datetime(df.index).tz_localize(None)
-        ny = datetime.now(NYT)
-        if ny.hour * 60 + ny.minute < 16 * 60 + 15:
-            df = df[df.index.date < ny.date()]
+        df = _ohlc(sym)
         return structure.analyze([str(x.date()) for x in df.index], df["Open"], df["High"], df["Low"], df["Close"])
     except Exception as e:  # noqa: BLE001
         if RAW is not None:
             print(f"[events] {sym} 技術結構計唔到：{str(e)[:80]}")
         return None
+
+
+def add_ohlc(chart, sym):
+    """2026-11-09 老師：「所有圖表有冇可能做到可以比我揀睇依家呢啲線定係K線？」→ 事件線加開高低（對返 chart.d）；
+    冇數據嗰日用收市補（app 畫 K 線時嗰支冇影）。冇開高低收（測試）就唔加。"""
+    try:
+        df = _ohlc(sym)
+    except Exception:  # noqa: BLE001
+        return chart
+    pos = {str(x.date()): i for i, x in enumerate(df.index)}
+    o, h, l = [], [], []
+    for d, c in zip(chart["d"], chart["c"]):
+        i = pos.get(d)
+        if i is None:
+            o.append(c), h.append(c), l.append(c)
+            continue
+        r = df.iloc[i]
+        o.append(round(float(r["Open"]), 2)), h.append(round(float(r["High"]), 2)), l.append(round(float(r["Low"]), 2))
+    return dict(chart, o=o, h=h, l=l)
 
 
 def pct(x, n=1):
@@ -348,6 +372,8 @@ def main():
         ta = tech(MKT if key == MKT_KEY else key)
         if ta:
             rep["ta"] = ta
+        if RAW is not None:
+            rep["chart"] = add_ohlc(rep["chart"], MKT if key == MKT_KEY else key)
         (OUT / f"{key}.json").write_text(json.dumps(rep, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         index[key] = dict(name=name, n=len(rep["events"]), ai=sum(1 for e in rep["events"] if e.get("ai")),
                           last=rep["chart"]["d"][-1], ind=ind.get(key))

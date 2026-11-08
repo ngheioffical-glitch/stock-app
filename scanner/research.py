@@ -405,6 +405,8 @@ def collect(sym):
     last_earn = last_e or (datetime.fromtimestamp(i["earningsTimestamp"], NYT).date() if i.get("earningsTimestamp") else None)
     start = date(pdate.year - 2, 1, 1)
     ch = [(d, c) for d, c in closes if d >= start]
+    # 2026-11-09 老師要圖可以揀線定 K 線：價格圖加開高低（同收市同一個調整口徑）
+    ohl = {ts.date(): (float(o), float(hh), float(lo)) for ts, o, hh, lo in zip(h.index, h["Open"], h["High"], h["Low"]) if o == o and hh == hh and lo == lo}
     try:                                                 # 2026-11-09 老師：AI 分析加 BOS／MSS（只供參考，structure.py）
         hk = h[[ts.date() <= pdate for ts in h.index]]
         ta = structure.analyze([str(ts.date()) for ts in hk.index], hk["Open"], hk["High"], hk["Low"], hk["Close"])
@@ -449,7 +451,9 @@ def collect(sym):
                     rec_zh=REC_ZH.get(i.get("recommendationKey") or "none", i.get("recommendationKey")), rec_mean=num(i.get("recommendationMean"), 2),
                     counts=rec, rev_dir=rdir, rev30=num(r30, 4), rev90=num(r90, 4)),
         next_earn=edates[0].isoformat() if edates else None, last_earn=last_earn.isoformat() if last_earn and last_earn <= pdate else None,
-        chart=dict(d=[d.isoformat() for d, _ in ch], c=[round(c, 2) for _, c in ch]),
+        chart=dict(d=[d.isoformat() for d, _ in ch], c=[round(c, 2) for _, c in ch],
+                   o=[round(ohl.get(d, (c,))[0], 2) for d, c in ch], h=[round(ohl.get(d, (c, c))[1], 2) for d, c in ch],
+                   l=[round(ohl.get(d, (c, c, c))[2], 2) for d, c in ch]),
         sec=S, ndx_pe=ndx.get("pe"), app_val=vs or None, ta=ta,
     )
 
@@ -607,8 +611,8 @@ SCHEMA_W = _o(dict(
     holder_view=_s("已經持有嘅人點睇（唔好講具體倉位或者買賣指令），100 字內"),
     buyer_view=_s("未持有、考慮買嘅人點睇（唔好講具體倉位或者買賣指令），100 字內"),
     peers_note=_s("同業比較一段，100 字內，用提示嘅同業數字"),
-    tech_view=_s("技術面（只供參考）一段，100 字內：用提示嘅「技術結構」講而家結構偏向（最近係向上定向下 BOS／MSS、上面阻力同下面支持、"
-                 "未填 FVG 喺邊）；要講明只係參考、唔係買賣訊號；冇技術結構數據就寫空字串"),
+    tech_view=_s("技術面（只供參考）一段，100 字內：用提示嘅「技術結構」講而家結構偏向（最近係向上定向下 BOS／MSS、幾耐之前、"
+                 "近 60 日向上向下突破幾多次，加 ADR、距 52 週高、距 50 日線）；要講明只係參考、唔係買賣訊號；冇技術結構數據就寫空字串"),
 ))
 SYS_A = ("你係一個嚴謹、獨立嘅股票研究員，做法似晨星：睇護城河、不確定性、資本配置，再用情境估值。" + STYLE +
          "只可以根據提供嘅數據同研究筆記寫；每個事實都要標來源編號（例如 [S3]），唔可以用來源清單以外嘅編號，唔可以作數字。"
