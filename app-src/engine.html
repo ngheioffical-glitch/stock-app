@@ -473,6 +473,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .vs details b{font-family:inherit}
 /* 事件股價線（2026-10-21） */
 .ev-mini{height:230px;margin:0 -18px}
+.ta-hero{height:300px;margin:0 -8px}.ta-t{font-size:12px;font-weight:700}.ta-b{letter-spacing:.3px}
 .evleg{margin:2px 0 0;line-height:1.7} .evleg i{font-style:normal}
 .evl{display:flex;flex-direction:column}
 .evr{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
@@ -2702,7 +2703,7 @@ const rsMoney = x => { if (x == null || !isFinite(x)) return "—"; const a = Ma
 const pc0 = x => x == null || !isFinite(x) ? "—" : (x * 100).toFixed(0) + "%";
 const pc1 = x => x == null || !isFinite(x) ? "—" : (x * 100).toFixed(1) + "%";
 const xx = x => x == null || !isFinite(x) ? "—" : (x >= 10 ? x.toFixed(1) : x.toFixed(2)).replace(/\.?0+$/, m => m === "." ? "" : m) + "×";
-const RS_SECS = [["sum", "結論"], ["pos", "我的部位"], ["view", "看法"], ["primer", "先搞懂"], ["biz", "商業模式"], ["val", "估值"], ["dir", "估值方向"], ["hist", "歷史"], ["peer", "同業"], ["src", "來源"]];
+const RS_SECS = [["sum", "結論"], ["pos", "我的部位"], ["view", "看法"], ["primer", "先搞懂"], ["biz", "商業模式"], ["val", "估值"], ["dir", "估值方向"], ["ta", "技術"], ["hist", "歷史"], ["peer", "同業"], ["src", "來源"]];
 
 // 文字：轉義 → 來源編號 [S3] 變可以撳嘅細標 → 名詞表嘅詞加虛線（每段第一次出現）
 function rsT(s){
@@ -2768,7 +2769,9 @@ const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsB
 // 2026-10-23 用戶：「淨係要重要事件，轉燈同大升跌就得」→ 大升綠、大跌紅、轉燈黃（研究頁 AI 事件冇 kind，照用青色）
 const EV_DOT = {up: "var(--buy)", down: "var(--stop)", light: "var(--warn)"};   // 2026-10-24：跟主題（柔和綠紅），唔再寫死霓虹色
 const evCol = e => e.kind === "big" ? (e.chg >= 0 ? EV_DOT.up : EV_DOT.down) : EV_DOT[e.kind] || "#8fdcf0";
-function rsChart(r){ const C = r.chart || {}; evDraw($("#rsHero"), C, (C.events || []).filter(e => (e.w ?? 99) >= 99).length + 2); }   // 研究 AI 事件全部寫標籤 + 數據事件頭 2 個
+function rsChart(r){ const C = r.chart || {}; evDraw($("#rsHero"), C, (C.events || []).filter(e => (e.w ?? 99) >= 99).length + 2);   // 研究 AI 事件全部寫標籤 + 數據事件頭 2 個
+  const t = $("#taHero"); if (t) taDraw(t, rsTa(r)); }
+const rsTa = r => { const a = r.ta, b = (EVC[r.sym] || {}).ta; return a && b ? (b.last > a.last ? b : a) : a || b || null; };   // 研究報告或者事件線，用新嗰個
 function evDraw(box, C, cap){
   if (!box) return;
   const d = C.d || [], c = C.c || [];
@@ -2848,6 +2851,70 @@ function evScrub(box, g){
 let RS_RZ = 0;
 function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) rsChart(RS.r); }, 150); }
 
+// ───────── 技術結構 K 線圖（2026-11-09 老師：「淨係想你睇下pine script裡面嘅突破，咩SMT Liquidity sweep無需要」「做唔做到呢啲效果？」
+// 「有BOS，MSS呢啲分析，可以當做純粹influence咁樣」）：scanner/structure.py 按老師 Pine 突破規則計，事件線（events/<代號>.json 嘅 ta）
+// 同研究報告（ta + writing.tech_view）都有。只供參考：LAB_ANSON 回測日線版本對 V2.7 冇幫助，唔係買賣訊號
+let TA_N = 0;
+function taDraw(box, T){
+  if (!box) return;
+  box._T = T;
+  if (!T || !T.c || T.c.length < 2){ box.innerHTML = ""; return; }
+  const n = T.c.length, W = box.clientWidth || 360, H = box.clientHeight || 300, pl = 6, pr = 64, pt = 24, pb = 14, xr = W - pr;
+  const lo = Math.min(...T.l), hi = Math.max(...T.h), step = (xr - pl) / n;
+  const X = i => pl + (i + 0.5) * step, Y = v => pt + (1 - (v - lo) / ((hi - lo) || 1)) * (H - pt - pb), inR = v => v != null && v >= lo && v <= hi;
+  const BUY = "var(--buy)", STOP = "var(--stop)", id = "taClip" + (++TA_N);
+  let g = "";
+  (T.fvg || []).forEach(z => {                       // 未填 FVG：由出世嗰支畫到最右；實框 = 突破 FVG；點線 = CE（原本 50%，縮咗一半就冇）
+    const col = z.dir > 0 ? BUY : STOP, x0 = X(z.i) - step / 2, y0 = Y(z.top), y1 = Y(z.bot);
+    g += `<rect x="${x0.toFixed(1)}" y="${y0.toFixed(1)}" width="${(xr - x0).toFixed(1)}" height="${Math.max(1, y1 - y0).toFixed(1)}" style="fill:${col};stroke:${col}" fill-opacity="${z.brk ? .22 : .1}" stroke-opacity="${z.brk ? .9 : .3}" stroke-width="1"/>`;
+    if (z.ce){ const yc = Y((z.ot + z.ob) / 2).toFixed(1); g += `<line x1="${x0.toFixed(1)}" x2="${xr}" y1="${yc}" y2="${yc}" style="stroke:${col}" stroke-opacity=".75" stroke-dasharray="1 3"/>`; }
+    if (z.brk) g += `<text x="${xr - 3}" y="${(z.dir > 0 ? y1 + 11 : y0 - 4).toFixed(1)}" text-anchor="end" class="ta-t" style="fill:${col}">突破 FVG</text>`;
+  });
+  const P = T.piv || {}, tags = [];
+  [[P.hi, "轉角高"], [P.lo, "轉角低"]].forEach(([p, nm]) => {
+    if (!p || !inR(p[1])) return;
+    const y = Y(p[1]).toFixed(1);
+    g += `<line x1="${X(p[0]).toFixed(1)}" x2="${xr}" y1="${y}" y2="${y}" style="stroke:var(--muted)" stroke-dasharray="4 3" stroke-width="1"/>`;
+    tags.push({y: +y, t: f2(p[1]), c: "var(--muted)", nm});
+  });
+  if ((T.e21 || []).length === n) g += `<polyline clip-path="url(#${id})" points="${T.e21.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" style="stroke:var(--warn)" stroke-opacity=".75" stroke-width="1.3"/>`;
+  const bw = Math.max(1, Math.min(8, step * 0.64));
+  for (let i = 0; i < n; i++){
+    const col = T.c[i] >= T.o[i] ? BUY : STOP, x = X(i).toFixed(1), yo = Y(T.o[i]), yc = Y(T.c[i]);
+    g += `<line x1="${x}" x2="${x}" y1="${Y(T.h[i]).toFixed(1)}" y2="${Y(T.l[i]).toFixed(1)}" style="stroke:${col}" stroke-width="1"/>`
+      + `<rect x="${(X(i) - bw / 2).toFixed(1)}" y="${Math.min(yo, yc).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, Math.abs(yc - yo)).toFixed(1)}" style="fill:${col}"/>`;
+  }
+  (T.brk || []).forEach(b => {                       // BOS／MSS：由轉角位畫到收穿嗰支，中間寫名
+    const col = b.dir > 0 ? BUY : STOP, y = Y(b.lv), x0 = X(b.s), x1 = X(b.i);
+    g += `<line x1="${x0.toFixed(1)}" x2="${x1.toFixed(1)}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:${col}" stroke-width="1.6"/>`
+      + `<text x="${Math.max(14, Math.min(xr - 14, (x0 + x1) / 2)).toFixed(1)}" y="${(b.dir > 0 ? y - 4 : y + 11).toFixed(1)}" text-anchor="middle" class="ta-t ta-b" style="fill:${col}">${esc(b.k)}</text>`;
+  });
+  const lc = T.c[n - 1], up = n > 1 && lc >= T.c[n - 2];
+  tags.push({y: Y(lc), t: f2(lc), c: up ? BUY : STOP, last: true});
+  tags.sort((a, b) => a.y - b.y);                     // 右邊價錢標籤：太近就推開
+  for (let k = 1; k < tags.length; k++) if (tags[k].y - tags[k - 1].y < 15) tags[k].y = tags[k - 1].y + 15;
+  // 現價：細三角 + 粗字（唔用實色底：字要對頁面底色夠對比）
+  const lab = tags.map(t => (t.last ? `<path d="M${xr + 1} ${t.y.toFixed(1)}l5 -4v8z" style="fill:${t.c}"/>` : "")
+    + `<text x="${xr + 8}" y="${(t.y + 4).toFixed(1)}" class="ta-t" style="fill:${t.c}">${t.t}</text>`).join("");
+  box.innerHTML = `<p class="rs-cap">近 ${n} 日 K · 只供參考</p>
+  <svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="K 線同技術結構"><defs><clipPath id="${id}"><rect x="0" y="${pt - 4}" width="${xr}" height="${H - pt - pb + 8}"/></clipPath></defs>
+    ${g}${lab}</svg>`;
+  evScrub(box, {X, Y, c: T.c, d: T.d, pl, pr, W, evs: (T.brk || []).map(b => ({i: b.i, label: `${b.dir > 0 ? "向上" : "向下"} ${b.k}（收穿 ${f2(b.lv)}）`}))});
+}
+function taSec(T, txt, none){
+  if (!T) return `<p class="rs-meta">${none || "未有技術結構數據。"}</p>`;
+  const st = T.stat || {};
+  return `<div class="rs-hero ta-hero" id="taHero"></div>
+    <p class="small muted evleg"><i style="color:var(--buy)">━</i> 向上 BOS／MSS　<i style="color:var(--stop)">━</i> 向下　<i style="color:var(--warn)">━</i> 21 日 EMA　┄ 最近轉角高／低<br>
+      方格 = 未填 FVG（實框 = 突破 FVG，點線 = CE 50%）</p>
+    <div class="rs-g4"><div><span>ADR（20 日）</span><b>${st.adr != null ? st.adr + "%" : "—"}</b></div><div><span>距 52 週高</span><b>${st.off52 != null ? pct(st.off52) : "—"}</b></div>
+      <div><span>距 50 日線</span><b>${st.atr50 != null ? st.atr50 + " 個 ATR" : "—"}</b></div><div><span>數據</span><b>${esc(T.last || "—")}</b><em>收市</em></div></div>
+    ${txt ? `<div class="rs-card rs-plain"><span class="bh">AI 睇技術面</span>${esc(txt)}</div>` : ""}
+    <ul class="rs-ul">${(T.facts || []).map(f => `<li>${esc(f)}</li>`).join("")}</ul>
+    <p class="rs-meta">規則跟老師 Pine 嘅突破：轉角位左右各 1 支；一支 K 線實體 ≥ 60% 收穿轉角位，而且佢係同方向 FVG 嘅中間支。同上次突破同方向 = BOS（延續），反方向 = MSS（轉向）。冇 SMT、冇掃流動性。
+      <b>只供參考</b>：LAB_ANSON 回測過日線版本，對領導股同 TQQQ 冇幫助；唔係買賣訊號，唔改 V2.7。</p>`;
+}
+
 // ───────── 事件股價線（2026-10-21 用戶：「影片條 curve 會標邊個時間發生咩大事」「優先要 AI 先，歷史就用翻歷史數據加翻落去」
 // 「唔只係個股，直頭成個大市都可以有」）：scanner/events.py → docs/events/index.json + <MARKET|代號>.json。
 // 2026-10-23 起淨係大升跌同轉燈：AI（DeepSeek，有上網來源先用）搵到原因嘅大升跌寫「事件名 升跌%」，最優先寫標籤；其他畫做細點
@@ -2901,6 +2968,7 @@ function evMarketCard(){
 function evDrawPage(){
   if (TAB === "today" && EVC.MARKET) evDraw($("#evMkt"), evC(EVC.MARKET), 6);
   const h = $("#evHero"); if (h && EVC[h.dataset.evkey]) evDraw(h, evC(EVC[h.dataset.evkey]), 7);
+  const t = $("#taHero"); if (t && t._T && !RS.r) taDraw(t, t._T);          // 研究頁由 rsResize 畫
 }
 window.addEventListener("resize", () => { clearTimeout(EV_RZ); EV_RZ = setTimeout(evDrawPage, 150); });
 // 撳事件（圖上標籤／點、事件列表）→ 說明
@@ -2926,15 +2994,16 @@ async function openEv(key){
     el.innerHTML = `<div class="rs-in">${rsTop(key, title)}
       <div class="rs-bar"><div class="rs-tick"><b>${esc(key === "MARKET" ? "納指 100" : key)}</b><span class="px">${f2(last)}</span><span class="st">${pct(last / prev - 1)} · ${esc(M.chart.d[c.length - 1])} 收市</span></div></div>
       <div class="rs-hero" id="evHero" data-evkey="${esc(key)}"></div>
+      ${M.ta ? `<section class="rs-sec"><h3 class="rs-h">技術結構（只供參考）</h3>${taSec(M.ta)}</section>` : ""}
       <section class="rs-sec">${evLegend()}<h3 class="rs-h">大事（新到舊）</h3><div class="evl">${evRows(M, key, 999)}</div>
         ${key !== "MARKET" && resItem(key) ? `<p style="margin-top:14px"><button class="primary" data-openres="${esc(key)}">睇 AI 個股研究報告</button></p>` : ""}
         <p class="rs-meta">AI 搵到原因 ${M.events.filter(e => e.ai).length}／${M.events.filter(e => e.kind === "big").length} 個大升跌（上網搵，有來源先用；每日補多啲）· 更新 ${esc(M.gen || "")}</p></section></div>`;
-    el.scrollTop = 0; evDraw($("#evHero"), evC(M), 7);
+    el.scrollTop = 0; evDraw($("#evHero"), evC(M), 7); if (M.ta) taDraw($("#taHero"), M.ta);
   } catch(e){ const p = el.querySelector(".rs-sec"); if (p) p.textContent = "讀唔到：" + e.message; }
 }
 // ───────── 統一股票詳情頁（2026-10-24 界面第二期；/codex 兩邊同意）：結論／走勢大事／研究／估值／業績。
 // 各處撳股票代號（data-stock）、個股「走勢」、頂欄搜尋都嚟呢度；用研究頁同一個外框（#rs），返回鍵同手機返回都得
-const ST_SECS = [["sum", "結論"], ["ev", "走勢大事"], ["res", "研究"], ["val", "估值"], ["earn", "業績"], ["ppl", "名人"]];
+const ST_SECS = [["sum", "結論"], ["ev", "走勢大事"], ["ta", "技術"], ["res", "研究"], ["val", "估值"], ["earn", "業績"], ["ppl", "名人"]];
 const normSym = s => String(s || "").trim().toUpperCase().replace(/^\$/, "");
 function stSpark(c){
   if (!c || c.length < 2) return "";
@@ -2998,6 +3067,8 @@ function stockPage(sym){
       <div class="rs-g4">${g4.map(([k, b, e]) => `<div><span>${k}</span><b>${b}</b>${e ? `<em>${e}</em>` : ""}</div>`).join("")}</div>
       <p class="rs-meta">${SCAN ? `數據：${esc(SCAN.date)} 收市` : ""}</p></section>
     <section class="rs-sec" id="rs-ev" data-sec="ev"><h3 class="rs-h">走勢大事</h3>${evSec}</section>
+    <section class="rs-sec" id="rs-ta" data-sec="ta"><h3 class="rs-h">技術結構（只供參考）</h3>${taSec(M && M.ta, "",
+      evHas(sym) && !M ? "載入緊…" : "呢隻未有技術結構（同事件線一齊計：模型持倉、排名頭 15 同研究清單先有）。")}</section>
     <section class="rs-sec" id="rs-res" data-sec="res"><h3 class="rs-h">研究</h3>${resSec}</section>
     <section class="rs-sec" id="rs-val" data-sec="val"><h3 class="rs-h">估值</h3>${valSec}</section>
     <section class="rs-sec" id="rs-earn" data-sec="earn"><h3 class="rs-h">業績</h3>${earnSec}</section>
@@ -3009,6 +3080,7 @@ function stockBind(sym){
   $("#rsBack").onclick = () => closeRes();
   $("#rsMenu").onclick = () => rsSheet(`<p>資料：每日掃描（排名、收市、RSI）、模型帳戶、每日估值、業績追蹤、事件線（AI 搵原因，有來源先用）、AI 研究報告。只係資訊，唔係買賣訊號。</p><button data-close>知道</button>`);
   const h = $("#stHero"); if (h && EVC[sym]) evDraw(h, evC(EVC[sym]), 6);
+  const th = $("#taHero"); if (th && EVC[sym] && EVC[sym].ta) taDraw(th, EVC[sym].ta);
   const pills = $("#rsPills"), secs = [...el.querySelectorAll(".rs-sec[data-sec]")];
   let cur = "sum", tick = false;
   const spy = () => { tick = false; const top = el.scrollTop + 130; let k = secs[0].dataset.sec;
@@ -3262,6 +3334,14 @@ function rsDir(r){
   </section>`;
 }
 
+// 2026-11-09：技術面（只供參考）— 圖用報告或者事件線嘅 ta（新嗰個）；AI 段落（writing.tech_view）係報告嗰日嘅結構
+function rsTech(r){
+  const W = r.writing || {}, T = rsTa(r);
+  const txt = W.tech_view ? W.tech_view + (r.ta && T && T.last !== r.ta.last ? `（AI 呢段係 ${r.ta.last} 嘅結構；圖同下面幾點係 ${T.last} 最新）` : "") : "";
+  return `<section class="rs-sec" id="rs-ta" data-sec="ta"><h3 class="rs-h">技術面（只供參考）</h3><p class="rs-by">程式按老師 Pine 突破規則計 ${rsSrcs(["S1"])}</p>
+    ${taSec(T, txt, "呢份報告未有技術結構（2026-11-09 之後重新研究先有；有事件線嘅股票會自動顯示）。")}</section>`;
+}
+
 function rsHist(r){
   const E = (r.chart || {}).events || [];
   return `<section class="rs-sec" id="rs-hist" data-sec="hist"><h3 class="rs-h">歷史</h3><p class="rs-by">股價大事（即係上面股價圖嘅事件）</p>
@@ -3301,7 +3381,7 @@ function resPage(r){
       : /deepseek/i.test((r.models || {}).analysis || "") ? `<div class="rs-sample"><b>DeepSeek 版</b>：呢份由 DeepSeek 寫（${esc(rsWho((r.models || {}).gather))} 上網搵資料、${esc(rsWho((r.models || {}).analysis))} 分析；收錢但好平，計入每日上限），數字照樣由程式計，記得睇來源。</div>`
       : !/Claude/.test((r.models || {}).analysis || "") ? `<div class="rs-sample"><b>免費 AI 版</b>：呢份由免費 AI 寫（${esc(rsWho((r.models || {}).gather))} 上網搵資料、${esc(rsWho((r.models || {}).analysis))} 分析），數字照樣由程式計，但文字質素可能比 Claude 低，記得睇來源。</div>` : ""}
     ${r.dry ? `<div class="rs-sample"><b>未有 AI 分析</b>：呢份淨係程式數據（測試模式）。</div>` : ""}
-    ${rsSum(r)}${rsPos(r)}${rsView(r)}${rsPrimer(r)}${rsBiz(r)}${rsVal(r)}${rsDir(r)}${rsHist(r)}${rsPeer(r)}${rsSrc(r)}</div>`;
+    ${rsSum(r)}${rsPos(r)}${rsView(r)}${rsPrimer(r)}${rsBiz(r)}${rsVal(r)}${rsDir(r)}${rsTech(r)}${rsHist(r)}${rsPeer(r)}${rsSrc(r)}</div>`;
 }
 
 function rsSheetFor(kind, r){

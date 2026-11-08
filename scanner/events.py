@@ -85,7 +85,28 @@ def download(syms, start):
         if not ok:
             break
         raw = pd.concat([raw.drop(columns=ok, level=0, errors="ignore"), more[ok]], axis=1)
+    global RAW
+    RAW = raw                                            # 2026-11-09：技術結構要開高低收（structure.py）
     return raw.xs("Close", axis=1, level=1)
+
+
+RAW = None
+
+
+def tech(sym):
+    """技術結構（BOS／MSS／FVG，只供參考）：用 download 留低嘅開高低收；冇就返 None（唔影響事件線）。"""
+    try:
+        import structure
+        df = RAW[sym].dropna(subset=["Open", "High", "Low", "Close"])
+        df.index = pd.to_datetime(df.index).tz_localize(None)
+        ny = datetime.now(NYT)
+        if ny.hour * 60 + ny.minute < 16 * 60 + 15:
+            df = df[df.index.date < ny.date()]
+        return structure.analyze([str(x.date()) for x in df.index], df["Open"], df["High"], df["Low"], df["Close"])
+    except Exception as e:  # noqa: BLE001
+        if RAW is not None:
+            print(f"[events] {sym} 技術結構計唔到：{str(e)[:80]}")
+        return None
 
 
 def pct(x, n=1):
@@ -324,6 +345,9 @@ def main():
     index = {}
     for key, (name, c, evs) in series.items():
         rep = pack(key, name, c, apply_ai(key, evs, cache))
+        ta = tech(MKT if key == MKT_KEY else key)
+        if ta:
+            rep["ta"] = ta
         (OUT / f"{key}.json").write_text(json.dumps(rep, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         index[key] = dict(name=name, n=len(rep["events"]), ai=sum(1 for e in rep["events"] if e.get("ai")),
                           last=rep["chart"]["d"][-1], ind=ind.get(key))

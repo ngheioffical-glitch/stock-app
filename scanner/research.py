@@ -40,6 +40,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import llm  # noqa: E402
+import structure  # noqa: E402   # 技術結構 BOS／MSS／FVG（2026-11-09，只供參考）
 import valuation as appval  # noqa: E402   # app 每日估值（同一條公式，2026-10-21 合併重複）
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -404,6 +405,12 @@ def collect(sym):
     last_earn = last_e or (datetime.fromtimestamp(i["earningsTimestamp"], NYT).date() if i.get("earningsTimestamp") else None)
     start = date(pdate.year - 2, 1, 1)
     ch = [(d, c) for d, c in closes if d >= start]
+    try:                                                 # 2026-11-09 老師：AI 分析加 BOS／MSS（只供參考，structure.py）
+        hk = h[[ts.date() <= pdate for ts in h.index]]
+        ta = structure.analyze([str(ts.date()) for ts in hk.index], hk["Open"], hk["High"], hk["Low"], hk["Close"])
+    except Exception as e:  # noqa: BLE001
+        print(f"[research] {sym} 技術結構計唔到：{str(e)[:80]}")
+        ta = None
     S = sec_block(sym, splits, closes)
     val = {}
     try:
@@ -443,7 +450,7 @@ def collect(sym):
                     counts=rec, rev_dir=rdir, rev30=num(r30, 4), rev90=num(r90, 4)),
         next_earn=edates[0].isoformat() if edates else None, last_earn=last_earn.isoformat() if last_earn and last_earn <= pdate else None,
         chart=dict(d=[d.isoformat() for d, _ in ch], c=[round(c, 2) for _, c in ch]),
-        sec=S, ndx_pe=ndx.get("pe"), app_val=vs or None,
+        sec=S, ndx_pe=ndx.get("pe"), app_val=vs or None, ta=ta,
     )
 
 
@@ -486,6 +493,8 @@ def facts_text(D):
         L.append(f"  過去 4 季（至 {t.get('end')}）：收入 {money(t.get('rev'))}、經營利潤 {money(t.get('op'))}、淨利潤 {money(t.get('ni'))}、"
                  f"自由現金流 {money(t.get('fcf'))}、股權獎勵 {money(t.get('sbc'))}、回購 {money(t.get('buyback'))} [S3]")
     L.append(f"下次業績（預計）：{D['next_earn'] or '未知'}；上次業績：{D['last_earn'] or '未知'} [S1]")
+    if D.get("ta"):
+        L.append(structure.facts_line(D["ta"]) + " [S1]")
     L.append(f"公司簡介（Yahoo，英文）：{D['summary'][:900]} [S1]")
     return "\n".join(L)
 
@@ -598,6 +607,8 @@ SCHEMA_W = _o(dict(
     holder_view=_s("已經持有嘅人點睇（唔好講具體倉位或者買賣指令），100 字內"),
     buyer_view=_s("未持有、考慮買嘅人點睇（唔好講具體倉位或者買賣指令），100 字內"),
     peers_note=_s("同業比較一段，100 字內，用提示嘅同業數字"),
+    tech_view=_s("技術面（只供參考）一段，100 字內：用提示嘅「技術結構」講而家結構偏向（最近係向上定向下 BOS／MSS、上面阻力同下面支持、"
+                 "未填 FVG 喺邊）；要講明只係參考、唔係買賣訊號；冇技術結構數據就寫空字串"),
 ))
 SYS_A = ("你係一個嚴謹、獨立嘅股票研究員，做法似晨星：睇護城河、不確定性、資本配置，再用情境估值。" + STYLE +
          "只可以根據提供嘅數據同研究筆記寫；每個事實都要標來源編號（例如 [S3]），唔可以用來源清單以外嘅編號，唔可以作數字。"
@@ -674,6 +685,10 @@ def writing_prompt(D, A, V, cmp_rows, peers, old):
         lines.append("同業：" + "；".join(f"{p['sym']} 預期市盈率 {p['fpe']}、收入增長 {pc(p['rg'])}、經營利潤率 {pc(p['om'])}、一年 {pct(p['chg52'])}"
                                           for p in peers))
         lines.append(f"{D['sym']} 自己：預期市盈率 {D['fpe']}、收入增長（本財年預測）{pct(D['rg0'])}、經營利潤率 {pc(D['om'])}、一年 {pct(D['chg52'])}")
+    if D.get("ta"):
+        lines.append(structure.facts_line(D["ta"]))
+    else:
+        lines.append("技術結構：今次冇數據（tech_view 寫空字串）。")
     if cmp_rows:
         lines.append(f"同上次（{old.get('research_date')}）比較表：" + "；".join(f"{r['item']}：{r['prev']} → {r['now']}" for r in cmp_rows))
     else:
@@ -772,7 +787,7 @@ def clean_analysis(A, src, D):
 
 def clean_writing(W):
     W = dict(W or {})
-    for k in ("verdict_plain", "verdict_detail", "valuation_plain", "holder_view", "buyer_view", "peers_note"):
+    for k in ("verdict_plain", "verdict_detail", "valuation_plain", "holder_view", "buyer_view", "peers_note", "tech_view"):
         W[k] = _cut(W.get(k), 600)
     W["conclusion"] = [_cut(x, 500) for x in W.get("conclusion") or []][:4]
     for k in ("direction_up", "direction_down"):
@@ -916,6 +931,7 @@ def assemble(D, src, A, V, W, peers, cmp_rows, old, labels, cost, sample=False):
                  hi52=D["hi52"], lo52=D["lo52"], chg52=D["chg52"], ndx_pe=D["ndx_pe"], e0=D["e0"], e1=D["e1"], g0=D["g0"], g1=D["g1"],
                  rev0=D["rev0"], rev1=D["rev1"], rg0=D["rg0"], rg1=D["rg1"]),
         app_val=D.get("app_val"),                         # 2026-10-21：同排名／持倉頁一樣嘅每日估值（Yahoo 預期市盈率、PEG → 偏平／偏貴）
+        ta=D.get("ta"),                                   # 2026-11-09：技術結構（BOS／MSS／FVG，只供參考；app 畫 K 線圖）
         fin=(D.get("sec") or {}).get("years"), ttm=(D.get("sec") or {}).get("ttm"), pe_hist=(D.get("sec") or {}).get("pe_hist"),
         checks=checks(D, A or {}, scores) if A else [], writing=W, compare=dict(prev=(old or {}).get("research_date"), rows=cmp_rows),
         sources=src, disclaimer=DISCLAIMER,
