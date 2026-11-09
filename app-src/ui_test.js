@@ -356,6 +356,18 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
     const g1 = rg(), lo2 = KS.map.lo;
     ev(cv, "pointerdown", cx, cy, tpI(22)); ev(cv, "pointermove", cx, cy + 50, tpI(22)); ev(cv, "pointermove", cx, cy + 120, tpI(22)); ev(cv, "pointerup", cx, cy + 120, tpI(22)); await sleep(60);
     ok("Auto 熄：向下拖 = 睇高啲嘅價", KS.map.lo > lo2 + g1 * 0.1 && Math.abs(rg() - g1) < g1 * 1e-6, [lo2, KS.map.lo, g1, rg()]);
+    // 老師：「唔auto狀態下淨係可以打橫或者縱向滑動。依家係打斜就兩邊一齊郁，反而冇咁方便」
+    { const lo3 = KS.map.lo, e3 = KS.end;
+      ev(cv, "pointerdown", cx, cy, tpI(31)); ev(cv, "pointermove", cx + 40, cy + 15, tpI(31)); ev(cv, "pointermove", cx + 120, cy + 45, tpI(31)); ev(cv, "pointerup", cx + 120, cy + 45, tpI(31)); await sleep(60);
+      ok("Auto 熄：打斜但橫多啲 = 淨係郁時間", KS.map.lo === lo3 && KS.end < e3 - 60 / KS.bw, [lo3, KS.map.lo, e3, KS.end]);
+      const lo4 = KS.map.lo, e4 = KS.end;
+      ev(cv, "pointerdown", cx, cy, tpI(32)); ev(cv, "pointermove", cx + 15, cy + 40, tpI(32)); ev(cv, "pointermove", cx + 45, cy + 120, tpI(32)); ev(cv, "pointerup", cx + 45, cy + 120, tpI(32)); await sleep(60);
+      ok("Auto 熄：打斜但直多啲 = 淨係郁價錢", KS.end === e4 && KS.map.lo > lo4, [e4, KS.end, lo4, KS.map.lo]);
+      const g5 = rg(), bw5 = KS.bw;
+      ev(cv, "pointerdown", cx - 60, cy, tpI(33)); ev(cv, "pointerdown", cx + 60, cy, tpI(34));
+      ev(cv, "pointermove", cx - 30, cy - 30, tpI(33)); ev(cv, "pointermove", cx + 30, cy + 30, tpI(34));
+      ev(cv, "pointerup", cx - 30, cy - 30, tpI(33)); ev(cv, "pointerup", cx + 30, cy + 30, tpI(34)); await sleep(60);
+      ok("Auto 熄：手指打橫擺、打斜捏 = 淨係改時間", Math.abs(rg() - g5) < g5 * 1e-9 && KS.bw < bw5 * 0.8, [g5, rg(), bw5, KS.bw]); }
     const ax = cr.right - KS.ax / 2, g2 = rg();
     ev(cv, "pointerdown", ax, cy, tpI(23)); ev(cv, "pointermove", ax, cy - 40, tpI(23)); ev(cv, "pointermove", ax, cy - 100, tpI(23)); ev(cv, "pointerup", ax, cy - 100, tpI(23)); await sleep(60);
     ok("拉右邊價錢欄向上 = 拉高 K 線（價錢範圍細咗）", rg() < g2 * 0.7 && !KS.auto, [g2, rg()]);
