@@ -826,11 +826,13 @@ const usdM = v => Math.abs(v) >= 1e9 ? `$${(v / 1e9).toFixed(2)}B` : `$${(v / 1e
 function cryptoAiCard(){
   const A = HYP && HYP.ai;
   if (!A) return "";
-  return `<div class="card"><div class="row spread"><div class="lbl">AI 加密重點</div>${mdl(A.model)}</div>
+  // 2026-11-09 老師：「加密ai更新冇時間」→ 時間（同幾耐之前）擺卡頂右邊，同「AI 今日重點」一樣；之前喺卡底細字，一眼睇唔到
+  const at = A.at ? ago(A.at) : "";
+  return `<div class="card"><div class="row spread"><div class="lbl">AI 加密重點 ${mdl(A.model)}</div><span class="small muted">${esc(String(A.generated || "").replace(/^\d{4}-/, "").replace(" HKT", ""))} 更新${at ? `（${at}）` : ""}</span></div>
     <ul class="small" style="margin:6px 0 0;padding-left:18px">${A.points.map(p => `<li style="margin:4px 0">${esc(p)}</li>`).join("")}</ul>
     ${A.whales ? `<p class="small"><b>巨鯨：</b>${esc(A.whales)}</p>` : ""}
     ${(A.trump || []).length ? `<p class="small"><b>Trump 最近講加密</b>（Truth Social）：${esc(A.trump[0].text.slice(0, 240))}${A.trump[0].text.length > 240 ? "…" : ""}</p>` : ""}
-    <p class="small muted">${esc(A.generated)} · 根據加密快訊同 Hyperliquid 巨鯨倉位變動，AI 寫，唔係投資建議；${FULL_AT}更新，或者撳「重新整理」（設定咗 GitHub token）即刻重寫。</p></div>`;
+    <p class="small muted">根據加密快訊同 Hyperliquid 巨鯨倉位變動，AI 寫，唔係投資建議；${FULL_AT}更新，或者撳上面「重新整理」（設定咗 GitHub token）即刻重寫。</p></div>`;
 }
 function whaleCard(){
   if (!HYP || !HYP.whales) return "";
@@ -1123,7 +1125,7 @@ function viewCrypto(){
   if (!FNG) fetchFng();
   if (!HYP) fetchHyper();
   if (!FEED.news) fetchFeeds();
-  return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
+  return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">${cloudBusy() ? "更新中…" : "重新整理"}</button></div>` + cryRefreshNote()
     + cryptoAiCard()      // 2026-11-02 老師：AI 加密重點都擺前面
     + (BTC ? btc100Card() + cryKCard() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + whaleCard() + walertCard() + cryptoNewsCard();
 }
@@ -1138,29 +1140,38 @@ function cryKCard(){
     <div class="rs-hero ta-hero cry-hero" data-crysym="${s}"></div><div class="cry-leg"></div>
     ${K[s].stale ? `<p class="small" style="color:var(--warn)">⚠ 今次攞唔到 Coinbase 日 K，顯示緊上一份。</p>` : ""}</div>`;
 }
+// 2026-11-09 老師：「加密嗰度建議加埋200天線比我」→ 線同 K 線都畫 100 日線（BTC 燈號）+ 200 日線；只係顯示，燈號照用 BTC 100 日線
+const smaArr = (c, n) => { let s = 0; return c.map((v, i) => { s += v; if (i >= n) s -= c[i - n]; return i >= n - 1 ? s / n : null; }); };
+const MA200C = "var(--pur,#b9a2ff)";
+function cryMaLeg(K){
+  const c = K.c, n = c.length, m1 = smaArr(c, 100)[n - 1], m2 = smaArr(c, 200)[n - 1], d = v => v ? ` ${fp(v)}（${pct(c[n - 1] / v - 1)}）` : "";
+  return `<i style="color:var(--warn)">┅</i> 100 日線${d(m1)}　<i style="color:${MA200C}">┅</i> 200 日線${d(m2)}`;
+}
 function cryDraw(){
   document.querySelectorAll(".cry-hero").forEach(box => {
     const s = box.dataset.crysym, K = BTC && BTC.kl && BTC.kl[s], leg = box.parentElement.querySelector(".cry-leg");
     if (!K || !box.clientWidth) return;
-    if (chartK() && K.ta){                              // K 線 = 技術圖（同股票「技術」一樣）
-      taDraw(box, K.ta);
+    if (chartK() && K.ta){                              // K 線 = 技術圖（同股票「技術」一樣）+ 100／200 日線
+      const ix = new Map(K.d.map((d, i) => [d, i])), m1 = smaArr(K.c, 100), m2 = smaArr(K.c, 200), al = M => K.ta.d.map(d => ix.has(d) ? M[ix.get(d)] : null);
+      taDraw(box, K.ta, [{v: al(m1), col: "var(--warn)"}, {v: al(m2), col: MA200C}]);
       const st = K.ta.stat || {};
-      leg.innerHTML = `<p class="small muted evleg" style="margin:4px 0 0"><i style="color:var(--buy)">━</i> 向上 BOS／MSS　<i style="color:var(--stop)">━</i> 向下　· 長按睇日子 · 只供參考</p>
+      leg.innerHTML = `<p class="small muted evleg" style="margin:4px 0 0"><i style="color:var(--buy)">━</i> 向上 BOS／MSS　<i style="color:var(--stop)">━</i> 向下　${cryMaLeg(K)}　· 長按睇日子 · 只供參考</p>
         <div class="kv"><div><span>ADR（20 日）</span><b>${st.adr != null ? st.adr + "%" : "—"}</b></div><div><span>距 52 週高</span><b>${st.off52 != null ? pct(st.off52) : "—"}</b></div><div><span>距 50 日線</span><b>${st.atr50 != null ? st.atr50 + " 個 ATR" : "—"}</b></div></div>`;
-    } else {                                            // 線 = 一年收市 + 100 日線
-      const c = K.c, d = K.d, n = c.length, a = Math.max(0, n - 365), ma = c.map((_, i) => i >= 99 ? c.slice(i - 99, i + 1).reduce((x, y) => x + y, 0) / 100 : null);
-      const C = c.slice(a), M = ma.slice(a), D = d.slice(a), m = C.length;
+    } else {                                            // 線 = 一年收市 + 100 日線 + 200 日線
+      const c = K.c, d = K.d, n = c.length, a = Math.max(0, n - 365), ma = smaArr(c, 100), ma2 = smaArr(c, 200);
+      const C = c.slice(a), M = ma.slice(a), M2 = ma2.slice(a), D = d.slice(a), m = C.length;
       const W = box.clientWidth || 360, H = box.clientHeight || 300, pl = 6, pr = Math.max(64, Math.round(16 + fp(C[m - 1]).length * 7.2)), pt = 34, pb = 16, xr = W - pr;
-      const vals = C.concat(M.filter(v => v != null)), lo = Math.min(...vals), hi = Math.max(...vals);
+      const vals = C.concat(M.filter(v => v != null), M2.filter(v => v != null)), lo = Math.min(...vals), hi = Math.max(...vals);
       const X = i => pl + i / Math.max(1, m - 1) * (xr - pl), Y = v => pt + (1 - (v - lo) / ((hi - lo) || 1)) * (H - pt - pb);
       const pts = A => A.map((v, i) => v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(" ");
       const lc = C[m - 1], col = lc >= (M[m - 1] || lc) ? "var(--buy)" : "var(--stop)", yl = Y(lc);
-      box.innerHTML = `${ckSeg()}<p class="rs-cap">近 1 年 · 長按睇日子</p><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="${s} 一年走勢同 100 日線">
+      box.innerHTML = `${ckSeg()}<p class="rs-cap">近 1 年 · 長按睇日子</p><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="${s} 一年走勢、100 日線同 200 日線">
+        <polyline points="${pts(M2)}" fill="none" style="stroke:${MA200C}" stroke-width="1.4" stroke-dasharray="4 3"/>
         <polyline points="${pts(M)}" fill="none" style="stroke:var(--warn)" stroke-width="1.4" stroke-dasharray="4 3"/>
         <polyline points="${pts(C)}" fill="none" style="stroke:var(--cyan)" stroke-width="1.8" stroke-linejoin="round"/>
         <path d="M${xr + 1} ${yl.toFixed(1)}l5 -4v8z" style="fill:${col}"/><text x="${xr + 8}" y="${(yl + 4).toFixed(1)}" class="ta-t" style="fill:${col}">${fp(lc)}</text></svg>`;
       evScrub(box, {X, Y, c: C, d: D, pl, pr, W, evs: []});
-      leg.innerHTML = `<p class="small muted" style="margin:4px 0 0"><i style="color:var(--cyan)">━</i> ${s} 收市　<i style="color:var(--warn)">┅</i> 100 日線（BTC 燈號用 BTC 嗰條）　· ${esc(D[0])} 至 ${esc(D[m - 1])}</p>`;
+      leg.innerHTML = `<p class="small muted" style="margin:4px 0 0"><i style="color:var(--cyan)">━</i> ${s} 收市　${cryMaLeg(K)}　· 燈號用 BTC 嗰條 100 日線 · ${esc(D[0])} 至 ${esc(D[m - 1])}</p>`;
     }
     box.dataset.ckbox = "1"; box._redraw = cryDraw; box._kv = K; kvTag(box, s, true);   // 全螢幕用兩年日 K + 長歷史週月 K
   });
@@ -2372,13 +2383,21 @@ async function cloudRefresh(auto){
     if (now && now !== before){
       FEED.cloud = "已更新（" + now + "）";
       if (!auto){ fetchHyper(); fetchBtc(); fetchFng(); fetchSer(); fetchTrump(); }     // 自動嗰次淨係新聞；撳「重新整理」係全部更新
-      render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news") render(); }, 8000); return;
+      render(); setTimeout(() => { FEED.cloud = ""; if (TAB === "news" || TAB === "crypto" || TAB === "fx") render(); }, 8000); return;
     }
     if (Date.now() - t0 > 5 * 60e3){ FEED.cloud = "雲端仲未更新完，遲啲再撳"; render(); return; }
     FEED.cloud = `雲端更新中（約 1–2 分鐘）… ${Math.round((Date.now() - t0) / 1e3)} 秒`; render();
     setTimeout(tick, 15e3);
   };
   setTimeout(tick, 20e3);
+}
+// 2026-11-09 老師：「重新整理加密用途未明」→ 加密頁標題下面一句講清楚撳咗會點，撳咗之後顯示雲端進度（之前淨係新聞頁先見到進度）
+const cloudBusy = () => !!FEED.cloud && /觸發緊|更新中|更新緊/.test(FEED.cloud);
+function cryRefreshNote(){
+  if (FEED.cloud) return `<p class="small" style="margin:0 0 8px;color:var(--cyan)">${esc(FEED.cloud)}</p>`;
+  return `<p class="small muted" style="margin:0 0 8px">${S.ghToken
+    ? `撳「重新整理」= 即刻叫雲端重新攞晒加密數據（BTC 線、恐慌貪婪、巨鯨、大額轉帳）同重寫 AI 重點，大約 1–2 分鐘；唔撳就${FULL_AT}自動更新。`
+    : `撳「重新整理」= 重新讀雲端最新嗰份。想即刻叫雲端重新攞數據同重寫 AI，要喺「設定」填 GitHub token；唔撳就${FULL_AT}自動更新。`}</p>`;
 }
 function autoRefresh(){
   if (!S.ghToken || !FEED.news || FEED.cloud || document.visibilityState !== "visible") return;
@@ -2997,16 +3016,19 @@ function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) r
 // 可以當做純粹influence咁樣」；同日：「依家暫時先試下BOS／MSS 線先，其他唔好掂住」→ 淨係 BOS／MSS 線 + ADR、距 52 週高、距 50 日線）。
 // scanner/structure.py 按老師 Pine 突破規則計；事件線（events/<代號>.json 嘅 ta）、研究報告、加密研究都有。
 // 只供參考：LAB_ANSON 回測日線版本對 V2.7 冇幫助，唔係買賣訊號。線／K 線跟 chartK()
-function taDraw(box, T){
+function taDraw(box, T, ov){                          // ov（可選）= 均線 [{v: 同 T.c 對齊（冇就 null）, col}]，加密頁用（100／200 日線）
   if (!box) return;
-  box._T = T; box.dataset.ckbox = "1"; box._redraw = () => taDraw(box, T); box._kv = T;   // 全螢幕：kvOpen 會揀同頁更長嘅數據
+  box._T = T; box.dataset.ckbox = "1"; box._redraw = () => taDraw(box, T, ov); box._kv = T;   // 全螢幕：kvOpen 會揀同頁更長嘅數據
   if (!T || !T.c || T.c.length < 2){ box.innerHTML = ""; return; }
   const n = T.c.length, W = box.clientWidth || 360, H = box.clientHeight || 300, pl = 6, pr = Math.max(64, Math.round(16 + fp(T.c[n - 1]).length * 7.2)), pt = 30, pb = 14, xr = W - pr, K = chartK();   // 右邊夠位放現價（BTC 74,754.08）
-  const lo = K ? Math.min(...T.l) : Math.min(...T.c, ...(T.brk || []).map(b => b.lv)), hi = K ? Math.max(...T.h) : Math.max(...T.c, ...(T.brk || []).map(b => b.lv));
+  const ovv = (ov || []).flatMap(o => o.v.filter(v => v != null));
+  const lo = Math.min(...(K ? T.l : T.c.concat((T.brk || []).map(b => b.lv))), ...ovv), hi = Math.max(...(K ? T.h : T.c.concat((T.brk || []).map(b => b.lv))), ...ovv);
   const step = (xr - pl) / n, X = i => pl + (i + 0.5) * step, Y = v => pt + (1 - (v - lo) / ((hi - lo) || 1)) * (H - pt - pb);
   const BUY = "var(--buy)", STOP = "var(--stop)";
   let g = K ? ckSvg(ckBars(T), X, Y, step, BUY, STOP)
     : `<polyline points="${T.c.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ")}" fill="none" style="stroke:var(--cyan)" stroke-width="1.8" stroke-linejoin="round"/>`;
+  (ov || []).forEach(o => { const p = o.v.map((v, i) => v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean);
+    if (p.length > 1) g += `<polyline class="ta-ma" points="${p.join(" ")}" fill="none" style="stroke:${o.col}" stroke-width="1.4" stroke-dasharray="4 3"/>`; });
   (T.brk || []).forEach(b => {                       // BOS／MSS：由轉角位畫到收穿嗰支，中間寫名
     const col = b.dir > 0 ? BUY : STOP, y = Y(b.lv), x0 = X(b.s), x1 = X(b.i);
     g += `<line x1="${x0.toFixed(1)}" x2="${x1.toFixed(1)}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:${col}" stroke-width="1.6"/>`
@@ -4347,7 +4369,7 @@ function bind(){
     if (!d || d < "2017-01-05"){ noteBox("開始日期要喺 2017-01-05 之後"); return; }
     S.cm = {capital: cap, start: d, wb: isFinite(wb) ? wb : 50, lev: lev === 2 ? 2 : 1}; save(); render("f"); });
   on("#cmClear", async () => { if (await askBox("清除加密模型倉設定？")){ S.cm = null; save(); render("f"); } });
-  on("#btcReload", () => { fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
+  on("#btcReload", () => { if (cloudBusy()) return; fetchBtc(); fetchFng(); fetchHyper(); fetchFeeds(true); if (S.ghToken) cloudRefresh(); });
   document.querySelectorAll("[data-nt]").forEach(b => b.onclick = () => { NT = b.dataset.nt; try{localStorage.setItem(KEY+"-nt",NT);}catch(e){} render("f"); window.scrollTo(0, 0); });
   document.querySelectorAll("[data-ncat]").forEach(b => b.onclick = () => { NCAT = b.dataset.ncat; render("f"); });
   document.querySelectorAll("[data-hmode]").forEach(b => b.onclick = () => { HMODE = b.dataset.hmode; try{localStorage.setItem(KEY+"-hmode",HMODE);}catch(e){} render("f"); });

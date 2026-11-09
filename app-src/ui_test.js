@@ -429,11 +429,15 @@ v0.scrollTop = 0; await sleep(60);
   if (TABS.cry && (ST.sub.cry || 0) !== 0) { segTo(vc.querySelector('[data-segb="0"]')); await sleep(340); }
   await until(() => !!vc.querySelector("#cryK .cry-hero svg"), 8000); const card = vc.querySelector("#cryK"), hb = card && card.querySelector(".cry-hero");
   ok("加密頁有 BTC 走勢卡", !!card && card.querySelector("b").textContent.includes("BTC"));
-  ok("線：一年收市 + 100 日線", hb.querySelectorAll("svg polyline").length === 2 && card.querySelector(".cry-leg").textContent.includes("100 日線"), hb.querySelectorAll("svg polyline").length);
+  ok("線：一年收市 + 100 日線 + 200 日線", hb.querySelectorAll("svg polyline").length === 3 && ["100 日線", "200 日線"].every(s => card.querySelector(".cry-leg").textContent.includes(s)), hb.querySelectorAll("svg polyline").length);
+  ok("加密頁標題下面講明「重新整理」做乜", /撳「重新整理」/.test((vc.querySelector("#btcReload").closest(".row").nextElementSibling || {}).textContent || ""));
+  { const ai = [...vc.querySelectorAll(".card")].find(c => (c.querySelector(".lbl") || {}).textContent?.startsWith("AI 加密重點"));
+    ok("AI 加密重點卡頂有更新時間", !ai || /\d\d:\d\d 更新/.test(ai.querySelector(".row").textContent), ai && ai.querySelector(".row").textContent); }
   hb.querySelector('[data-ck="1"]').click(); await sleep(150);
   const BT = await (await fetch(BASE + "feeds/btc.json")).json(), T0 = BT.kl.BTC.ta;
   ok("K 線：近 120 日日 K + BOS／MSS（同股票技術圖一樣）", hb.querySelectorAll("svg rect").length === T0.c.length && [...hb.querySelectorAll("svg text")].some(t => t.textContent === "BOS" || t.textContent === "MSS"), hb.querySelectorAll("svg rect").length);
   ok("K 線下面有 ADR、距 52 週高、距 50 日線", ["ADR", "距 52 週高", "距 50 日線"].every(s => card.querySelector(".cry-leg").textContent.includes(s)));
+  ok("K 線都有 100／200 日線", hb.querySelectorAll("svg polyline.ta-ma").length === 2 && card.querySelector(".cry-leg").textContent.includes("200 日線"), hb.querySelectorAll("svg polyline.ta-ma").length);
   card.querySelector('[data-crys="ETH"]').click(); await until(() => (vc.querySelector("#cryK b") || {}).textContent === "ETH 走勢", 3000); await sleep(150);
   const hb2 = vc.querySelector("#cryK .cry-hero"); ok("轉 ETH", hb2.dataset.crysym === "ETH" && hb2.querySelectorAll("svg rect").length === BT.kl.ETH.ta.c.length);
   hb2.querySelector("[data-kv]").click(); await sleep(200); const KS = LG.kvState();
