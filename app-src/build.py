@@ -132,6 +132,7 @@ def build_html(test=False):
         rep('let S = load(), SCAN = null, TAB = "today", ERR = null;', 'let S = load(), SCAN = null, TAB = "today", ERR = null;if(window.__DATA_BASE)S.dataUrl=window.__DATA_BASE+"scan.json";')
         rep('const IN_APK = /; wv\\)/.test(navigator.userAgent);', 'const IN_APK = new URLSearchParams(location.search).has("apk");')   # ?apk 扮 APK，試複製、貼上設定
         rep('await fetch(b + "btc.json?t="', 'await fetch((window.__DATA_BASE ? window.__DATA_BASE + "feeds/" : b) + "btc.json?t="')   # 2026-11-09：加密頁 BTC／ETH K 線用快照（snap/feeds/btc.json）
+        rep(r'S.liveUrl.replace(/intraday\.json(\?.*)?$/, "kline/")', r'(window.__DATA_BASE ? window.__DATA_BASE + "kline/" : S.liveUrl.replace(/intraday\.json(\?.*)?$/, "kline/"))')   # 盤中 K 線用快照（snap/kline）
     cut("// 左右掃切換分頁", "let DATA_AT = 0;")   # 手勢由殼負責
     cut("// ───────────────────────── 開 app 動畫", "fetchScan();\nfetchModel();")   # 入 app 動畫同 service worker 註冊由殼負責
     rep('TAB !== "today"){ TAB = "today"; render("f"); window.scrollTo(0, 0); } });', 'TAB !== "today"){ go("today"); } });')
@@ -168,7 +169,7 @@ return {
   extras:()=>{const F=SCAN&&SCAN.fear,B=SCAN&&SCAN.bounce;return (F&&(F.active||F.vix>=25)?fearCard():"")+(B&&B.zone&&B.signal&&B.signal.active?bounceCard():"");},
   openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,exportBox,pasteBox,
   openCoin,coinMatch,fetchCoins,crItem,chartK,setChartK,ckBars,ckSvg,ckSeg,fp,   // 2026-11-09：加密研究、打字建議、線／K 線
-  kvOpen,kvClose,kvIsOpen,kvPop,kvBrk,kvSeries,kvAgg,kvState:()=>KV,   // 2026-11-09：K 線全螢幕（shell 返回鍵、測試用）
+  kvOpen,kvClose,kvIsOpen,kvPop,kvBrk,kvBuild,kvAgg,kvState:()=>KV,   // 2026-11-09：K 線全螢幕（shell 返回鍵、測試用）
   reload:()=>Promise.allSettled([fetchScan(),fetchModel(),fetchFeeds(true)])
 };
 })();

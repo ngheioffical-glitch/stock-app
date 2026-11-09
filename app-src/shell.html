@@ -719,7 +719,7 @@ function evTaDraw(el,T){
   evBind(el);
 }
 function evDraw(el){
-  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);el._kv=EV;el._kvT="納指 100"; // 全螢幕 K 線（LG.kvOpen）用成份數據（兩年日 K + 2010 年起週月 K）
+  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);el._kv=EV;el._kvT="納指 100";el._kvK="MARKET"; // 全螢幕 K 線（LG.kvOpen）用成份數據（兩年日 K + 2010 年起週月 K）
   const TA=LG.chartK()&&EV.ta&&EV.ta.c&&EV.ta.c.length>1&&["o","h","l"].every(k=>(EV.ta[k]||[]).length===EV.ta.c.length);
   if(el.parentElement)el.parentElement.classList.toggle("ev-k",!!TA);
   if(TA)return evTaDraw(el,EV.ta);
@@ -835,6 +835,8 @@ function headHTML(){
   const d=`納指收 ${n0(D.ndx.c)}，200 日線 ${n0(D.ndx.s200)}。`+(Y?(Y.kind==="sell"?"可能就快要賣 TQQQ，撳入去睇點解。":"可能就快要買返 TQQQ，撳入去睇點解。"):(D.green?"趨勢照揸。":"紅燈：領導股賣晒、趨勢腳揸 IEF。"));
   return `<h2 class="head rise"><button data-p="card" data-sheet="warn"><span class="head-t">${t}</span><span class="head-d">${d}</span><span class="head-m">${Y?(Y.kind==="sell"?"轉紅燈要做乜 ›":"幾時買返 ›"):"燈號點計 ›"}</span></button></h2>`;
 }
+// 2026-11-09 老師：「模型賬戶點解出現喺今日頁面？唔喺應該策略頁面咩？」→ 模型帳戶卡（撳住掃、切時段）搬去策略頁「我嘅帳戶」頂（acctCard）；
+// 「市況一覽擺今日2件事下面」→ 擺「今日 N 件事」（同恐慌／反彈訊號）下面
 function todayInner(){
   if(!D)return `<header class="lgt"><h1 class="mast" id="mast">龍頭突破</h1><p class="mast-d">載入緊數據…</p></header>${lgSec("alerts")}<div class="lg lg-sec"><div class="skel"></div><div class="skel s2"></div><div class="skel s3"></div></div>`;
   const dt=new Date(D.asof+"T12:00:00"),left=D.todo.length-D.todo.filter(t=>ST.done.has(t.key)).length;
@@ -844,15 +846,11 @@ function todayInner(){
   <div data-live="ai"></div>
   <section class="card todo rise${D.todo.length&&!left?" alldone":""}" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">${left?`仲有 ${left} 件`:"做晒，等收市"}</span></div>${D.todo.map(itRow).join("")}<p class="note"><b class="num">${esc(D.ver||"")} · ${esc(D.next||"")}</b>。${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
   ${lgSec("extras")}
-  <section class="card acct rise" id="acct"><span class="acct-lab" id="acctLab">模型帳戶 · 今年</span><b class="hero num up" id="acctNum">${sg(D.ret.ytd)}</b>
-    <div class="row3"><div><b>${ch(D.ret.day)}</b>上一日</div><div><b class="num dn">${sg(D.ret.dd)}</b>由高位</div><div><b class="num">${pc(D.cash,0)}</b>現金</div></div>
-    <div class="scrub" id="scrub" role="img" aria-label="模型帳戶回報曲線；撳住左右掃睇每日"></div>
-    <div class="seg seg-s" id="rng" role="group" aria-label="時段"><i class="seg-ind"></i>${RANGES.map((r,i)=>`<button data-p="seg" data-rng="${i}" aria-selected="${i===2}">${r.l}</button>`).join("")}</div></section>
+  <h2 class="sec">市況一覽 <small>撳入去睇詳細</small></h2>${lgSec("tiles")}
   <h2 class="sec rise">你盤錢喺邊 <small>現金 ${pc(D.cash,0)}</small></h2>
   <div class="alloc rise" id="alloc" role="img" aria-label="四隻腳比重：${LEGS.map(l=>l.name+pc(l.f,0)).join("、")}">${LEGS.map(l=>`<i class="leg-${l.k}" style="flex:${l.f}"></i>`).join("")}</div>
   <div class="pots">${LEGS.map(l=>`<button class="pot pot-${l.k}" data-p="card" data-leg="${l.k}"><span class="pot-n"><i class="dot leg-${l.k}"></i>${l.name}</span><span class="pot-v num">${pc(l.f,0)}</span><span class="pot-l">${l.line}</span></button>`).join("")}</div>
   <h2 class="sec">大市燈號</h2>${lgSec("light")}
-  <h2 class="sec">市況一覽 <small>撳入去睇詳細</small></h2>${lgSec("tiles")}
   <div id="evSlot">${evCard()}</div>
   ${lgSec("cand")}`;
 }
@@ -883,7 +881,7 @@ function todayRender(){
   const v=VIEWS.today;if(!v)return;
   const top=v.scrollTop;
   v.querySelector(".inner").innerHTML=todayInner();
-  if(D){initAcct(v);v.querySelectorAll(".evch").forEach(el=>{evDraw(el);evReveal(el);});}
+  if(D){v.querySelectorAll(".evch").forEach(el=>{evDraw(el);evReveal(el);});}
   todayLive();
   v.scrollTop=top;paintBar(v);
 }
@@ -987,8 +985,13 @@ function setRange(i){
 
 // ───── 其他分頁：全部用engine 嘅程式（build.py 抽入嚟），功能同數據同engine 一樣；新介面負責殼、顏色同手勢
 const holdRow=(h,i,first)=>`<button class="hr ${first?"first":""}" data-p="row" data-hold="${i}"><span class="sw leg-${h.legk}"></span><span class="m"><b class="num" data-fly>${esc(h.sym)}</b><small>${esc(h.leg)} · 佔 ${pc(h.w,0)}</small></span><span class="r">${ch(h.ret)}<small class="num">買入 ${n2(h.entry)}</small></span></button>`;
-function navChart(h){const b=D.nav.v[0];return chart([{name:"模型帳戶",v:D.nav.v.map(x=>x/b-1),color:"var(--l1)",last:""}],{d:D.nav.d,h,fmt:v=>sg(v,0),alt:"模型帳戶近一年回報"});}
-const paneTop=key=>key==="model:follow"&&D?`<section class="card" style="margin-bottom:14px"><div class="lg-row" style="margin:0 0 6px">模型帳戶 · 近一年回報</div><div class="g4" style="margin-bottom:10px"><div><span>今年</span><b class="${D.ret.ytd>=0?"up":"dn"}">${sg(D.ret.ytd,0)}</b></div><div><span>1 個月</span><b class="${D.ret.m1>=0?"up":"dn"}">${sg(D.ret.m1,0)}</b></div><div><span>1 年</span><b class="${D.ret.y1>=0?"up":"dn"}">${sg(D.ret.y1,0)}</b></div><div><span>由高位</span><b class="dn">${sg(D.ret.dd,0)}</b></div></div>${navChart(130)}</section>`:"";
+// 模型帳戶卡（2026-11-09 由今日頁搬嚟策略頁「我嘅帳戶」頂）：撳住左右掃睇每日、切時段（initAcct）
+const acctCard=()=>`<section class="card acct" id="acct" style="margin-bottom:14px"><span class="acct-lab" id="acctLab">模型帳戶 · 今年</span><b class="hero num up" id="acctNum">${sg(D.ret.ytd)}</b>
+    <div class="row3"><div><b>${ch(D.ret.day)}</b>上一日</div><div><b class="num dn">${sg(D.ret.dd)}</b>由高位</div><div><b class="num">${pc(D.cash,0)}</b>現金</div></div>
+    <div class="scrub" id="scrub" role="img" aria-label="模型帳戶回報曲線；撳住左右掃睇每日"></div>
+    <div class="seg seg-s" id="rng" role="group" aria-label="時段"><i class="seg-ind"></i>${RANGES.map((r,i)=>`<button data-p="seg" data-rng="${i}" aria-selected="${i===A.i}">${r.l}</button>`).join("")}</div></section>`;
+const paneTop=key=>key==="model:follow"&&D?acctCard():"";
+const acctInit=pane=>{if(D&&pane.querySelector("#scrub"))initAcct(pane);};
 function initTabs(){ // 細分頁跟engine 嘅 GROUPS，佢加新細分頁呢度自動有；策略頁入面嘅兩頁engine 用 MTAB
   const G=LG.GROUPS;
   TABS={strat:{title:"策略",sub:["我嘅帳戶","歷史"],keys:["model:follow","model:hist"]}};
@@ -1013,7 +1016,7 @@ function lgAttach(tab){
   if(lgHost!==pane){lgFreeze();}
   pane.innerHTML=paneTop(key);pane.appendChild(lgWrap);lgHost=pane;
   if(m)LG.setMtab(m);LG.setTab(t);LG.render();
-  drawCharts(pane);
+  drawCharts(pane);acctInit(pane);
 }
 function lgToday(){if(!lgHost)return;lgFreeze();lgPark.appendChild(lgWrap);lgHost=null;LG.setTab("today");LG.render();}
 function lgSync(){if(Pu.setting)return;cur==="today"?lgToday():lgAttach(cur);}
@@ -1022,7 +1025,7 @@ function lgFill(tab){ // 未去過嘅頁都砌好靜態內容，第一次掃過�
   const pane=view(tab).querySelector(".pane");if(pane===lgHost)return;
   const key=lgKey(tab),[t,m]=key.split(":");
   let h="";try{h=LG.html(t,m);}catch(e){return;}
-  pane.innerHTML=paneTop(key)+`<div class="lg lg-static" inert><main>${h}</main></div>`;stripIds(pane);drawCharts(pane);
+  pane.innerHTML=`<div class="lg lg-static" inert><main>${h}</main></div>`;stripIds(pane);pane.insertAdjacentHTML("afterbegin",paneTop(key));drawCharts(pane);acctInit(pane); // 帳戶卡唔拎走 id（全個 app 得一張）
 }
 function lgPrefill(){const idle=window.requestIdleCallback||(f=>setTimeout(f,200));(function next(i){if(i<ORDER.length)idle(()=>{lgFill(ORDER[i]);next(i+1);});})(0);}
 function segMark(tab){const seg=view(tab).querySelector(".seg"),i=ST.sub[tab]||0;seg.querySelectorAll("button").forEach((b,j)=>b.setAttribute("aria-selected",j===i));moveInd(seg,false,seg.querySelector(`[data-segb="${i}"]`));}
@@ -1061,7 +1064,7 @@ function view(tab){
   viewsEl.appendChild(v);VIEWS[tab]=v;
   v.addEventListener("scroll",()=>onScroll(v),{passive:true});
   bindPTR(v);
-  if(tab==="today"&&D){initAcct(v);v.querySelectorAll(".evch").forEach(el=>{evDraw(el);evReveal(el);});}
+  if(tab==="today"&&D){v.querySelectorAll(".evch").forEach(el=>{evDraw(el);evReveal(el);});}
   v.querySelectorAll(".seg").forEach(s=>moveInd(s,true));
   return v;
 }
@@ -1511,7 +1514,7 @@ const Lc={on:false,anims:[],timers:[]};
 const lcA=(el,fr,o)=>{const a=el.animate(fr,{duration:T(o.d),delay:o.dl?T(o.dl):0,easing:o.e||EASE,fill:o.f||"both"});Lc.anims.push(a);return a;};
 const lcT=(f,ms)=>{const t=setTimeout(()=>{if(Lc.on)f();},T(ms));Lc.timers.push(t);return t;};
 function lcData(maxMs,f){const t0=performance.now();const tick=()=>{if(D||performance.now()-t0>=T(maxMs))return f();lcT(tick,40);};tick();} // 數據到就行，最多等 maxMs
-function lcLand(v){stagger(v,".rise",40,45,6);if(D){heroCount();acctDrawOn(160);const al=v.querySelector("#alloc");if(al)anim(al,[{clipPath:"inset(0 100% 0 0)"},{clipPath:"inset(0 0 0 0)"}],{d:600,dl:320,f:"backwards"});}}
+function lcLand(v){stagger(v,".rise",40,45,6);if(D){const al=v.querySelector("#alloc");if(al)anim(al,[{clipPath:"inset(0 100% 0 0)"},{clipPath:"inset(0 0 0 0)"}],{d:600,dl:320,f:"backwards"});}}
 const ICON=`<svg class="sp-icon" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="96" fill="#0d6b58"/><line class="ic-r" x1="96" y1="200" x2="330" y2="200" stroke="#e2f1eb" stroke-width="10" stroke-dasharray="18 16"/><path class="ic-l" pathLength="1" d="M96 360 L200 280 L268 318 L400 170" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><path class="ic-a" pathLength="1" d="M330 170 H400 V240" fill="none" stroke="#fff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 function lcRun(v){
   const ic=splash.querySelector(".sp-icon"),r=ic.querySelector(".ic-r"),l=ic.querySelector(".ic-l"),ar=ic.querySelector(".ic-a"),win=splash.querySelector(".sp-win");
@@ -1593,7 +1596,7 @@ function shellBoot(){
   if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{Object.values(VIEWS).forEach(v=>v.querySelectorAll(".seg").forEach(s=>moveInd(s,true)));});
   let rzT;addEventListener("resize",()=>{clearTimeout(rzT);rzT=setTimeout(relayout,160);});
 }
-const relayout=()=>{pgAbort();pushEl.querySelectorAll(".evch").forEach(evDraw);Object.values(VIEWS).forEach(v=>{v.querySelectorAll(".seg").forEach(s=>moveInd(s,true));drawCharts(v);v.querySelectorAll(".evch").forEach(evDraw);});if(A.el&&A.el.clientWidth!==A.W){const v=VIEWS.today;A.W=A.el.clientWidth;const i=A.i;initAcctRe(v,i);}};
+const relayout=()=>{pgAbort();pushEl.querySelectorAll(".evch").forEach(evDraw);Object.values(VIEWS).forEach(v=>{v.querySelectorAll(".seg").forEach(s=>moveInd(s,true));drawCharts(v);v.querySelectorAll(".evch").forEach(evDraw);});if(A.el&&A.el.isConnected&&A.el.clientWidth&&A.el.clientWidth!==A.W){const v=A.el.closest(".pane")||VIEWS.strat;A.W=A.el.clientWidth;const i=A.i;initAcctRe(v,i);}}; // 帳戶卡喺策略頁（2026-11-09）
 function initAcctRe(v,i){A.i=i;const old=A.el;const fresh=old.cloneNode(false);old.replaceWith(fresh);initAcct(v);}
 </script>
 <script>

@@ -158,7 +158,7 @@ touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 20, sy0 - 18); o
   touch(sf, "touchstart", sx0, sy0); touchNC(sf, "touchmove", sx0 - 60, sy0); ok("瀏覽器已經開始碌（唔可以取消）就唔搶", !Pg.active); touch(sf, "touchmove", sx0 - 200, sy0); ok("之後都唔搶", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); await sleep(40);
   touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 8, sy0 - 3); ok("未過 10px 唔決定", !Pg.active); touch(sf, "touchmove", sx0 - 24, sy0 - 4); ok("過咗先決定：明顯橫就左右", Pg.active); await sleep(130); touch(sf, "touchend", sx0 - 24, sy0 - 4); await pgIdle(); await sleep(320);
   touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 12, sy0); touch(sf, "touchmove", sx0 - 20, sy0); touch(sf, "touchend", sx0 - 20, sy0); await pgIdle(); ok("快掃未夠 25px 唔轉", plain("today"), pgInfo()); await sleep(320); }
-for (const [nm, el] of [["帳戶曲線", A.el], ["時段掣", A.seg], ["事件線", v0.querySelector(".evch")]]) { touch(el, "touchstart", sx0, sy0); touch(el, "touchmove", sx0 - 14, sy0); touch(el, "touchmove", sx0 - 200, sy0); ok(`喺${nm}上面掃唔轉頁`, !Pg.active && cur === "today"); touch(el, "touchend", sx0 - 200, sy0); await sleep(30); }
+for (const [nm, el] of [["事件線", v0.querySelector(".evch")]]) { /* 帳戶曲線 11-09 搬咗去策略頁（下面「7 曲線」測） */ touch(el, "touchstart", sx0, sy0); touch(el, "touchmove", sx0 - 14, sy0); touch(el, "touchmove", sx0 - 200, sy0); ok(`喺${nm}上面掃唔轉頁`, !Pg.active && cur === "today"); touch(el, "touchend", sx0 - 200, sy0); await sleep(30); }
 touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0, sy0 + 30); ok("下拉先", A_PTR.today.R.on); touch(sf, "touchmove", sx0 - 300, sy0 + 30); ok("下拉緊唔會變橫掃", !Pg.active); touch(sf, "touchend", sx0 - 300, sy0 + 30); await until(() => !A_PTR.today.R.busy && A_PTR.today.R.y < .5, 2500); await sleep(60);
 v0.scrollTop = 200; await sleep(360); await drag(sf, -(PW * .5)); await pgIdle(); await drag(face("strat"), PW * .5); await pgIdle(); ok("掃走掃返記住碌到邊", plain("today") && v0.scrollTop === 200, v0.scrollTop); v0.scrollTop = 0; await sleep(360);
 const rowS = v0.querySelector(".it-open"); await drag(rowS, -60); rowS.click(); ok("由卡上面起手，放手唔會當撳", !Sh.open, Sh.open); await pgIdle(); await sleep(320);
@@ -304,14 +304,25 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
   kb.click(); await sleep(200); const KS = LG.kvState(), kvEl = $("#kv"), cv = kvEl && kvEl.querySelector("canvas");
   ok("撳掣開全螢幕 K 線", LG.kvIsOpen() && kvEl.querySelector(".kv-t b").textContent === "納指 100" && cv.width > 0 && getComputedStyle(kvEl).position === "fixed", [LG.kvIsOpen(), kvEl && kvEl.querySelector(".kv-t b").textContent]);
   ok("全螢幕蓋晒成個畫面", (() => { const r = kvEl.getBoundingClientRect(), P = phone.getBoundingClientRect(); return Math.abs(r.width - P.width) < 2 && Math.abs(r.height - P.height) < 2; })());
-  ok("預設日 K：日數同事件線一樣", KS.tf === "D" && KS.S.c.length === E0.c.length, [KS.tf, KS.S.c.length, E0.c.length]);
-  ok("頂行有最新一日開高低收", kvEl.querySelector(".kv-ohlc").textContent.includes(E0.d.at(-1)) && kvEl.querySelector(".kv-ohlc").textContent.includes("開 "), kvEl.querySelector(".kv-ohlc").textContent);
+  ok("預設日 K：用事件線嘅日數據（盤中可以補多幾日）", KS.tf === "D" && KS.S.c.length >= E0.c.length && KS.S.d[E0.c.length - 1] === E0.d.at(-1), [KS.tf, KS.S.c.length, E0.c.length]);
+  ok("頂行有最新一支開高低收", kvEl.querySelector(".kv-ohlc").textContent.includes(KS.S.d.at(-1)) && kvEl.querySelector(".kv-ohlc").textContent.includes("開 "), kvEl.querySelector(".kv-ohlc").textContent);
   ok("日 K 有 BOS／MSS（app 即場計）", KS.brk.length > 0 && KS.brk.every(b => b.k === "BOS" || b.k === "MSS"));
-  ok("有日 K／週 K／月 K 三個掣", [...kvEl.querySelectorAll("[data-kvtf]")].map(b => b.textContent).join() === "日 K,週 K,月 K");
+  ok("有 1H／4H／日／週／月 五個掣", [...kvEl.querySelectorAll("[data-kvtf]")].map(b => b.textContent).join() === "1H,4H,日,週,月");
+  // 2026-11-09 老師：「K線冇4小時或者一小時嗎？」「K線要繼續更新，唔好淨係停留下載數據」
+  const KL = await (await fetch(BASE + "kline/MARKET.json")).json(); await until(() => KS.liveSt === "ok", 5000);
+  ok("盤中 K 線讀到（雲端 kline/MARKET.json）", KS.liveSt === "ok" && KS.live.h1.c.length === KL.h1.t.length, [KS.liveSt, KS.live && KS.live.h1 && KS.live.h1.c.length]);
+  ok("日 K 用盤中數據補埋最新嗰日", KS.daily.d.at(-1) === KL.h1.t.at(-1).slice(0, 10) && KS.daily.c.at(-1) === KL.h1.c.at(-1), [KS.daily.d.at(-1), KL.h1.t.at(-1)]);
+  ok("開住會定時更新", !!KS.timer);
+  kvEl.querySelector('[data-kvtf="60"]').click(); await sleep(150);
+  ok("1H：雲端 1 小時 K（紐約時間）", KS.tf === "60" && KS.S.c.length === KL.h1.t.length && kvEl.querySelector(".kv-px").textContent.includes("紐約時間"), [KS.tf, KS.S.c.length]);
+  ok("1H 都有 BOS／MSS", KS.brk.length > 0); audit("全螢幕 1H", kvEl);
+  kvEl.querySelector('[data-kvtf="240"]').click(); await sleep(150);
+  ok("4H：每日兩支（09:30、13:30）", KS.tf === "240" && KS.S.c.length === KL.h4.t.length && KS.S.d.slice(-2).map(t => t.slice(11)).join() === "09:30,13:30", KS.S.d.slice(-2));
   kvEl.querySelector('[data-kvtf="W"]').click(); await sleep(120);
-  ok("週 K 用 2010 年起長歷史", KS.tf === "W" && !!E0.long && KS.S.c.length === E0.long.w.c.length && KS.S.d[0] < "2011", [KS.S.c.length, E0.long && E0.long.w.c.length, KS.S.d[0]]);
+  ok("週 K 用 2010 年起長歷史", KS.tf === "W" && !!E0.long && Math.abs(KS.S.c.length - E0.long.w.c.length) <= 1 && KS.S.d[0] < "2011", [KS.S.c.length, E0.long && E0.long.w.c.length, KS.S.d[0]]);
+  ok("週 K 最後一支跟日 K 更新", KS.S.c.at(-1) === KS.daily.c.at(-1));
   ok("週 K 嘅 BOS／MSS 另外計", KS.brk.length > 0 && kvEl.querySelector('[data-kvtf="W"]').getAttribute("aria-pressed") === "true");
-  kvEl.querySelector('[data-kvtf="M"]').click(); await sleep(120); ok("月 K", KS.tf === "M" && KS.S.c.length === E0.long.m.c.length && KS.S.c.at(-1) === E0.long.m.c.at(-1));
+  kvEl.querySelector('[data-kvtf="M"]').click(); await sleep(120); ok("月 K", KS.tf === "M" && Math.abs(KS.S.c.length - E0.long.m.c.length) <= 1 && KS.S.c.at(-1) === KS.daily.c.at(-1));
   kvEl.querySelector('[data-kvtf="D"]').click(); await sleep(120);
   const cr = cv.getBoundingClientRect(), cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2, bw0 = KS.bw;
   cv.dispatchEvent(new WheelEvent("wheel", {deltaY: -300, clientX: cx, clientY: cy, bubbles: true, cancelable: true})); await sleep(60);
@@ -332,7 +343,7 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
   ok("拖咗返去就出「返最新」", !kvEl.querySelector("[data-kvnow]").hidden);
   ev(cv, "pointerdown", cx, cy, tpI(14)); await sleep(200); ok("短撳未出十字線", !KS.cross); await sleep(340);
   ok("長按出十字線", !!KS.cross); const ol = kvEl.querySelector(".kv-ohlc").textContent; ev(cv, "pointerup", cx, cy, tpI(14));
-  ok("頂行換做十字線嗰支（唔係最新嗰日）", !ol.includes(E0.d.at(-1)) && /\d{4}-\d\d-\d\d 開 /.test(ol), ol);
+  ok("頂行換做十字線嗰支（唔係最新嗰日）", !ol.includes(KS.S.d.at(-1)) && /\d{4}-\d\d-\d\d 開 /.test(ol), ol);
   ev(cv, "pointerdown", cx, cy, tpI(15)); ev(cv, "pointerup", cx, cy, tpI(15)); ev(cv, "pointerdown", cx, cy, tpI(16)); ev(cv, "pointerup", cx, cy, tpI(16)); await sleep(60);
   ok("撳兩下返最新", KS.end >= KS.S.c.length - 1 && kvEl.querySelector("[data-kvnow]").hidden && !KS.cross, [KS.end, KS.S.c.length]);
   const bb = kvEl.querySelector("[data-kvb]"); bb.click(); ok("BOS／MSS 可以收埋", !KS.showB && bb.getAttribute("aria-pressed") === "false"); bb.click();
@@ -372,6 +383,12 @@ v0.scrollTop = 0; await sleep(60);
   ok("加密技術圖全螢幕：用價格圖嘅一年日 K（唔係得 120 日）", LG.kvIsOpen() && KS.title === "ETH" && KS.S.c.length > 300, [KS.title, KS.S && KS.S.c.length]);
   ok("加密 tick 用收市中位數 × 0.00001", KS.tick > 0.001 && KS.tick < 1, KS.tick);
   $("#kv [data-kvtf=\"W\"]").click(); await sleep(100); ok("加密週 K 用長歷史（幾年）", KS.S.c.length > 200, KS.S.c.length);
+  ok("加密直接攞 Coinbase（ETH-USD）", KS.cb === "ETH" && !KS.key);
+  $("#kv [data-kvtf=\"60\"]").click(); await until(() => KS.tf === "60", 12000);
+  ok("加密 1H：Coinbase 1 小時 K（香港時間）", KS.tf === "60" && KS.S.c.length > 500 && $("#kv .kv-px").textContent.includes("香港時間"), [KS.tf, KS.liveSt, KS.S.c.length]);
+  $("#kv [data-kvtf=\"240\"]").click(); await sleep(150);
+  ok("加密 4H：1H 合併（香港時間 00／04／08…）", KS.tf === "240" && KS.S.c.length > 120 && KS.S.d.slice(-3).every(t => +t.slice(11, 13) % 4 === 0 && t.slice(14) === "00"), KS.S.d.slice(-3));
+  ok("加密日 K 用 Coinbase 補到今日", KS.daily.d.at(-1) >= new Date().toISOString().slice(0, 10), KS.daily.d.at(-1));
   history.back(); await until(() => !LG.kvIsOpen(), 2000); await sleep(250); ok("返回鍵收全螢幕：加密報告仲喺度", !LG.kvIsOpen() && !$("#rs").hidden);
   LG.kvState().tf = "D";   // 下一個測試由日 K 開始（全螢幕會記住上次揀嘅 timeframe）
   LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(120); }
@@ -388,7 +405,7 @@ v0.scrollTop = 0; await sleep(60);
   card.querySelector('[data-crys="ETH"]').click(); await until(() => (vc.querySelector("#cryK b") || {}).textContent === "ETH 走勢", 3000); await sleep(150);
   const hb2 = vc.querySelector("#cryK .cry-hero"); ok("轉 ETH", hb2.dataset.crysym === "ETH" && hb2.querySelectorAll("svg rect").length === BT.kl.ETH.ta.c.length);
   hb2.querySelector("[data-kv]").click(); await sleep(200); const KS = LG.kvState();
-  ok("ETH 走勢開全螢幕：兩年日 K", LG.kvIsOpen() && KS.title === "ETH" && KS.S.c.length === BT.kl.ETH.c.length, [KS.title, KS.S && KS.S.c.length]);
+  ok("ETH 走勢開全螢幕：兩年日 K", LG.kvIsOpen() && KS.title === "ETH" && KS.S.c.length >= BT.kl.ETH.c.length && KS.S.d[BT.kl.ETH.c.length - 1] === BT.kl.ETH.d.at(-1), [KS.title, KS.S && KS.S.c.length]);
   $("#kv [data-kvx]").click(); await until(() => !LG.kvIsOpen() && HS.ignore === 0, 2000); await sleep(200);
   ok("加密卡冇橫向出界", vc.scrollWidth - vc.clientWidth <= 1); audit("加密走勢卡", vc.querySelector("#cryK"));
   vc.querySelector('#cryK [data-crys="BTC"]').click(); await sleep(200); vc.querySelector('#cryK [data-ck="0"]').click(); await sleep(100);
@@ -404,13 +421,23 @@ v0.scrollTop = 0; await sleep(60);
   chip("news").click(); await sleep(300);
   go("today"); await until(() => cur === "today" && !Pg.active); await sleep(150); }
 
-// ───── 7 曲線
+// ───── 7 曲線（2026-11-09 老師：「模型賬戶點解出現喺今日頁面？唔喺應該策略頁面咩？」→ 帳戶卡喺策略頁「我嘅帳戶」頂）
+ok("今日頁冇模型帳戶卡", !v0.querySelector("#acct") && !v0.textContent.includes("模型帳戶 ·"));
+{ const kids = [...v0.querySelector(".inner").children], ti = kids.indexOf(v0.querySelector("#todo")), mi = kids.findIndex(e => e.matches("h2.sec") && e.textContent.startsWith("市況一覽"));
+  ok("市況一覽擺「今日 N 件事」下面（中間淨係恐慌／反彈訊號）", ti >= 0 && mi > ti && kids.slice(ti + 1, mi).every(e => e.matches('[data-live="extras"]')), [ti, mi]);
+  const ai = kids.findIndex(e => e.matches('[data-live="ai"]')); ok("次序：AI 三件事 → 今日 N 件事 → 市況一覽", ai >= 0 && ai < ti && !!v0.querySelector('[data-live="tiles"]').childElementCount); }
+go("strat"); await until(() => cur === "strat" && !Pg.active); await sleep(150);
+if ((ST.sub.strat || 0) !== 0) { segTo(view("strat").querySelector('[data-segb="0"]')); await sleep(340); }
+await until(() => !!(A.el && A.el.isConnected && view("strat").contains(A.el) && A.el.querySelector("svg")), 6000); await sleep(200);
+ok("策略頁「我嘅帳戶」頂有模型帳戶卡", view("strat").querySelector(".pane #acct") && view("strat").querySelector(".pane").firstElementChild.id === "acct" && A.num.textContent === sg(D.ret.ytd), A.num && A.num.textContent);
 const sc = A.el, rc = sc.getBoundingClientRect();
 ev(sc, "pointerdown", rc.left + 60, rc.top + 50); ok("掃圖：大數字跟手指", sc.classList.contains("on") && /^\d{4}-/.test(A.lab.textContent), A.lab.textContent);
 const n1 = A.num.textContent; ev(sc, "pointermove", rc.left + rc.width - 20, rc.top + 50); ok("掃到另一日數字變", A.num.textContent !== n1);
 ev(sc, "pointerleave", rc.left - 10, rc.top); ok("放手返今日", !sc.classList.contains("on") && A.num.textContent === sg(D.ret.ytd), A.num.textContent);
 for (const [i, want] of [[0, D.ret.m1], [3, D.ret.y1], [2, D.ret.ytd]]) { A.seg.querySelector(`[data-rng="${i}"]`).click(); await until(() => A.num.textContent === sg(want), 20000); ok(`時段 ${RANGES[i].l} 數字啱`, A.num.textContent === sg(want), A.num.textContent); ok(`時段 ${RANGES[i].l} 顏色跟正負`, sc.classList.contains("neg") === (want < 0) && A.num.classList.contains(want < 0 ? "dn" : "up")); }
-await sleep(400);
+{ const sv = view("strat"); touch(sc, "touchstart", sx0, sy0); touch(sc, "touchmove", sx0 - 14, sy0); touch(sc, "touchmove", sx0 - 200, sy0); ok("喺帳戶曲線上面掃唔轉頁", !Pg.active && cur === "strat"); touch(sc, "touchend", sx0 - 200, sy0); await sleep(30);
+  ok("帳戶卡冇橫向出界", sv.scrollWidth - sv.clientWidth <= 1); }
+await sleep(400); go("today"); await until(() => cur === "today" && !Pg.active); await sleep(200);
 
 // ───── 8 剔走
 const s1 = D.todo[0].key, s2 = D.todo[1].key, it = v0.querySelector(`[data-it="${s1}"]`), c = document.querySelector("#todoC");
@@ -439,7 +466,7 @@ ok("每個細分頁都有內容", allSubs.every(k => Object.keys(SUBLEN).some(x 
 // 策略頁：跟單（我嘅帳戶）同歷史
 const vs = view("strat"); go("strat"); await until(() => onv().join() === "strat"); await sleep(120);
 ok("策略頁係正式 app 嘅我嘅帳戶", vs.querySelector("#app") && vs.querySelector(".pane").textContent.length > 200);
-ok("策略頁有帳戶曲線", !!vs.querySelector(".pane .ch[data-ch]"));
+ok("策略頁有帳戶曲線（模型帳戶卡，11-09 由今日頁搬嚟）", !!vs.querySelector(".pane #acct #scrub svg"));
 vs.querySelector('[data-segb="1"]').click(); await sleep(340); await settled(vs.querySelector(".pane")); ok("歷史分頁", ST.sub.strat === 1 && vs.querySelector(".pane").textContent.length > 200); vs.querySelector('[data-segb="0"]').click(); await sleep(340);
 // 細分頁掃過去都有靜態內容：鄰頁唔會空白
 { const sv0 = view("stocks"); ok("鄰頁預先有內容", sv0.querySelector(".pane").textContent.trim().length > 20); ok("鄰頁係唔撳得嘅拷貝", !!sv0.querySelector(".pane .lg-static") && !sv0.querySelector(".pane #app")); ok("拷貝冇重複 id", document.querySelectorAll("#app").length === 1 && document.querySelectorAll("#capital").length <= 1); }

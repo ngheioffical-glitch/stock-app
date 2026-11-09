@@ -36,10 +36,19 @@ jobs:
           cache: pip
           cache-dependency-path: scanner/requirements.txt
       - run: pip install -r scanner/requirements.txt
-      - name: 攞上次結果（同日嘅掃描紀錄要接落去）
+      - name: 攞上次結果（同日嘅掃描紀錄要接落去；盤中 K 線上一份）
         run: |
           git fetch -q --depth 1 origin live && git show FETCH_HEAD:intraday.json > prev.json || echo "{}" > prev.json
+          mkdir -p prevlive && (git archive FETCH_HEAD kline 2>/dev/null | tar -x -C prevlive) || true
       - run: python scanner/intraday.py out prev.json
+        env:
+          PYTHONIOENCODING: utf-8
+      # 2026-11-09 老師：「K線冇4小時或者一小時嗎？」「K線要繼續更新」→ 大市同事件線股票嘅 1 小時／4 小時 K（app 全螢幕 K 線用），
+      # 同盤中掃描一齊每個鐘一次（唔再密，老師 10-24「淨係新聞密就得」）；失敗唔阻盤中掃描推送
+      - name: 盤中 K 線（1 小時、4 小時）
+        run: python scanner/kline_live.py out prevlive/kline
+        continue-on-error: true
+        timeout-minutes: 4
         env:
           PYTHONIOENCODING: utf-8
       - name: 推去 live 分支
@@ -48,6 +57,6 @@ jobs:
           git init -q -b live
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add intraday.json
+          git add -A
           git commit -q -m "intraday $(date -u +%FT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" live

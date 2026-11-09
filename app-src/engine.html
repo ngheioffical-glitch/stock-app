@@ -492,6 +492,7 @@ td.small{white-space:normal;min-width:9em;line-height:1.45}
 .kv-tf{display:flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
 .kv-tf button,.kv-bar>button{min-height:36px;min-width:44px;padding:0 12px;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:14px;font-weight:700;box-shadow:none}
 .kv-tf button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.kv-tf button{padding:0 9px}
 .kv-bar>button{border:1px solid var(--line2);border-radius:999px}
 .kv-bar>button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
 .kv-ohlc{padding:4px 14px 2px;font:12px var(--mono);color:var(--muted);min-height:24px;line-height:1.5}
@@ -3032,13 +3033,130 @@ function taSec(T, txt, none){
 // 每幅價格圖「線｜K線」右邊個掣 → 全螢幕：日 K／週 K／月 K；兩隻手指（或者滑鼠轆）放大縮小；一隻手指左右拖睇更早（放手會滑）；
 // 長按出十字線同開高低收；撳兩下返最新。日 K 用嗰幅圖本身嘅日數據（大約兩年）；週 K／月 K 用 chart.long（scanner/bars.py：
 // 股票 2010 年起、加密有幾耐用幾耐），冇就由日 K 合併。BOS／MSS 喺度按 structure.py 同一條規則即場計（每個 timeframe 各自計；
-// tests/test_kline_js.py 用 node 對過同 Python 結果一樣），只供參考。冇分鐘數據，所以冇 1 小時／4 小時。
-const KV = {el: null, src: null, title: "", tick: 0.01, tf: "D", S: null, brk: [], end: 0, bw: 7, cross: null, showB: true,
-  raf: 0, anim: 0, selfBack: false, map: null, onKey: null, onRz: null};
-const KV_TF = [["D", "日 K"], ["W", "週 K"], ["M", "月 K"]];
+// tests/test_kline_js.py 用 node 對過同 Python 結果一樣），只供參考。
+// 同日再加（老師：「K線冇4小時或者一小時嗎？」「K線要繼續更新，唔好淨係停留下載數據」）：1H／4H + 開住就自動更新 ——
+//   股票：雲端 scanner/kline_live.py（盤中掃描每個鐘一次，live 分支 kline/<代號>.json，紐約時間），開住每 5 分鐘再讀；
+//   加密：app 直接攞 Coinbase（佢准網頁讀），每分鐘更新；4H = 1H 合併（UTC 00/04/08… 開始，顯示香港時間），拖到最左會再攞更早。
+//   日 K 用盤中數據補「今日」嗰支（未收市都會郁），週 K／月 K 跟住更新。
+const KV = {el: null, src: null, title: "", key: "", cb: "", tick: 0.01, tf: "D", S: null, brk: [], end: 0, bw: 7, cross: null, showB: true,
+  raf: 0, anim: 0, selfBack: false, map: null, onKey: null, onRz: null, daily: null, live: null, liveSt: "", timer: 0, want: null, old: false, seq: 0};
+const KV_TF = [["60", "1H", "1 小時 K"], ["240", "4H", "4 小時 K"], ["D", "日", "日 K"], ["W", "週", "週 K"], ["M", "月", "月 K"]];
+const kvIntra = tf => tf === "60" || tf === "240";
 const kvIsOpen = () => !!(KV.el && !KV.el.hidden);
+try { if (history.state && history.state.kv) history.replaceState(null, ""); } catch(e){}   // 開住全螢幕重新載入：清走舊嗰格，返回鍵先唔會錯
 const kvPop = () => KV.selfBack || kvIsOpen();          // shell 嘅返回鍵處理問呢個：全螢幕 K 線開緊就唔好收其他頁
-function kvTag(box, title, crypto){ if (!box) return; box._kvT = title; box._kvC = !!crypto; }
+function kvTag(box, title, crypto){ if (!box) return; box._kvT = title; box._kvC = !!crypto; box._kvK = crypto ? "" : title; }
+const kvKlineUrl = k => S.liveUrl.replace(/intraday\.json(\?.*)?$/, "kline/") + encodeURIComponent(k) + ".json";
+const kvHk = ts => new Date((ts + 8 * 3600) * 1000).toISOString().slice(0, 16).replace("T", " ");   // Coinbase 秒 → 香港時間字
+function kvPack(m){ const ks = [...m.keys()].sort((a, b) => a - b), o = {d: [], o: [], h: [], l: [], c: [], ts: []};
+  ks.forEach(k => { const r = m.get(k); o.ts.push(k); o.d.push(kvHk(k)); o.o.push(r[0]); o.h.push(r[1]); o.l.push(r[2]); o.c.push(r[3]); }); return o; }
+function kvH4(h1){                                      // 加密 1H → 4H（UTC 00:00 開始每 4 個鐘）
+  const m = new Map();
+  for (const [t, r] of h1){ const k = Math.floor(t / 14400) * 14400, b = m.get(k);   // b = [開, 高, 低, 收, 最早幾點, 最遲幾點]（Map 唔一定按時間排）
+    if (!b) m.set(k, [r[0], r[1], r[2], r[3], t, t]);
+    else { if (t < b[4]){ b[0] = r[0]; b[4] = t; } if (t > b[5]){ b[3] = r[3]; b[5] = t; } b[1] = Math.max(b[1], r[1]); b[2] = Math.min(b[2], r[2]); } }
+  return m;
+}
+async function kvCb(gran, start, end){                  // Coinbase 公開 K 線：[[秒, 低, 高, 開, 收, 量], …] 新到舊
+  const q = start ? `&start=${new Date(start * 1000).toISOString()}&end=${new Date(end * 1000).toISOString()}` : "";
+  const r = await fetch(`https://api.exchange.coinbase.com/products/${encodeURIComponent(KV.cb)}-USD/candles?granularity=${gran}${q}`, {cache: "no-store"});
+  if (r.status === 404 || r.status === 400) return null;
+  if (!r.ok) throw new Error("Coinbase " + r.status);
+  return await r.json();
+}
+function kvMergeDaily(rows){                            // 盤中／最新日 K 駁落日 K：同一日就換，新日子就加
+  if (!rows.length) return false;
+  const D = KV.daily, pos = new Map(D.d.map((d, i) => [d, i])); let ch = false;
+  for (const [d, o, h, l, c] of rows.sort((a, b) => a[0] < b[0] ? -1 : 1)){
+    if (!(h >= l && l > 0)) continue;
+    const i = pos.get(d);
+    if (i != null){ if (KV.cb && (D.c[i] !== c || D.h[i] !== h || D.l[i] !== l)){ D.o[i] = o; D.h[i] = h; D.l[i] = l; D.c[i] = c; ch = true; } }   // 股票：已收市嘅日 K 用正式數據，唔換
+    else if (d > D.d[D.d.length - 1]){ D.d.push(d); D.o.push(o); D.h.push(h); D.l.push(l); D.c.push(c); pos.set(d, D.d.length - 1); ch = true; }
+  }
+  return ch;
+}
+async function kvLoadLive(){                            // 攞盤中數據（打開、每次更新都行）；結果放 KV.live（h1、h4）同駁落 KV.daily
+  if (KV.loading === KV.seq) return;                    // 上一次未完：唔好疊
+  const seq = KV.seq; KV.loading = seq;
+  try { await kvLoadLive1(seq); } finally { if (KV.loading === seq) KV.loading = 0; }
+}
+async function kvLoadLive1(seq){
+  try {
+    if (KV.cb){
+      if (!KV.live){                                    // 第一次：最近 6 頁 1H（大約 75 日 → 4H 約 450 支）
+        const h1 = new Map(), now = Math.floor(Date.now() / 1000);
+        for (let p = 0; p < 6; p++){
+          const end = now - p * 300 * 3600, rows = await kvCb(3600, end - 300 * 3600, end);
+          if (seq !== KV.seq) return;
+          if (rows == null){ if (!p){ KV.liveSt = "none"; return kvLiveDone(false); } break; }
+          rows.forEach(r => h1.set(r[0], [r[3], r[2], r[1], r[4]]));
+          if (rows.length < 250) break;
+        }
+        KV.live = {h1m: h1, tz: "香港時間"};
+      } else {
+        const rows = await kvCb(3600); if (seq !== KV.seq || !rows) return;
+        rows.forEach(r => KV.live.h1m.set(r[0], [r[3], r[2], r[1], r[4]]));
+      }
+      KV.live.h1 = kvPack(KV.live.h1m); KV.live.h4 = kvPack(kvH4(KV.live.h1m));
+      const dy = await kvCb(86400); if (seq !== KV.seq) return;   // 最新日 K（UTC 日子，同 btc.json／加密研究一樣），今日未完嗰支都要
+      const ch = dy ? kvMergeDaily(dy.slice(0, 40).map(r => [new Date(r[0] * 1000).toISOString().slice(0, 10), r[3], r[2], r[1], r[4]])) : false;
+      KV.liveSt = "ok"; kvLiveDone(ch);
+    } else if (KV.key){
+      const r = await fetch(kvKlineUrl(KV.key) + "?t=" + Math.floor(Date.now() / 60e3), {cache: "no-store"});
+      if (seq !== KV.seq) return;
+      if (!r.ok){ KV.liveSt = "none"; return kvLiveDone(false); }
+      const j = await r.json(), mk = p => p && p.t && p.t.length > 1 ? {d: p.t, o: p.o, h: p.h, l: p.l, c: p.c} : null;
+      KV.live = {h1: mk(j.h1), h4: mk(j.h4), tz: "紐約時間", at: j.at};
+      const byDay = new Map();                          // 盤中 1H → 每日（用嚟補今日嘅日 K）
+      (j.h1 && j.h1.t || []).forEach((t, i) => { const d = t.slice(0, 10), b = byDay.get(d);
+        if (!b) byDay.set(d, [d, j.h1.o[i], j.h1.h[i], j.h1.l[i], j.h1.c[i]]); else { b[2] = Math.max(b[2], j.h1.h[i]); b[3] = Math.min(b[3], j.h1.l[i]); b[4] = j.h1.c[i]; } });
+      const ch = kvMergeDaily([...byDay.values()]);
+      KV.liveSt = KV.live.h1 ? "ok" : "none"; kvLiveDone(ch);
+    } else { KV.liveSt = "none"; kvLiveDone(false); }
+  } catch(e){ if (seq === KV.seq){ KV.liveSt = KV.live ? "ok" : "err"; kvLiveDone(false); } }
+}
+function kvLiveDone(dailyChanged){
+  if (!kvIsOpen()) return;
+  if (KV.want && kvIntra(KV.want)){ const w = KV.want; KV.want = null; if (KV.live && KV.live[w === "60" ? "h1" : "h4"]) return kvSet(w); kvMsg(); return; }
+  if (kvIntra(KV.tf) || dailyChanged) kvRefresh();
+}
+function kvMsg(){                                       // 頂行顯示 4 秒（kvDraw 會照顯示，之後返開高低收）
+  KV.note = {t: KV.liveSt === "none" ? (KV.cb ? "Coinbase 冇呢隻幣，冇 1 小時／4 小時 K。" : "呢隻未有 1 小時／4 小時 K（雲端開市時間每個鐘更新大市同事件線股票）。")
+    : KV.liveSt === "err" ? "攞唔到盤中數據，遲啲再試。" : "載入緊盤中 K 線…", until: performance.now() + 4000};
+  kvReq(); setTimeout(kvReq, 4100); }
+function kvRefresh(){                                   // 數據更新：重計但唔郁你睇緊嘅位置（喺最新就跟住最新）
+  if (!KV.S) return;
+  const n0 = KV.S.c.length, atEnd = KV.end >= n0 - 1.5, S = kvBuild(KV.tf); if (!S) return;
+  const add = KV.old ? S.c.length - n0 : 0; KV.old = false;
+  KV.S = S; KV.brk = kvBrk(S.o, S.h, S.l, S.c, KV.tick); KV.axFor = null;
+  KV.end = atEnd ? S.c.length - 1 + Math.max(0, KV.end - (n0 - 1)) : KV.end + add;
+  kvHead(); kvReq();
+}
+function kvBuild(tf){                                   // 而家揀咗嘅 timeframe 嘅 K 線
+  if (kvIntra(tf)){ const L = KV.live && KV.live[tf === "60" ? "h1" : "h4"]; return L && L.c.length > 1 ? L : null; }
+  if (tf === "D") return KV.daily;
+  const A = kvAgg(KV.daily, tf), L = KV.src.long && KV.src.long[tf === "W" ? "w" : "m"];
+  if (!L || !L.c || L.c.length < 2) return A;
+  const LL = kvDaily(L), j0 = A.d.length > 1 ? 1 : 0, cut = A.d[j0], out = {d: [], o: [], h: [], l: [], c: []}, ks = ["d", "o", "h", "l", "c"];
+  for (let i = 0; i < LL.c.length; i++) if (LL.d[i] < cut) ks.forEach(k => out[k].push(LL[k][i]));   // 長歷史舊嗰段 + 日 K 合併嘅近排（連今日）
+  for (let i = j0; i < A.c.length; i++) ks.forEach(k => out[k].push(A[k][i]));
+  return out;
+}
+function kvHead(){
+  const S = KV.S, n = S.c.length, c = S.c[n - 1], p = S.c[n - 2], px = KV.el.querySelector(".kv-px");
+  if (px) px.innerHTML = n ? `${fp(c)}${n > 1 ? ` <span class="${c >= p ? "up" : "dn"}">${pct(c / p - 1)}</span>` : ""} · ${esc(S.d[n - 1])}${kvIntra(KV.tf) && KV.live ? ` · ${KV.live.tz}` : ""}` : "";
+}
+async function kvLoadOlder(){                           // 加密 1H／4H 拖到最左：再攞早 300 個鐘
+  if (!KV.cb || !KV.live || !KV.live.h1m || KV.loadingOld || KV.noOlder) return;
+  KV.loadingOld = true; const seq = KV.seq;
+  try {
+    const first = Math.min(...KV.live.h1m.keys()), rows = await kvCb(3600, first - 300 * 3600, first - 3600);
+    if (seq !== KV.seq) return;
+    if (!rows || !rows.length){ KV.noOlder = true; return; }
+    rows.forEach(r => KV.live.h1m.set(r[0], [r[3], r[2], r[1], r[4]]));
+    KV.live.h1 = kvPack(KV.live.h1m); KV.live.h4 = kvPack(kvH4(KV.live.h1m)); KV.old = true; kvRefresh();
+  } catch(e){} finally { KV.loadingOld = false; }
+}
 function kvBrk(O, H, L, C, tick){                       // = structure.py analyze() 嘅突破部分（改規則要兩邊一齊改，test_kline_js.py 會對）
   const n = C.length, brk = [], lvl = new Array(n); let swh = null, swl = null, last = 0;
   for (let i = 0; i < n; i++){
@@ -3078,12 +3196,6 @@ function kvAgg(S, tf){                                  // 日 K 合做週 K（�
   }
   return out;
 }
-function kvSeries(src, tf){
-  if (tf === "D") return kvDaily(src);
-  const L = src.long && src.long[tf === "W" ? "w" : "m"];
-  if (L && L.c && L.c.length > 1) return kvDaily(L);
-  return kvAgg(kvDaily(src), tf);
-}
 function kvOpen(box){
   let src = box._kv; if (!src || !src.c) return;
   // 技術圖得 120 日：同一頁有更長嘅價格圖（事件線、研究報告圖）就用嗰份
@@ -3093,25 +3205,30 @@ function kvOpen(box){
   if (hero && !src.long) src = hero._kv;
   KV.src = src; KV.title = box._kvT || src.title || (hero && hero._kvT) || "";
   const crypto = box._kvC || (hero && hero._kvC);
+  KV.seq++; KV.live = null; KV.liveSt = ""; KV.want = null; KV.old = false; KV.note = null; KV.noOlder = false; KV.daily = kvDaily(src);
+  KV.cb = crypto && /^[A-Z0-9]{2,10}$/.test(KV.title) ? KV.title : "";                       // Coinbase 產品：BTC → BTC-USD
+  KV.key = crypto ? "" : (src.key || box._kvK || (hero && hero._kvK) || (/^[A-Z][A-Z0-9.\-]{0,9}$/.test(KV.title) ? KV.title : ""));
   const cs = (src.c || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
   KV.tick = src.tick || (crypto && cs.length ? Math.max(1e-12, cs[cs.length >> 1] * 1e-5) : 0.01);   // 同 scanner 一樣：股票 1 仙；加密 = 收市中位數 × 0.00001
   const el = kvEnsure();
   el.innerHTML = `<div class="kv-top"><button class="kv-x" data-kvx aria-label="返回">${`<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>`}</button>
       <div class="kv-t"><b>${esc(KV.title)}</b><span class="kv-px"></span></div></div>
-    <div class="kv-bar"><div class="kv-tf" role="group" aria-label="時間週期">${KV_TF.map(([k, l]) => `<button data-kvtf="${k}" aria-pressed="false">${l}</button>`).join("")}</div>
+    <div class="kv-bar"><div class="kv-tf" role="group" aria-label="時間週期">${KV_TF.map(([k, l, a]) => `<button data-kvtf="${k}" aria-pressed="false" aria-label="${a}">${l}</button>`).join("")}</div>
       <button data-kvb aria-pressed="${KV.showB}">BOS／MSS</button></div>
     <div class="kv-ohlc" aria-live="polite"></div>
     <div class="kv-cv"><canvas aria-label="K 線圖"></canvas>
       <div class="kv-zm"><button data-kvz="-1" aria-label="縮細">−</button><button data-kvz="1" aria-label="放大">＋</button></div>
       <button class="kv-now" data-kvnow hidden>返最新 ›</button></div>
-    <p class="kv-foot">兩隻手指放大縮細 · 一隻手指左右拖睇更早 · 長按出十字線 · 撳兩下返最新。BOS／MSS 只供參考，唔係買賣訊號。</p>`;
+    <p class="kv-foot">兩隻手指放大縮細 · 一隻手指左右拖睇更早 · 長按出十字線 · 撳兩下返最新。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。BOS／MSS 只供參考，唔係買賣訊號。</p>`;
   el.hidden = false;
-  if (!(history.state && history.state.kv)) history.pushState({kv: 1}, "");
+  history.pushState({kv: 1}, "");                       // 每次開都加一格（返回鍵收佢）
   kvBind(el.querySelector("canvas"));
   KV.onKey = e => { if (e.key === "Escape") kvClose(); }; document.addEventListener("keydown", KV.onKey);
   KV.onRz = () => kvReq(); window.addEventListener("resize", KV.onRz);   // 打橫手機都會重畫
   if (window.ResizeObserver){ KV.ro = new ResizeObserver(() => kvReq()); KV.ro.observe(el.querySelector(".kv-cv")); }
-  kvSet(KV.tf, true);
+  const tf0 = KV.tf; KV.S = null;
+  kvSet(kvIntra(tf0) ? "D" : tf0, true); if (kvIntra(tf0)) KV.want = tf0;   // 上次揀 1H／4H：先出日 K，盤中數據到咗即刻轉
+  kvLoadLive(); clearInterval(KV.timer); KV.timer = setInterval(() => { if (kvIsOpen() && !document.hidden) kvLoadLive(); }, KV.cb ? 60e3 : 300e3);
 }
 function kvEnsure(){
   if (KV.el && KV.el.isConnected) return KV.el;
@@ -3130,22 +3247,25 @@ function kvEnsure(){
 }
 function kvClose(fromPop){
   if (!kvIsOpen()) return;
-  cancelAnimationFrame(KV.anim); cancelAnimationFrame(KV.raf); KV.raf = 0;
+  cancelAnimationFrame(KV.anim); cancelAnimationFrame(KV.raf); KV.raf = 0; clearInterval(KV.timer); KV.timer = 0; KV.seq++;
   KV.el.hidden = true; KV.el.innerHTML = ""; KV.cross = null;
   document.removeEventListener("keydown", KV.onKey); window.removeEventListener("resize", KV.onRz); if (KV.ro){ KV.ro.disconnect(); KV.ro = null; }
   if (!fromPop && history.state && history.state.kv){ KV.selfBack = true; history.back(); }
 }
 function kvSet(tf, first){                              // 轉 timeframe：保持右邊嗰日差唔多喺同一個位
+  const nxt = kvBuild(tf);
+  if (!nxt){                                            // 1H／4H 未到：記低，到咗先轉（kvLiveDone）
+    KV.want = tf; kvMsg(); if (KV.liveSt === "err") kvLoadLive(); return;
+  }
+  KV.want = null; KV.note = null;
   const old = KV.S, atEnd = !old || KV.end >= old.c.length - 1.5, dEnd = old ? old.d[Math.max(0, Math.min(old.c.length - 1, Math.round(KV.end)))] : null;
-  KV.tf = tf; KV.S = kvSeries(KV.src, tf); KV.brk = kvBrk(KV.S.o, KV.S.h, KV.S.l, KV.S.c, KV.tick); KV.cross = null;
+  KV.tf = tf; KV.S = nxt; KV.brk = kvBrk(KV.S.o, KV.S.h, KV.S.l, KV.S.c, KV.tick); KV.cross = null; KV.axFor = null;
   const n = KV.S.c.length;
   KV.el.querySelectorAll("[data-kvtf]").forEach(b => b.setAttribute("aria-pressed", b.dataset.kvtf === tf));
   if (first || !KV.bw) KV.bw = 6;
   if (atEnd || !dEnd) KV.end = n - 1 + 3;
   else { let j = 0; while (j < n - 1 && KV.S.d[j + 1] <= dEnd) j++; KV.end = j; }
-  const S = KV.S, c = S.c[n - 1], p = S.c[n - 2];
-  KV.el.querySelector(".kv-px").innerHTML = n ? `${fp(c)}${n > 1 ? ` <span class="${c >= p ? "up" : "dn"}">${pct(c / p - 1)}</span>` : ""} · ${esc(S.d[n - 1])}` : "";
-  kvReq();
+  kvHead(); kvReq();
 }
 function kvLatest(){ if (!KV.S) return; KV.end = KV.S.c.length - 1 + 3; KV.cross = null; kvReq(); }
 const kvIdx = x => KV.map ? KV.end + 0.5 - (KV.map.pr - x) / KV.bw : KV.end;
@@ -3186,16 +3306,20 @@ function kvDraw(){
   g.lineWidth = 1; g.strokeStyle = LN; g.fillStyle = MUT; g.font = `12px ${MONO}`; g.textBaseline = "middle"; g.textAlign = "left";
   for (let v = Math.ceil(lo / step) * step; v <= hi; v += step){ const y = Math.round(Y(v)) + 0.5; g.beginPath(); g.moveTo(0, y); g.lineTo(pr, y); g.stroke(); g.fillText(kvFmt(v, step), pr + 6, y); }
   // 時間刻度：揀一個唔會太密嘅層（月 → 季 → 年 → 兩年 → 五年）
-  const lv = KV.tf === "M" ? [12, 24, 60, 120] : [1, 3, 12, 24, 60];
-  const mon = s => +s.slice(0, 4) * 12 + +s.slice(5, 7) - 1;
+  // 時間刻度：揀一個唔會太密嘅層（1H／4H：日 → 星期 → 月 → 季；日／週／月 K：月 → 季 → 年 → 兩年 → 五年）
+  const mon = s => +s.slice(0, 4) * 12 + +s.slice(5, 7) - 1, wkk = s => Math.floor((Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5 + 3) / 7);
+  const intra = kvIntra(KV.tf), lv = intra ? [s => s.slice(0, 10), wkk, mon, s => Math.floor(mon(s) / 3)]
+    : (KV.tf === "M" ? [12, 24, 60, 120] : [1, 3, 12, 24, 60]).map(L => s => Math.floor(mon(s) / L));
   let marks = [];
-  for (const L of lv){
-    marks = []; for (let i = Math.max(1, i0); i <= i1; i++){ const a = mon(S.d[i - 1]), b = mon(S.d[i]); if (Math.floor(a / L) !== Math.floor(b / L)) marks.push(i); }
-    if (marks.every((m, k) => !k || X(m) - X(marks[k - 1]) >= 58)) break;
+  for (const f of lv){
+    marks = []; for (let i = Math.max(1, i0); i <= i1; i++) if (f(S.d[i - 1]) !== f(S.d[i])) marks.push(i);
+    if (marks.every((m, k) => !k || X(m) - X(marks[k - 1]) >= (intra ? 40 : 58))) break;   // 「6日」短過「2025」，1H／4H 可以密少少
   }
   g.textAlign = "center"; g.textBaseline = "alphabetic";
-  marks.forEach(i => { const x = Math.round(X(i)) + 0.5, m = +S.d[i].slice(5, 7); g.strokeStyle = LN; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, pb); g.stroke();
-    g.fillStyle = MUT; g.fillText(m === 1 ? S.d[i].slice(0, 4) : m + "月", Math.max(18, Math.min(pr - 18, x)), H - 6); });
+  marks.forEach(i => { const x = Math.round(X(i)) + 0.5, s = S.d[i], p = S.d[i - 1], m = +s.slice(5, 7);
+    const t = s.slice(0, 4) !== p.slice(0, 4) && (m === 1 || !intra) ? s.slice(0, 4) : s.slice(0, 7) !== p.slice(0, 7) ? m + "月" : +s.slice(8, 10) + "日";
+    g.strokeStyle = LN; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, pb); g.stroke();
+    g.fillStyle = MUT; g.fillText(t, Math.max(18, Math.min(pr - 18, x)), H - 6); });
   // 陰陽燭
   g.save(); g.beginPath(); g.rect(0, 0, pr, pb); g.clip();
   const w = Math.max(1, Math.min(bw * 0.72, bw - 1));
@@ -3234,8 +3358,10 @@ function kvDraw(){
   }
   // 上面一行：十字線嗰支（冇就最新）嘅開高低收
   const j = ci >= 0 ? ci : n - 1, ch = j ? S.c[j] / S.c[j - 1] - 1 : null, bk = KV.showB ? KV.brk.filter(b => b.i === j) : [];
-  el.querySelector(".kv-ohlc").innerHTML = `<b>${esc(S.d[j])}</b> 開 ${fp(S.o[j])} 高 ${fp(S.h[j])} 低 ${fp(S.l[j])} 收 ${fp(S.c[j])}${ch != null ? ` <span class="${ch >= 0 ? "up" : "dn"}">${pct(ch)}</span>` : ""}${bk.map(b => ` · <b class="${b.dir > 0 ? "up" : "dn"}">${b.dir > 0 ? "向上" : "向下"} ${b.k}</b>`).join("")}`;
+  if (KV.note && performance.now() < KV.note.until && !KV.cross) el.querySelector(".kv-ohlc").textContent = KV.note.t;
+  else el.querySelector(".kv-ohlc").innerHTML = `<b>${esc(S.d[j])}</b> 開 ${fp(S.o[j])} 高 ${fp(S.h[j])} 低 ${fp(S.l[j])} 收 ${fp(S.c[j])}${ch != null ? ` <span class="${ch >= 0 ? "up" : "dn"}">${pct(ch)}</span>` : ""}${bk.map(b => ` · <b class="${b.dir > 0 ? "up" : "dn"}">${b.dir > 0 ? "向上" : "向下"} ${b.k}</b>`).join("")}`;
   el.querySelector("[data-kvnow]").hidden = KV.end >= n - 1.5;
+  if (KV.cb && intra && i0 < 15) kvLoadOlder();           // 加密 1H／4H 拖到最左：自動攞更早
 }
 function kvGlide(v){                                    // 放手之後慣性滑（v = 每毫秒幾多支）
   let t0 = performance.now();
@@ -3309,7 +3435,7 @@ function evGet(key){
 }
 const evHas = key => !!(EVX && EVX.items && EVX.items[key]);
 const evTag = sym => evHas(sym) ? ` <span class="tag t-evl" data-evsym="${esc(sym)}" role="button" title="撳落去睇股價走勢同大事">走勢</span>` : "";
-const evC = M => ({d: M.chart.d, c: M.chart.c, o: M.chart.o, h: M.chart.h, l: M.chart.l, events: M.events, long: M.chart.long, title: M.name || M.key});   // 開高低：K 線用；long + title：全螢幕 K 線（2026-11-09）
+const evC = M => ({d: M.chart.d, c: M.chart.c, o: M.chart.o, h: M.chart.h, l: M.chart.l, events: M.events, long: M.chart.long, title: M.name || M.key, key: M.key});   // 開高低：K 線用；long + title：全螢幕 K 線（2026-11-09）
 const evHost = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return ""; } };
 const evSheetHtml = (e, C) => `<h4>${esc(e.label)}</h4>
   <p style="color:var(--muted)">${esc((C.d || [])[e.i] || e.d || "")} · 收市 ${f2((C.c || [])[e.i])}${e.chg != null ? ` · 當日 ${pct(e.chg)}` : ""}
