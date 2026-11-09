@@ -346,36 +346,34 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
   ok("頂行換做十字線嗰支（唔係最新嗰日）", !ol.includes(KS.S.d.at(-1)) && /\d{4}-\d\d-\d\d 開 /.test(ol), ol);
   ev(cv, "pointerdown", cx, cy, tpI(15)); ev(cv, "pointerup", cx, cy, tpI(15)); ev(cv, "pointerdown", cx, cy, tpI(16)); ev(cv, "pointerup", cx, cy, tpI(16)); await sleep(60);
   ok("撳兩下返最新", KS.end >= KS.S.c.length - 1 && kvEl.querySelector("[data-kvnow]").hidden && !KS.cross, [KS.end, KS.S.c.length]);
-  // 2026-11-09 老師：「好似 tradingview 右下角個 Auto 掣…取消咗 Auto 之後…可以隨意上下左右拉大縮小」
+  // 2026-11-09 老師：「好似 tradingview 右下角個 Auto 掣…取消咗 Auto 之後…可以隨意上下左右拉大縮小」（之後改做淨係價錢欄改高度）
   { const ab = kvEl.querySelector("[data-kvauto]"), r = ab.getBoundingClientRect(), rg = () => KS.map.hi - KS.map.lo;
     ok("右下角有 Auto 掣（預設開）", ab.textContent === "Auto" && ab.getAttribute("aria-pressed") === "true" && KS.auto && Math.abs(r.right - cr.right) < 2 && Math.abs(r.bottom - cr.bottom) < 2 && r.height >= 24, [r.right, cr.right, r.bottom, cr.bottom, r.height]);
+    // 老師之後：「縱向只可以用側邊價錢嗰邊上下滑動，圖表嗰度淨係可以橫向滑動…跟翻tradingview咁樣」
     const lo1 = KS.map.lo, e1 = KS.end;
     ev(cv, "pointerdown", cx, cy, tpI(21)); ev(cv, "pointermove", cx, cy + 50, tpI(21)); ev(cv, "pointermove", cx, cy + 120, tpI(21)); ev(cv, "pointerup", cx, cy + 120, tpI(21)); await sleep(60);
-    ok("Auto 開：上下拖唔郁價錢高度", Math.abs(KS.map.lo - lo1) < 1e-9 && Math.abs(KS.end - e1) < 0.01, [lo1, KS.map.lo]);
-    ab.click(); await sleep(60); ok("撳 Auto = 熄（變畫布）", !KS.auto && ab.getAttribute("aria-pressed") === "false" && Math.abs(KS.map.lo - lo1) < 1e-9);
+    ok("Auto 開：圖表上下拖唔郁價錢高度", Math.abs(KS.map.lo - lo1) < 1e-9 && Math.abs(KS.end - e1) < 0.01, [lo1, KS.map.lo]);
+    ab.click(); await sleep(60); ok("撳 Auto = 熄", !KS.auto && ab.getAttribute("aria-pressed") === "false" && Math.abs(KS.map.lo - lo1) < 1e-9);
     const g1 = rg(), lo2 = KS.map.lo;
     ev(cv, "pointerdown", cx, cy, tpI(22)); ev(cv, "pointermove", cx, cy + 50, tpI(22)); ev(cv, "pointermove", cx, cy + 120, tpI(22)); ev(cv, "pointerup", cx, cy + 120, tpI(22)); await sleep(60);
-    ok("Auto 熄：向下拖 = 睇高啲嘅價", KS.map.lo > lo2 + g1 * 0.1 && Math.abs(rg() - g1) < g1 * 1e-6, [lo2, KS.map.lo, g1, rg()]);
-    // 老師：「唔auto狀態下淨係可以打橫或者縱向滑動。依家係打斜就兩邊一齊郁，反而冇咁方便」
-    { const lo3 = KS.map.lo, e3 = KS.end;
-      ev(cv, "pointerdown", cx, cy, tpI(31)); ev(cv, "pointermove", cx + 40, cy + 15, tpI(31)); ev(cv, "pointermove", cx + 120, cy + 45, tpI(31)); ev(cv, "pointerup", cx + 120, cy + 45, tpI(31)); await sleep(60);
-      ok("Auto 熄：打斜但橫多啲 = 淨係郁時間", KS.map.lo === lo3 && KS.end < e3 - 60 / KS.bw, [lo3, KS.map.lo, e3, KS.end]);
-      const lo4 = KS.map.lo, e4 = KS.end;
-      ev(cv, "pointerdown", cx, cy, tpI(32)); ev(cv, "pointermove", cx + 15, cy + 40, tpI(32)); ev(cv, "pointermove", cx + 45, cy + 120, tpI(32)); ev(cv, "pointerup", cx + 45, cy + 120, tpI(32)); await sleep(60);
-      ok("Auto 熄：打斜但直多啲 = 淨係郁價錢", KS.end === e4 && KS.map.lo > lo4, [e4, KS.end, lo4, KS.map.lo]);
-      const g5 = rg(), bw5 = KS.bw;
-      ev(cv, "pointerdown", cx - 60, cy, tpI(33)); ev(cv, "pointerdown", cx + 60, cy, tpI(34));
-      ev(cv, "pointermove", cx - 30, cy - 30, tpI(33)); ev(cv, "pointermove", cx + 30, cy + 30, tpI(34));
-      ev(cv, "pointerup", cx - 30, cy - 30, tpI(33)); ev(cv, "pointerup", cx + 30, cy + 30, tpI(34)); await sleep(60);
-      ok("Auto 熄：手指打橫擺、打斜捏 = 淨係改時間", Math.abs(rg() - g5) < g5 * 1e-9 && KS.bw < bw5 * 0.8, [g5, rg(), bw5, KS.bw]); }
-    const ax = cr.right - KS.ax / 2, g2 = rg();
-    ev(cv, "pointerdown", ax, cy, tpI(23)); ev(cv, "pointermove", ax, cy - 40, tpI(23)); ev(cv, "pointermove", ax, cy - 100, tpI(23)); ev(cv, "pointerup", ax, cy - 100, tpI(23)); await sleep(60);
-    ok("拉右邊價錢欄向上 = 拉高 K 線（價錢範圍細咗）", rg() < g2 * 0.7 && !KS.auto, [g2, rg()]);
+    ok("Auto 熄：圖表上下拖都唔郁價錢（淨係價錢欄改得）", KS.map.lo === lo2 && rg() === g1, [lo2, KS.map.lo, g1, rg()]);
+    const lo3 = KS.map.lo, e3 = KS.end;
+    ev(cv, "pointerdown", cx, cy, tpI(31)); ev(cv, "pointermove", cx + 40, cy + 15, tpI(31)); ev(cv, "pointermove", cx + 120, cy + 45, tpI(31)); ev(cv, "pointerup", cx + 120, cy + 45, tpI(31)); await sleep(60);
+    ok("Auto 熄：圖表打斜拖 = 淨係郁時間", KS.map.lo === lo3 && KS.end < e3 - 60 / KS.bw, [lo3, KS.map.lo, e3, KS.end]);
     const g3 = rg(), bw3 = KS.bw;
     ev(cv, "pointerdown", cx, cy - 30, tpI(24)); ev(cv, "pointerdown", cx, cy + 30, tpI(25));
     ev(cv, "pointermove", cx, cy - 90, tpI(24)); ev(cv, "pointermove", cx, cy + 90, tpI(25));
     ev(cv, "pointerup", cx, cy - 90, tpI(24)); ev(cv, "pointerup", cx, cy + 90, tpI(25)); await sleep(60);
-    ok("Auto 熄：兩隻手指上下拉開 = 價錢放大，時間唔變", rg() < g3 * 0.6 && Math.abs(KS.bw - bw3) < bw3 * 0.05, [g3, rg(), bw3, KS.bw]);
+    ok("Auto 熄：兩隻手指上下拉開都係放大時間，價錢唔郁", rg() === g3 && KS.bw > bw3 * 1.5, [g3, rg(), bw3, KS.bw]);
+    const ax = cr.right - KS.ax / 2, g2 = rg();
+    ev(cv, "pointerdown", ax, cy, tpI(23)); ev(cv, "pointermove", ax, cy - 40, tpI(23)); ev(cv, "pointermove", ax, cy - 100, tpI(23)); ev(cv, "pointerup", ax, cy - 100, tpI(23)); await sleep(60);
+    ok("拉右邊價錢欄向上 = 拉高 K 線（價錢範圍細咗）", rg() < g2 * 0.7 && !KS.auto, [g2, rg()]);
+    const g6 = rg();
+    ev(cv, "pointerdown", ax, cy, tpI(35)); ev(cv, "pointermove", ax, cy + 40, tpI(35)); ev(cv, "pointermove", ax, cy + 100, tpI(35)); ev(cv, "pointerup", ax, cy + 100, tpI(35)); await sleep(60);
+    ok("拉右邊價錢欄向下 = 壓扁 K 線（睇多啲價位）", rg() > g6 * 1.3, [g6, rg()]);
+    ab.click(); await sleep(60); const g7 = rg(), bw7 = KS.bw;
+    cv.dispatchEvent(new WheelEvent("wheel", {deltaY: -300, clientX: ax, clientY: cy, bubbles: true, cancelable: true})); await sleep(60);
+    ok("滑鼠喺價錢欄碌轆 = 改高度（會熄 Auto），時間唔郁", rg() < g7 * 0.8 && !KS.auto && KS.bw === bw7, [g7, rg(), KS.auto, bw7, KS.bw]);
     kvEl.querySelector('[data-kvtf="W"]').click(); await sleep(80); ok("轉 timeframe 自動返 Auto", KS.auto && ab.getAttribute("aria-pressed") === "true");
     kvEl.querySelector('[data-kvtf="D"]').click(); await sleep(80); ab.click(); await sleep(40);
     ev(cv, "pointerdown", cx, cy, tpI(26)); ev(cv, "pointerup", cx, cy, tpI(26)); ev(cv, "pointerdown", cx, cy, tpI(27)); ev(cv, "pointerup", cx, cy, tpI(27)); await sleep(60);
