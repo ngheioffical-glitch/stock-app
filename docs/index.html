@@ -246,6 +246,8 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .ck-seg{position:absolute;left:4px;top:0;z-index:2;display:flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;background:var(--evbg,var(--card))} /* 2026-11-09 線／K 線 */
 .ck-seg button{min-height:28px;padding:0 12px;font-size:12px;font-weight:700;color:var(--mut)}
 .ck-seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.ck-seg [data-kv]{display:grid;place-items:center;padding:0 10px;border-left:1px solid var(--line2)} /* 全螢幕 K 線 */
+.ck-seg [data-kv] svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .evch .e-up{--e:var(--up)}.evch .e-dn{--e:var(--dn)}.evch .e-wr{--e:var(--warn)}
 .evch .tag rect.box{fill:var(--evbg);stroke:var(--line2)}
 .evch .tag text{font:700 12px var(--sans);fill:var(--ink)}
@@ -784,6 +786,32 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .lg .ck-seg{position:absolute;left:12px;top:2px;z-index:2;display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--bg)}
 .lg .ck-seg button{min-height:28px;padding:0 12px;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:12px;font-weight:700}
 .lg .ck-seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.lg .ck-seg [data-kv]{display:grid;place-items:center;padding:0 10px;border-left:1px solid var(--line)}
+.lg .ck-seg [data-kv] svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.lg .cry-hero{margin:6px -4px 0;height:280px;background:none}
+.lg #kv{position:fixed;inset:0;z-index:45;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);padding-top:var(--sat,0px);padding-bottom:var(--sab,0px);overscroll-behavior:contain}
+.lg #kv[hidden]{display:none}
+.lg .kv-top{display:flex;align-items:center;gap:6px;padding:4px 8px 0}
+.lg .kv-x{width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:var(--ink);box-shadow:none}
+.lg .kv-x svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.lg .kv-t{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.lg .kv-t b{font-size:17px;font-weight:800}
+.lg .kv-px{font:600 13px var(--mono);color:var(--muted)}
+.lg .kv-bar{display:flex;align-items:center;gap:6px;padding:6px 12px 2px;flex-wrap:wrap}
+.lg .kv-tf{display:flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
+.lg .kv-tf button,.lg .kv-bar>button{min-height:36px;min-width:44px;padding:0 12px;border:0;border-radius:0;background:transparent;color:var(--muted);font-size:14px;font-weight:700;box-shadow:none}
+.lg .kv-tf button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.lg .kv-bar>button{border:1px solid var(--line2);border-radius:999px}
+.lg .kv-bar>button[aria-pressed="true"]{color:var(--ink);border-color:var(--ink)}
+.lg .kv-ohlc{padding:4px 14px 2px;font:12px var(--mono);color:var(--muted);min-height:24px;line-height:1.5}
+.lg .kv-ohlc b{color:var(--ink)}
+.lg .kv-cv{position:relative;flex:1;min-height:0;margin:0 0 0 8px;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:crosshair}
+.lg .kv-cv canvas{position:absolute;left:0;top:0;display:block}
+.lg .kv-zm{position:absolute;left:4px;bottom:30px;display:flex;gap:8px}
+.lg .kv-zm button{width:40px;height:40px;padding:0;display:grid;place-items:center;border:1px solid var(--line2);border-radius:50%;background:var(--bg);color:var(--ink);font-size:20px;font-weight:700;line-height:1;box-shadow:none}
+.lg .kv-now{position:absolute;right:76px;bottom:30px;min-height:40px;padding:0 14px;border:1px solid var(--line2);border-radius:999px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:700;box-shadow:none}
+.lg .kv-now[hidden]{display:none}
+.lg .kv-foot{margin:0;padding:4px 14px 10px;font-size:12px;line-height:1.5;color:var(--muted)}
 .lg .rs-hero{-webkit-touch-callout:none}
 .lg .suglist{display:flex;flex-direction:column;margin-top:6px}
 .lg .suglist .sug{display:flex;align-items:baseline;gap:8px;min-height:40px;padding:6px 4px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;text-align:left;color:var(--ink);font-size:14px}
@@ -1177,7 +1205,7 @@ function evTaDraw(el,T){
   evBind(el);
 }
 function evDraw(el){
-  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);
+  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);el._kv=EV;el._kvT="納指 100"; // 全螢幕 K 線（LG.kvOpen）用成份數據（兩年日 K + 2010 年起週月 K）
   const TA=LG.chartK()&&EV.ta&&EV.ta.c&&EV.ta.c.length>1&&["o","h","l"].every(k=>(EV.ta[k]||[]).length===EV.ta.c.length);
   if(el.parentElement)el.parentElement.classList.toggle("ev-k",!!TA);
   if(TA)return evTaDraw(el,EV.ta);
@@ -1225,7 +1253,7 @@ function evBind(el){
     return G.evs.filter(e=>Math.abs(e.i-i)<=span).sort((a,b)=>Math.abs(a.i-i)-Math.abs(b.i-i))[0];};
   const stop=()=>{clearTimeout(lp);down=false;armed=false;};
   el.addEventListener("pointerdown",e=>{pt=e.pointerType;down=true;armed=false;moved=false;x0=xl=e.clientX;y0=e.clientY;last=null;clearTimeout(tm);clearTimeout(lp);
-    if(e.target.closest("[data-ck]"))return;
+    if(e.target.closest("[data-ck],[data-kv]"))return;
     if(pt==="mouse"){if(!e.target.closest("[data-ev]"))show(e.clientX);return;}
     lp=setTimeout(()=>{if(!down)return;armed=true;buzz("light");show(xl);},LPS.ms);});
   el.addEventListener("pointermove",e=>{
@@ -1241,7 +1269,7 @@ function evBind(el){
     stop();hide();});
   el.addEventListener("pointerleave",()=>{stop();hide();});el.addEventListener("pointercancel",()=>{stop();hide();});
   // 手指短撳圖：唔開說明（淨係長按先開）
-  el.addEventListener("click",e=>{if(pt!=="mouse"&&!e.target.closest("[data-ck]")){e.stopPropagation();e.preventDefault();}},true);
+  el.addEventListener("click",e=>{if(pt!=="mouse"&&!e.target.closest("[data-ck],[data-kv]")){e.stopPropagation();e.preventDefault();}},true);
   el.addEventListener("contextmenu",e=>{if(pt!=="mouse")e.preventDefault();});
 }
 function evReveal(el){ // 第一次碌到先畫出嚟，之後唔再播；冇觸發都唔會有嘢遮住
@@ -1707,6 +1735,7 @@ function hback(){
 }
 addEventListener("popstate",()=>{
   if(HS.ignore>0){HS.ignore--;if(!HS.ignore)while(HS.pend>0){HS.pend--;hpushNow();}return;}
+  if(LG.kvPop())return; // K 線全螢幕開緊（或者佢自己撳返回）：engine 自己收，下面嘅頁唔郁
   if(!$("#rs").hidden)return; // engine 嘅詳情頁蓋住：佢自己收
   if(HS.n>0)HS.n--;
   if(Sh.open)closeSheet(true);else if(Se.open)closeSearch(true);else if(Pu.open)popPage(true);
@@ -2006,7 +2035,7 @@ function launch(force){
   try{lcRun(v);}catch(e){lcFinish();}
 }
 function heroCount(){if(!A.s)return;const to=A.s.v.at(-1);A.num.classList.toggle("up",to>=0);A.num.classList.toggle("dn",to<0);countUp(A.num,to,x=>sg(x));}
-function closeAllNow(){closeNow();if(Se.open){Se.open=false;searchEl.hidden=true;searchEl.innerHTML="";hback();}if(Pu.open){Pu.open=false;setLeave();Pu.mv.stop();pushClean();hback();}if(!$("#rs").hidden)LG.closeRes();}
+function closeAllNow(){if(LG.kvIsOpen())LG.kvClose(true);closeNow();if(Se.open){Se.open=false;searchEl.hidden=true;searchEl.innerHTML="";hback();}if(Pu.open){Pu.open=false;setLeave();Pu.mv.stop();pushClean();hback();}if(!$("#rs").hidden)LG.closeRes();}
 
 // ───── 撳
 phone.addEventListener("click",e=>{
@@ -2043,7 +2072,7 @@ function shellBoot(){
   if(RM)phone.setAttribute("data-rm","");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
   window.__booted=true;
-  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,gen:M.gen,events:M.events,ta:M.ta||null};evArrived();}}).catch(()=>{});
+  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,long:M.chart.long||null,gen:M.gen,events:M.events,ta:M.ta||null};evArrived();}}).catch(()=>{});
   shellData();
   if(new URLSearchParams(location.search).get("nosplash")==null)launch();else lcFinish();
   {const idle=window.requestIdleCallback||(f=>setTimeout(f,300));(function pre(i){if(i<ORDER.length)idle(()=>{view(ORDER[i]);pre(i+1);});})(0);} // 有空閒就預先砌好其他分頁，第一次撳先唔會卡一格
@@ -2618,7 +2647,45 @@ function viewCrypto(){
   if (!FEED.news) fetchFeeds();
   return topbar() + `<div class="row spread"><h2>加密貨幣</h2><button id="btcReload" class="small">重新整理</button></div>`
     + cryptoAiCard()      // 2026-11-02 老師：AI 加密重點都擺前面
-    + (BTC ? btc100Card() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + whaleCard() + walertCard() + cryptoNewsCard();
+    + (BTC ? btc100Card() + cryKCard() + cmodelCard() + fngCard("crypto") : `<p class="muted">載入中…</p>`) + (HYP && HYP.think ? thinkCard(HYP.think, "AI 加密宏觀思考") : "") + whaleCard() + walertCard() + cryptoNewsCard();
+}
+// BTC／ETH 走勢（2026-11-09 老師：「加密做埋K線，做法同股票一樣」）：同大市事件線一樣嘅做法 —
+// 線 = 一年收市 + 100 日線（BTC 燈號用嗰條）；K 線 = 近 120 日日 K + BOS／MSS + ADR、距 52 週高、距 50 日線（只供參考）；
+// 右上角全螢幕 = 日／週／月 K、放大縮細、左右拖睇更早（kvOpen）。數據：scanner/btc.py klines()（Coinbase 日 K）
+let CRY_SYM = "BTC";
+function cryKCard(){
+  const K = BTC && BTC.kl; if (!K || !K.BTC) return "";
+  const s = K[CRY_SYM] ? CRY_SYM : "BTC";
+  return `<div class="card" id="cryK"><div class="row spread"><b>${s} 走勢</b><div class="chips">${["BTC", "ETH"].filter(x => K[x]).map(x => `<button data-crys="${x}" aria-pressed="${x === s}">${x}</button>`).join("")}</div></div>
+    <div class="rs-hero ta-hero cry-hero" data-crysym="${s}"></div><div class="cry-leg"></div>
+    ${K[s].stale ? `<p class="small" style="color:var(--warn)">⚠ 今次攞唔到 Coinbase 日 K，顯示緊上一份。</p>` : ""}</div>`;
+}
+function cryDraw(){
+  document.querySelectorAll(".cry-hero").forEach(box => {
+    const s = box.dataset.crysym, K = BTC && BTC.kl && BTC.kl[s], leg = box.parentElement.querySelector(".cry-leg");
+    if (!K || !box.clientWidth) return;
+    if (chartK() && K.ta){                              // K 線 = 技術圖（同股票「技術」一樣）
+      taDraw(box, K.ta);
+      const st = K.ta.stat || {};
+      leg.innerHTML = `<p class="small muted evleg" style="margin:4px 0 0"><i style="color:var(--buy)">━</i> 向上 BOS／MSS　<i style="color:var(--stop)">━</i> 向下　· 長按睇日子 · 只供參考</p>
+        <div class="kv"><div><span>ADR（20 日）</span><b>${st.adr != null ? st.adr + "%" : "—"}</b></div><div><span>距 52 週高</span><b>${st.off52 != null ? pct(st.off52) : "—"}</b></div><div><span>距 50 日線</span><b>${st.atr50 != null ? st.atr50 + " 個 ATR" : "—"}</b></div></div>`;
+    } else {                                            // 線 = 一年收市 + 100 日線
+      const c = K.c, d = K.d, n = c.length, a = Math.max(0, n - 365), ma = c.map((_, i) => i >= 99 ? c.slice(i - 99, i + 1).reduce((x, y) => x + y, 0) / 100 : null);
+      const C = c.slice(a), M = ma.slice(a), D = d.slice(a), m = C.length;
+      const W = box.clientWidth || 360, H = box.clientHeight || 300, pl = 6, pr = Math.max(64, Math.round(16 + fp(C[m - 1]).length * 7.2)), pt = 34, pb = 16, xr = W - pr;
+      const vals = C.concat(M.filter(v => v != null)), lo = Math.min(...vals), hi = Math.max(...vals);
+      const X = i => pl + i / Math.max(1, m - 1) * (xr - pl), Y = v => pt + (1 - (v - lo) / ((hi - lo) || 1)) * (H - pt - pb);
+      const pts = A => A.map((v, i) => v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`).filter(Boolean).join(" ");
+      const lc = C[m - 1], col = lc >= (M[m - 1] || lc) ? "var(--buy)" : "var(--stop)", yl = Y(lc);
+      box.innerHTML = `${ckSeg()}<p class="rs-cap">近 1 年 · 長按睇日子</p><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="${s} 一年走勢同 100 日線">
+        <polyline points="${pts(M)}" fill="none" style="stroke:var(--warn)" stroke-width="1.4" stroke-dasharray="4 3"/>
+        <polyline points="${pts(C)}" fill="none" style="stroke:var(--cyan)" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M${xr + 1} ${yl.toFixed(1)}l5 -4v8z" style="fill:${col}"/><text x="${xr + 8}" y="${(yl + 4).toFixed(1)}" class="ta-t" style="fill:${col}">${fp(lc)}</text></svg>`;
+      evScrub(box, {X, Y, c: C, d: D, pl, pr, W, evs: []});
+      leg.innerHTML = `<p class="small muted" style="margin:4px 0 0"><i style="color:var(--cyan)">━</i> ${s} 收市　<i style="color:var(--warn)">┅</i> 100 日線（BTC 燈號用 BTC 嗰條）　· ${esc(D[0])} 至 ${esc(D[m - 1])}</p>`;
+    }
+    box.dataset.ckbox = "1"; box._redraw = cryDraw; box._kv = K; kvTag(box, s, true);   // 全螢幕用兩年日 K + 長歷史週月 K
+  });
 }
 
 // 加密名人持倉（2026-10-25 老師：「可以睇到名人持倉咩幣同埋個量」→ 免費版）：scanner/holders.py → feeds/holders.json（上市公司幣庫存，CoinGecko）。
@@ -3884,7 +3951,7 @@ function ratesCard(){
   const bp = x => x == null ? "—" : `<span class="${x > 0 ? "dn" : x < 0 ? "up" : "muted"}">${x > 0 ? "+" : ""}${x.toFixed(0)}</span>`;
   const c = R.curve || {};
   return `<div class="card"><div class="row spread"><b>美債息</b><span class="small muted">${esc(R.generated)}</span></div>
-    ${(R.alert || []).length ? `<div class="info small"><span class="tag t-warn">債息異動</span> ${R.alert.map(esc).join("；")}。點解會咁：睇上面 AI 今日重點。</div>` : ""}
+    ${(R.alert || []).length ? `<div class="info small"><span class="tag t-warn">債息異動</span> ${R.alert.map(esc).join("；")}。點解會咁：去「新聞」睇 AI 今日重點。</div>` : ""}
     <div class="tablewrap"><table><tr><th>年期</th><th class="r">孳息</th><th class="r">今日</th><th class="r">1 週</th><th class="r">1 個月</th><th class="r">1 年</th><th class="r hide-sm">52 週高／低</th></tr>
     ${R.rows.map(r => `<tr><td>${esc(r.name)}<span class="ind">${esc(r.src)}</span></td><td class="r mono"><b>${r.y.toFixed(2)}%</b></td><td class="r mono">${bp(r.d)}</td><td class="r mono">${bp(r.w)}</td>
       <td class="r mono">${bp(r.m)}</td><td class="r mono">${bp(r.yr)}</td><td class="r mono hide-sm">${r.hi52.toFixed(2)}／${r.lo52.toFixed(2)}</td></tr>`).join("")}</table></div>
@@ -3948,7 +4015,7 @@ function commodCard(ai = true){
   const C = FEED.commod; if (!C || !(C.rows || []).length) return "";
   const cg = C.cg || {}, A = ai && C.ai;
   return `<div class="card"><div class="row spread"><b>商品</b><span class="small muted">${esc(C.generated)}</span></div>
-    ${(C.alert || []).length ? `<div class="info small"><span class="tag t-warn">商品異動</span> ${C.alert.map(esc).join("；")}。點解會咁：睇上面 AI 今日重點。</div>` : ""}
+    ${(C.alert || []).length ? `<div class="info small"><span class="tag t-warn">商品異動</span> ${C.alert.map(esc).join("；")}。點解會咁：去「新聞」睇 AI 今日重點。</div>` : ""}
     <div class="tablewrap"><table><tr><th>商品</th><th class="r">價</th><th class="r">今日</th><th class="r">1 週</th><th class="r">1 個月</th><th class="r">1 年</th><th class="r hide-sm">52 週高／低</th></tr>
     ${C.rows.map(r => `<tr><td>${esc(r.name)}<span class="ind">${esc(r.unit)}</span></td><td class="r mono"><b>${r.px >= 100 ? f0(r.px) : f2(r.px)}</b></td><td class="r mono">${chg(r.d, 1)}</td><td class="r mono">${chg(r.w, 1)}</td>
       <td class="r mono">${chg(r.m, 1)}</td><td class="r mono">${chg(r.yr, 0)}</td><td class="r mono hide-sm">${r.px >= 100 ? f0(r.hi52) : f2(r.hi52)}／${r.px >= 100 ? f0(r.lo52) : f2(r.lo52)}</td></tr>`).join("")}</table></div>
@@ -4151,18 +4218,23 @@ function viewNews(){
   let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button><button data-nt="earn" aria-pressed="${NT === "earn"}">業績</button></div>
     <button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`;
   if (FEED.cloud) h += `<p class="small" style="color:var(--cyan)">${esc(FEED.cloud)}</p>`;
-  if (FEED.news && FEED.news.move && FEED.news.move.text && usOpen()) h += `<div class="alert small"><b>${esc(FEED.news.move.text)}</b><span class="muted">（${esc(FEED.news.move.at || "")}）原因睇下面「AI 今日重點」。</span></div>`;
-  if (FEED.news && FEED.news.fut && FEED.news.fut.text && !usOpen()) h += `<div class="alert small"><b>${esc(FEED.news.fut.text)}</b><span class="muted">（${esc(FEED.news.fut.at || "")}）原因睇下面「AI 今日重點」。</span></div>`;
+  // 2026-11-09 老師：「研究ai今日重點擺放位置。我見到經濟數據，新聞定係業績都出同一樣嘢，應該無需要吧？」
+  // → AI 今日重點（同市況異動提示）淨係擺「新聞」；「經濟數據」只留 AI 對經濟數據嗰句解讀；「業績」唔再出
+  const isNews = NT === "news";
+  if (isNews && FEED.news && FEED.news.move && FEED.news.move.text && usOpen()) h += `<div class="alert small"><b>${esc(FEED.news.move.text)}</b><span class="muted">（${esc(FEED.news.move.at || "")}）原因睇下面「AI 今日重點」。</span></div>`;
+  if (isNews && FEED.news && FEED.news.fut && FEED.news.fut.text && !usOpen()) h += `<div class="alert small"><b>${esc(FEED.news.fut.text)}</b><span class="muted">（${esc(FEED.news.fut.at || "")}）原因睇下面「AI 今日重點」。</span></div>`;
   if (!S.ghToken) h += `<p class="small muted">提示：喺「設定」填 GitHub token，開 app 嗰陣新聞超過 15 分鐘就會自動更新。</p>`;
   if (FEED.err) h += `<div class="alert"><b>讀唔到新聞數據</b><p class="small">${esc(FEED.err)}</p></div>`;
   if (!FEED.news || !FEED.econ) return h + (FEED.err ? "" : `<p class="muted">載入中…</p>`);
   const D = FEED.news.digest;           // AI「今日重點」（2026-10-20 起 Claude Opus 5.5 優先）（scanner/ai.py，跟新聞更新、最少隔 45 分鐘；冇 key 就冇）
-  if (D && (D.points || []).length){
+  if (D && D.econ && NT === "econ") h += `<div class="card" id="aiEcon"><div class="row spread"><b>AI 解讀經濟數據</b><span class="small muted">${esc(D.generated || "")}</span></div>
+    <p class="small" style="margin:4px 0 0">${esc(D.econ)}</p><p class="small muted" style="margin-top:4px">全文喺「新聞」嘅 AI 今日重點。AI 生成，可能有錯漏。</p></div>`;
+  if (D && (D.points || []).length && isNews){
     const sn = (D.snap || []).map(x => `<span>${esc(x.name)} <b class="${x.chg >= 0 ? "up" : "dn"}">${x.unit === "bp" ? (x.chg >= 0 ? "+" : "") + x.chg.toFixed(1) + " 基點" : pct(x.chg / 100, 2)}</b></span>`).join("");
     const fc = D.checked ? ((D.warn || []).length ? `<div class="alert small"><b>事實核對：有 ${D.warn.length} 處同實際數字唔符</b>${D.warn.map(w => `<div>· ${esc(w)}</div>`).join("")}</div>`
                                                : `<p class="small up">✓ 市場升跌已同實際數字核對${D.tries > 1 ? "（第一版有錯，已自動重寫）" : ""}</p>`) : "";
     const AS = aiState(), TRC = ["快訊", "市場", "經濟", "加密"], nz = (FEED.news.items || []).slice(0, 100).filter(x => TRC.includes(x.cat) && !x.zh).length;   // TRC 同 scanner/ai.py 嘅 CATS 一樣：淨係呢幾類會翻譯
-    h += `<details class="card" ${NT === "news" ? "open" : ""}><summary><b>AI 今日重點</b>${D.pre ? ` <span class="tag t-cyan">開市前版</span>` : ""} <span class="small muted">· ${esc(D.generated)}</span> ${mdl(D.model)}</summary>
+    h += `<details class="card" id="aiDigest" open><summary><b>AI 今日重點</b>${D.pre ? ` <span class="tag t-cyan">開市前版</span>` : ""} <span class="small muted">· ${esc(D.generated)}</span> ${mdl(D.model)}</summary>
     ${AS && AS.kind !== "other" ? `<p class="small" style="color:var(--warn,#f5b041);margin:4px 0">${AS.kind === "quota" ? `AI 額度用晒：而家顯示緊 ${esc(D.generated)} 嘅版本，額度重設後會自動重寫。` : esc(AS.text)}</p>` : ""}
     ${nz ? `<p class="small muted" style="margin:4px 0">最新 100 條新聞入面有 ${nz} 條快訊／市場／經濟／加密新聞未翻譯${AS && AS.kind === "quota" ? "（AI 額度用晒，重設後先繼續）" : "（下次更新會譯）"}，未譯嘅顯示英文原文。個股、國際、科技新聞本來就唔翻譯（慳 AI 額度）。</p>` : ""}
     <ul style="margin:6px 0 0;padding-left:18px;line-height:1.55">${D.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>
@@ -4288,7 +4360,10 @@ function closeRes(fromPop){
   const sh = $("#rsSheet"); if (sh) sh.hidden = true;
   if (!fromPop && history.state && history.state.rs) history.back();
 }
-window.addEventListener("popstate", () => { const sh = $("#rsSheet"); if (sh && !sh.hidden){ sh.hidden = true; } if (!$("#rs").hidden) closeRes(true); });
+window.addEventListener("popstate", () => {
+  if (KV.selfBack){ KV.selfBack = false; return; }       // 全螢幕 K 線自己撳返回：之前嗰頁唔郁
+  if (kvIsOpen()){ kvClose(true); return; }               // 手機返回鍵：先收全螢幕 K 線
+  const sh = $("#rsSheet"); if (sh && !sh.hidden){ sh.hidden = true; } if (!$("#rs").hidden) closeRes(true); });
 
 const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsBack" aria-label="返回"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
   <h1>${esc(title || sym)}</h1><button class="rs-ib" id="rsMenu" aria-label="更多"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button></div>`;
@@ -4299,7 +4374,7 @@ const rsTop = (sym, title) => `<div class="rs-top"><button class="rs-ib" id="rsB
 const EV_DOT = {up: "var(--buy)", down: "var(--stop)", light: "var(--warn)"};   // 2026-10-24：跟主題（柔和綠紅），唔再寫死霓虹色
 const evCol = e => e.kind === "big" ? (e.chg >= 0 ? EV_DOT.up : EV_DOT.down) : EV_DOT[e.kind] || "#8fdcf0";
 function rsChart(r){ const C = r.chart || {}; evDraw($("#rsHero"), C, (C.events || []).filter(e => (e.w ?? 99) >= 99).length + 2);   // 研究 AI 事件全部寫標籤 + 數據事件頭 2 個
-  const t = $("#taHero"); if (t) taDraw(t, rsTa(r)); }
+  kvTag($("#rsHero"), r.sym); const t = $("#taHero"); if (t){ taDraw(t, rsTa(r)); kvTag(t, r.sym); } }
 const rsTa = r => { const a = r.ta, b = (EVC[r.sym] || {}).ta; return a && b ? (b.last > a.last ? b : a) : a || b || null; };   // 研究報告或者事件線，用新嗰個
 function evDraw(box, C, cap){
   if (!box) return;
@@ -4324,7 +4399,7 @@ function evDraw(box, C, cap){
   const X = xi, Y = v => pt + (1 - (Math.log(v) - lo) / ((hi - lo) || 1)) * (H - pt - pb);
   const line = c.map((v, i) => `${i ? "L" : "M"}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join("");
   const area = `${line}L${X(c.length - 1).toFixed(1)},${H}L${X(0).toFixed(1)},${H}Z`;
-  box.dataset.ckbox = "1"; box._redraw = () => evDraw(box, C, cap);
+  box.dataset.ckbox = "1"; box._redraw = () => evDraw(box, C, cap); box._kv = C;   // 全螢幕 K 線用（kvOpen）
   let tags = dots.map(e => { const x = X(e.i), y = Y(c[e.i]);
     return `<g class="rs-ev" data-ev="${e.k}"><circle cx="${x}" cy="${y}" r="3.4" style="fill:${evCol(e)};stroke:var(--bg)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="11" fill="transparent"/></g>`; }).join("");
   evs.forEach(e => {
@@ -4357,8 +4432,13 @@ function setChartK(on){
   S.chartK = !!on; save();
   document.querySelectorAll("[data-ckbox]").forEach(b => { try { if (b._redraw) b._redraw(); } catch(e){} });
 }
-const ckSeg = () => `<div class="ck-seg" role="group" aria-label="圖表樣式"><button data-ck="0" aria-pressed="${!chartK()}">線</button><button data-ck="1" aria-pressed="${chartK()}">K線</button></div>`;
-document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-ck]"); if (!b) return;
+// 第三個掣 = K 線全螢幕（kvOpen，2026-11-09 老師要好似 TradingView：揀 timeframe、放大縮小、左右睇更遠）
+const KV_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>`;
+const ckSeg = () => `<div class="ck-seg" role="group" aria-label="圖表樣式"><button data-ck="0" aria-pressed="${!chartK()}">線</button><button data-ck="1" aria-pressed="${chartK()}">K線</button><button data-kv aria-label="全螢幕 K 線（揀日週月、放大縮小）">${KV_ICON}</button></div>`;
+document.addEventListener("click", e => {
+  const v = e.target.closest && e.target.closest("[data-kv]");
+  if (v){ e.stopPropagation(); e.preventDefault(); const box = v.closest("[data-ckbox]"); if (box) kvOpen(box); return; }
+  const b = e.target.closest && e.target.closest("[data-ck]"); if (!b) return;
   e.stopPropagation(); e.preventDefault(); if ((b.dataset.ck === "1") !== chartK()) setChartK(b.dataset.ck === "1"); }, true);
 // 陰陽燭：多過 160 支就合做週 K（2 年日 K 喺手機太密）；冇開高低（舊數據）就用收市砌（開 = 上一支收市）
 function ckBars(C){
@@ -4408,7 +4488,7 @@ function evScrub(box, g){
   const stop = () => { clearTimeout(lp); down = false; armed = false; };
   box.addEventListener("pointerdown", e => {
     pt = e.pointerType; down = true; armed = false; moved = false; x0 = xl = e.clientX; y0 = e.clientY; clearTimeout(tm); clearTimeout(lp);
-    if (pt === "mouse" || e.target.closest("[data-ck]")) return;
+    if (pt === "mouse" || e.target.closest("[data-ck],[data-kv]")) return;
     lp = setTimeout(() => { if (!down) return; armed = true; lpBuzz(); show(xl); }, LP.ms);
   });
   box.addEventListener("pointermove", e => {
@@ -4440,9 +4520,9 @@ function rsResize(){ clearTimeout(RS_RZ); RS_RZ = setTimeout(() => { if (RS.r) r
 // 只供參考：LAB_ANSON 回測日線版本對 V2.7 冇幫助，唔係買賣訊號。線／K 線跟 chartK()
 function taDraw(box, T){
   if (!box) return;
-  box._T = T; box.dataset.ckbox = "1"; box._redraw = () => taDraw(box, T);
+  box._T = T; box.dataset.ckbox = "1"; box._redraw = () => taDraw(box, T); box._kv = T;   // 全螢幕：kvOpen 會揀同頁更長嘅數據
   if (!T || !T.c || T.c.length < 2){ box.innerHTML = ""; return; }
-  const n = T.c.length, W = box.clientWidth || 360, H = box.clientHeight || 300, pl = 6, pr = 64, pt = 30, pb = 14, xr = W - pr, K = chartK();
+  const n = T.c.length, W = box.clientWidth || 360, H = box.clientHeight || 300, pl = 6, pr = Math.max(64, Math.round(16 + fp(T.c[n - 1]).length * 7.2)), pt = 30, pb = 14, xr = W - pr, K = chartK();   // 右邊夠位放現價（BTC 74,754.08）
   const lo = K ? Math.min(...T.l) : Math.min(...T.c, ...(T.brk || []).map(b => b.lv)), hi = K ? Math.max(...T.h) : Math.max(...T.c, ...(T.brk || []).map(b => b.lv));
   const step = (xr - pl) / n, X = i => pl + (i + 0.5) * step, Y = v => pt + (1 - (v - lo) / ((hi - lo) || 1)) * (H - pt - pb);
   const BUY = "var(--buy)", STOP = "var(--stop)";
@@ -4473,6 +4553,264 @@ function taSec(T, txt, none){
       <b>只供參考</b>：LAB_ANSON 回測過日線版本，對領導股同 TQQQ 冇幫助；唔係買賣訊號，唔改 V2.7。</p>`;
 }
 
+// ───────── K 線全螢幕（2026-11-09 老師：「有冇可能可以將K線圖做到好似tradingview咁樣揀timeframe同埋放大縮小？同埋左右回放更遠的K線？」）
+// 每幅價格圖「線｜K線」右邊個掣 → 全螢幕：日 K／週 K／月 K；兩隻手指（或者滑鼠轆）放大縮小；一隻手指左右拖睇更早（放手會滑）；
+// 長按出十字線同開高低收；撳兩下返最新。日 K 用嗰幅圖本身嘅日數據（大約兩年）；週 K／月 K 用 chart.long（scanner/bars.py：
+// 股票 2010 年起、加密有幾耐用幾耐），冇就由日 K 合併。BOS／MSS 喺度按 structure.py 同一條規則即場計（每個 timeframe 各自計；
+// tests/test_kline_js.py 用 node 對過同 Python 結果一樣），只供參考。冇分鐘數據，所以冇 1 小時／4 小時。
+const KV = {el: null, src: null, title: "", tick: 0.01, tf: "D", S: null, brk: [], end: 0, bw: 7, cross: null, showB: true,
+  raf: 0, anim: 0, selfBack: false, map: null, onKey: null, onRz: null};
+const KV_TF = [["D", "日 K"], ["W", "週 K"], ["M", "月 K"]];
+const kvIsOpen = () => !!(KV.el && !KV.el.hidden);
+const kvPop = () => KV.selfBack || kvIsOpen();          // shell 嘅返回鍵處理問呢個：全螢幕 K 線開緊就唔好收其他頁
+function kvTag(box, title, crypto){ if (!box) return; box._kvT = title; box._kvC = !!crypto; }
+function kvBrk(O, H, L, C, tick){                       // = structure.py analyze() 嘅突破部分（改規則要兩邊一齊改，test_kline_js.py 會對）
+  const n = C.length, brk = [], lvl = new Array(n); let swh = null, swl = null, last = 0;
+  for (let i = 0; i < n; i++){
+    const k = i - 1;
+    if (k >= 1){
+      if (H[k] > H[k - 1] && H[k] >= H[i]) swh = [H[k], k];
+      if (L[k] < L[k - 1] && L[k] <= L[i]) swl = [L[k], k];
+    }
+    lvl[i] = [swh, swl];
+    if (i < 2) continue;
+    const m = i - 1, rng = H[m] - L[m], bp = rng > 0 ? Math.abs(C[m] - O[m]) / rng : 0;
+    const bull = L[i] > H[i - 2] && L[i] - H[i - 2] >= tick - 1e-9, bear = H[i] < L[i - 2] && L[i - 2] - H[i] >= tick - 1e-9;
+    const bh = lvl[m][0], bl = lvl[m][1]; let hit = 0, lv = 0, s = 0;
+    if (bull && bh && O[m] <= bh[0] && bh[0] < C[m] && C[m] > O[m] && bp >= 0.6){ hit = 1; lv = bh[0]; s = bh[1]; }
+    else if (bear && bl && O[m] >= bl[0] && bl[0] > C[m] && C[m] < O[m] && bp >= 0.6){ hit = -1; lv = bl[0]; s = bl[1]; }
+    if (hit){ brk.push({s, i: m, lv, dir: hit, k: hit === last || !last ? "BOS" : "MSS"}); last = hit; }
+  }
+  return brk;
+}
+function kvDaily(src){                                  // 清理：同 structure.py 一樣跳過缺數、高 < 低嘅行；冇開高低（舊數據）就用收市砌
+  const d = src.d || [], c = src.c || [], n = c.length, real = ["o", "h", "l"].every(k => (src[k] || []).length === n);
+  const S = {d: [], o: [], h: [], l: [], c: []};
+  for (let i = 0; i < n; i++){
+    const cc = +c[i], o = real ? +src.o[i] : (i ? +c[i - 1] : cc), h = real ? +src.h[i] : Math.max(o, cc), l = real ? +src.l[i] : Math.min(o, cc);
+    if (![o, h, l, cc].every(Number.isFinite) || h < l || l <= 0) continue;
+    S.d.push(String(d[i]).slice(0, 10)); S.o.push(o); S.h.push(h); S.l.push(l); S.c.push(cc);
+  }
+  return S;
+}
+function kvAgg(S, tf){                                  // 日 K 合做週 K（星期一開始，同 bars.py 一樣）或者月 K
+  const out = {d: [], o: [], h: [], l: [], c: []}; let key = null;
+  const wk = s => Math.floor((Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 864e5 + 3) / 7);
+  for (let i = 0; i < S.c.length; i++){
+    const k = tf === "W" ? wk(S.d[i]) : S.d[i].slice(0, 7);
+    if (k !== key){ key = k; out.d.push(S.d[i]); out.o.push(S.o[i]); out.h.push(S.h[i]); out.l.push(S.l[i]); out.c.push(S.c[i]); }
+    else { const j = out.c.length - 1; out.h[j] = Math.max(out.h[j], S.h[i]); out.l[j] = Math.min(out.l[j], S.l[i]); out.c[j] = S.c[i]; }
+  }
+  return out;
+}
+function kvSeries(src, tf){
+  if (tf === "D") return kvDaily(src);
+  const L = src.long && src.long[tf === "W" ? "w" : "m"];
+  if (L && L.c && L.c.length > 1) return kvDaily(L);
+  return kvAgg(kvDaily(src), tf);
+}
+function kvOpen(box){
+  let src = box._kv; if (!src || !src.c) return;
+  // 技術圖得 120 日：同一頁有更長嘅價格圖（事件線、研究報告圖）就用嗰份
+  const page = box.closest("#rs") || box.closest(".view") || document;
+  const hero = [...page.querySelectorAll("[data-ckbox]")].filter(h => h !== box && h._kv && h._kv.c && (h._kv.long || h._kv.c.length > src.c.length))
+    .sort((a, b) => b._kv.c.length - a._kv.c.length)[0];
+  if (hero && !src.long) src = hero._kv;
+  KV.src = src; KV.title = box._kvT || src.title || (hero && hero._kvT) || "";
+  const crypto = box._kvC || (hero && hero._kvC);
+  const cs = (src.c || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  KV.tick = src.tick || (crypto && cs.length ? Math.max(1e-12, cs[cs.length >> 1] * 1e-5) : 0.01);   // 同 scanner 一樣：股票 1 仙；加密 = 收市中位數 × 0.00001
+  const el = kvEnsure();
+  el.innerHTML = `<div class="kv-top"><button class="kv-x" data-kvx aria-label="返回">${`<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>`}</button>
+      <div class="kv-t"><b>${esc(KV.title)}</b><span class="kv-px"></span></div></div>
+    <div class="kv-bar"><div class="kv-tf" role="group" aria-label="時間週期">${KV_TF.map(([k, l]) => `<button data-kvtf="${k}" aria-pressed="false">${l}</button>`).join("")}</div>
+      <button data-kvb aria-pressed="${KV.showB}">BOS／MSS</button></div>
+    <div class="kv-ohlc" aria-live="polite"></div>
+    <div class="kv-cv"><canvas aria-label="K 線圖"></canvas>
+      <div class="kv-zm"><button data-kvz="-1" aria-label="縮細">−</button><button data-kvz="1" aria-label="放大">＋</button></div>
+      <button class="kv-now" data-kvnow hidden>返最新 ›</button></div>
+    <p class="kv-foot">兩隻手指放大縮細 · 一隻手指左右拖睇更早 · 長按出十字線 · 撳兩下返最新。BOS／MSS 只供參考，唔係買賣訊號。</p>`;
+  el.hidden = false;
+  if (!(history.state && history.state.kv)) history.pushState({kv: 1}, "");
+  kvBind(el.querySelector("canvas"));
+  KV.onKey = e => { if (e.key === "Escape") kvClose(); }; document.addEventListener("keydown", KV.onKey);
+  KV.onRz = () => kvReq(); window.addEventListener("resize", KV.onRz);   // 打橫手機都會重畫
+  if (window.ResizeObserver){ KV.ro = new ResizeObserver(() => kvReq()); KV.ro.observe(el.querySelector(".kv-cv")); }
+  kvSet(KV.tf, true);
+}
+function kvEnsure(){
+  if (KV.el && KV.el.isConnected) return KV.el;
+  const host = document.getElementById("lgOv") || document.body, el = document.createElement("div");
+  el.id = "kv"; el.hidden = true; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "K 線全螢幕");
+  host.appendChild(el); KV.el = el;
+  el.addEventListener("click", e => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.hasAttribute("data-kvx")) kvClose();
+    else if (t.dataset.kvtf) kvSet(t.dataset.kvtf);
+    else if (t.hasAttribute("data-kvb")){ KV.showB = !KV.showB; t.setAttribute("aria-pressed", KV.showB); kvReq(); }
+    else if (t.dataset.kvz){ const m = KV.map, x = m ? m.pr / 2 : 0, a = kvIdx(x); KV.bw = kvBwClamp(KV.bw * (t.dataset.kvz === "1" ? 1.5 : 1 / 1.5)); if (m) KV.end = a - 0.5 + (m.pr - x) / KV.bw; kvReq(); }
+    else if (t.hasAttribute("data-kvnow")) kvLatest();
+  });
+  return el;
+}
+function kvClose(fromPop){
+  if (!kvIsOpen()) return;
+  cancelAnimationFrame(KV.anim); cancelAnimationFrame(KV.raf); KV.raf = 0;
+  KV.el.hidden = true; KV.el.innerHTML = ""; KV.cross = null;
+  document.removeEventListener("keydown", KV.onKey); window.removeEventListener("resize", KV.onRz); if (KV.ro){ KV.ro.disconnect(); KV.ro = null; }
+  if (!fromPop && history.state && history.state.kv){ KV.selfBack = true; history.back(); }
+}
+function kvSet(tf, first){                              // 轉 timeframe：保持右邊嗰日差唔多喺同一個位
+  const old = KV.S, atEnd = !old || KV.end >= old.c.length - 1.5, dEnd = old ? old.d[Math.max(0, Math.min(old.c.length - 1, Math.round(KV.end)))] : null;
+  KV.tf = tf; KV.S = kvSeries(KV.src, tf); KV.brk = kvBrk(KV.S.o, KV.S.h, KV.S.l, KV.S.c, KV.tick); KV.cross = null;
+  const n = KV.S.c.length;
+  KV.el.querySelectorAll("[data-kvtf]").forEach(b => b.setAttribute("aria-pressed", b.dataset.kvtf === tf));
+  if (first || !KV.bw) KV.bw = 6;
+  if (atEnd || !dEnd) KV.end = n - 1 + 3;
+  else { let j = 0; while (j < n - 1 && KV.S.d[j + 1] <= dEnd) j++; KV.end = j; }
+  const S = KV.S, c = S.c[n - 1], p = S.c[n - 2];
+  KV.el.querySelector(".kv-px").innerHTML = n ? `${fp(c)}${n > 1 ? ` <span class="${c >= p ? "up" : "dn"}">${pct(c / p - 1)}</span>` : ""} · ${esc(S.d[n - 1])}` : "";
+  kvReq();
+}
+function kvLatest(){ if (!KV.S) return; KV.end = KV.S.c.length - 1 + 3; KV.cross = null; kvReq(); }
+const kvIdx = x => KV.map ? KV.end + 0.5 - (KV.map.pr - x) / KV.bw : KV.end;
+function kvBwClamp(bw){ const pr = KV.map ? KV.map.pr : 300, n = KV.S ? KV.S.c.length : 100; return Math.max(Math.min(4, pr / (n + 8)), Math.min(48, bw)); }
+function kvReq(){ if (!KV.raf) KV.raf = requestAnimationFrame(kvDraw); }
+function kvNice(x){ const p = Math.pow(10, Math.floor(Math.log10(x))), f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+function kvFmt(v, step){                                // 刻度小數位跟格距（2.5、0.25 要多一位）
+  const e = Math.floor(Math.log10(step)), f = Math.round(step / Math.pow(10, e) * 10) / 10, dp = Math.min(8, Math.max(0, -e + (f === 2.5 ? 1 : 0)));
+  return v.toLocaleString("en-US", {minimumFractionDigits: dp, maximumFractionDigits: dp}); }
+function kvDraw(){
+  KV.raf = 0;
+  if (!kvIsOpen() || !KV.S) return;
+  const el = KV.el, cv = el.querySelector("canvas"), wrap = cv.parentElement, W = wrap.clientWidth, H = wrap.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!W || !H) return;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)){ cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + "px"; cv.style.height = H + "px"; }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const S = KV.S, n = S.c.length, cs = getComputedStyle(el), col = k => cs.getPropertyValue(k).trim();
+  const UP = col("--buy") || "#2cf5a0", DN = col("--stop") || "#ff4d6d", INK = col("--ink") || "#eee", MUT = col("--muted") || "#888", LN = col("--line") || "rgba(128,128,128,.2)", BG = col("--bg") || "#000";
+  const MONO = col("--mono") || "ui-monospace,monospace", SANS = col("--sans") || col("--brand") || "system-ui,sans-serif";
+  if (KV.axFor !== S){                                   // 右邊價錢欄闊度：夠放最長嗰個價（例如 28,180.26）
+    g.font = `700 12px ${MONO}`; let mx = 0; for (const v of [Math.max(...S.h), Math.min(...S.l), S.c[n - 1]]) mx = Math.max(mx, g.measureText(fp(v)).width);
+    KV.ax = Math.max(48, Math.ceil(mx) + 14); KV.axFor = S; }
+  const AX = KV.ax, TB = 22, pr = W - AX, pb = H - TB;
+  KV.map = {pr, pb, W, H};
+  KV.bw = kvBwClamp(KV.bw);
+  const vis = pr / KV.bw;
+  KV.end = Math.max(Math.min(n - 1, vis * 0.3), Math.min(n - 1 + Math.max(3, Math.min(vis * 0.15, 20)), KV.end));   // 右邊最多留 20 支空位：縮到最細睇得晒成段歷史
+  const bw = KV.bw, end = KV.end, X = i => pr - (end - i + 0.5) * bw;
+  const i0 = Math.max(0, Math.floor(end - vis)), i1 = Math.min(n - 1, Math.ceil(end));
+  let lo = Infinity, hi = -Infinity;
+  for (let i = i0; i <= i1; i++){ if (S.l[i] < lo) lo = S.l[i]; if (S.h[i] > hi) hi = S.h[i]; }
+  if (!Number.isFinite(lo)){ lo = Math.min(...S.l); hi = Math.max(...S.h); }
+  const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.02 || 1; lo -= pad; hi += pad;
+  const Y = v => 10 + (1 - (v - lo) / (hi - lo)) * (pb - 20);
+  Object.assign(KV.map, {X, Y, lo, hi, i0, i1});
+  // 價錢格線同右邊刻度
+  const step = kvNice((hi - lo) / Math.max(3, Math.floor(pb / 64)));
+  g.lineWidth = 1; g.strokeStyle = LN; g.fillStyle = MUT; g.font = `12px ${MONO}`; g.textBaseline = "middle"; g.textAlign = "left";
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step){ const y = Math.round(Y(v)) + 0.5; g.beginPath(); g.moveTo(0, y); g.lineTo(pr, y); g.stroke(); g.fillText(kvFmt(v, step), pr + 6, y); }
+  // 時間刻度：揀一個唔會太密嘅層（月 → 季 → 年 → 兩年 → 五年）
+  const lv = KV.tf === "M" ? [12, 24, 60, 120] : [1, 3, 12, 24, 60];
+  const mon = s => +s.slice(0, 4) * 12 + +s.slice(5, 7) - 1;
+  let marks = [];
+  for (const L of lv){
+    marks = []; for (let i = Math.max(1, i0); i <= i1; i++){ const a = mon(S.d[i - 1]), b = mon(S.d[i]); if (Math.floor(a / L) !== Math.floor(b / L)) marks.push(i); }
+    if (marks.every((m, k) => !k || X(m) - X(marks[k - 1]) >= 58)) break;
+  }
+  g.textAlign = "center"; g.textBaseline = "alphabetic";
+  marks.forEach(i => { const x = Math.round(X(i)) + 0.5, m = +S.d[i].slice(5, 7); g.strokeStyle = LN; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, pb); g.stroke();
+    g.fillStyle = MUT; g.fillText(m === 1 ? S.d[i].slice(0, 4) : m + "月", Math.max(18, Math.min(pr - 18, x)), H - 6); });
+  // 陰陽燭
+  g.save(); g.beginPath(); g.rect(0, 0, pr, pb); g.clip();
+  const w = Math.max(1, Math.min(bw * 0.72, bw - 1));
+  for (let i = i0; i <= i1; i++){
+    const x = X(i), c = S.c[i] >= S.o[i] ? UP : DN, yo = Y(S.o[i]), yc = Y(S.c[i]), xm = bw >= 3 ? Math.round(x) + 0.5 : x;
+    g.strokeStyle = g.fillStyle = c; g.beginPath(); g.moveTo(xm, Y(S.h[i])); g.lineTo(xm, Y(S.l[i])); g.stroke();
+    if (bw >= 2) g.fillRect(x - w / 2, Math.min(yo, yc), w, Math.max(1, Math.abs(yc - yo)));
+  }
+  // BOS／MSS：由轉角位畫到收穿嗰支
+  if (KV.showB){
+    g.font = `700 12px ${SANS}`; g.textAlign = "center";
+    for (const b of KV.brk){
+      if (b.i < i0 - 1 || b.s > i1 + 1) continue;
+      const c = b.dir > 0 ? UP : DN, y = Y(b.lv), xa = X(b.s), xb = X(b.i);
+      g.strokeStyle = g.fillStyle = c; g.lineWidth = 1.6; g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.stroke();
+      if (xb - xa >= 18 || bw >= 6){ g.textBaseline = b.dir > 0 ? "bottom" : "top"; g.fillText(b.k, (xa + xb) / 2, b.dir > 0 ? y - 3 : y + 3); }
+    }
+    g.lineWidth = 1;
+  }
+  g.restore();
+  // 現價：虛線 + 右邊色塊（字用底色，色塊夠深／夠淺先睇得清）
+  const lc = S.c[n - 1], up = n < 2 || lc >= S.c[n - 2], yl = Y(lc);
+  if (yl >= 0 && yl <= pb){
+    g.setLineDash([3, 3]); g.strokeStyle = up ? UP : DN; g.beginPath(); g.moveTo(0, Math.round(yl) + 0.5); g.lineTo(pr, Math.round(yl) + 0.5); g.stroke(); g.setLineDash([]);
+    g.fillStyle = up ? UP : DN; g.fillRect(pr + 1, yl - 10, AX - 2, 20); g.fillStyle = BG; g.font = `700 12px ${MONO}`; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(fp(lc), pr + 5, yl);
+  }
+  // 十字線
+  let ci = -1;
+  if (KV.cross){
+    ci = Math.max(i0, Math.min(i1, Math.round(kvIdx(KV.cross.x))));
+    const x = Math.round(X(ci)) + 0.5, y = Math.max(0, Math.min(pb, KV.cross.y)), v = lo + (1 - (y - 10) / (pb - 20)) * (hi - lo);
+    g.strokeStyle = INK; g.globalAlpha = 0.55; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(x, 0); g.lineTo(x, pb); g.moveTo(0, y); g.lineTo(pr, y); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+    g.fillStyle = INK; g.fillRect(pr + 1, y - 10, AX - 2, 20); g.fillStyle = BG; g.font = `12px ${MONO}`; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(fp(v), pr + 5, y);
+    const t = S.d[ci], tw = g.measureText(t).width + 12, tx = Math.max(0, Math.min(pr - tw, x - tw / 2));
+    g.fillStyle = INK; g.fillRect(tx, pb + 1, tw, TB - 2); g.fillStyle = BG; g.textAlign = "center"; g.fillText(t, tx + tw / 2, pb + TB / 2);
+  }
+  // 上面一行：十字線嗰支（冇就最新）嘅開高低收
+  const j = ci >= 0 ? ci : n - 1, ch = j ? S.c[j] / S.c[j - 1] - 1 : null, bk = KV.showB ? KV.brk.filter(b => b.i === j) : [];
+  el.querySelector(".kv-ohlc").innerHTML = `<b>${esc(S.d[j])}</b> 開 ${fp(S.o[j])} 高 ${fp(S.h[j])} 低 ${fp(S.l[j])} 收 ${fp(S.c[j])}${ch != null ? ` <span class="${ch >= 0 ? "up" : "dn"}">${pct(ch)}</span>` : ""}${bk.map(b => ` · <b class="${b.dir > 0 ? "up" : "dn"}">${b.dir > 0 ? "向上" : "向下"} ${b.k}</b>`).join("")}`;
+  el.querySelector("[data-kvnow]").hidden = KV.end >= n - 1.5;
+}
+function kvGlide(v){                                    // 放手之後慣性滑（v = 每毫秒幾多支）
+  let t0 = performance.now();
+  const f = t => { const dt = Math.min(48, t - t0); t0 = t; KV.end += v * dt; v *= Math.pow(0.94, dt / 16); kvDraw();
+    if (Math.abs(v) > 0.0004) KV.anim = requestAnimationFrame(f); };
+  KV.anim = requestAnimationFrame(f);
+}
+function kvBind(cv){
+  const P = new Map(); let mode = null, x0 = 0, y0 = 0, end0 = 0, lp = 0, pin = null, lastTap = 0, vel = 0, lx = 0, lt = 0;
+  const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const cross = (x, y) => { KV.cross = {x, y}; kvReq(); };
+  cv.addEventListener("pointerdown", e => {
+    cancelAnimationFrame(KV.anim);
+    try { cv.setPointerCapture(e.pointerId); } catch(_){}
+    const [x, y] = pos(e); P.set(e.pointerId, [x, y]);
+    if (P.size === 2){ clearTimeout(lp); const [a, b] = [...P.values()]; pin = {d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, bw: KV.bw, a: kvIdx((a[0] + b[0]) / 2)}; mode = "pinch"; KV.cross = null; return; }
+    if (P.size > 2) return;
+    mode = e.pointerType === "mouse" ? "mdown" : "wait"; x0 = lx = x; y0 = y; end0 = KV.end; lt = performance.now(); vel = 0;
+    if (e.pointerType !== "mouse") lp = setTimeout(() => { if (mode === "wait"){ mode = "cross"; lpBuzz(); cross(x0, y0); } }, LP.ms);
+  });
+  cv.addEventListener("pointermove", e => {
+    const [x, y] = pos(e);
+    if (!P.has(e.pointerId)){ if (e.pointerType === "mouse") cross(x, y); return; }        // 滑鼠移過 = 十字線
+    P.set(e.pointerId, [x, y]);
+    if (mode === "pinch"){ if (P.size < 2) return; const [a, b] = [...P.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, mx = (a[0] + b[0]) / 2;
+      KV.bw = kvBwClamp(pin.bw * d / pin.d); KV.end = pin.a - 0.5 + (KV.map.pr - mx) / KV.bw; kvReq(); return; }
+    if (mode === "cross"){ cross(x, y); return; }
+    if ((mode === "wait" || mode === "mdown") && Math.hypot(x - x0, y - y0) > LP.slop){ clearTimeout(lp); mode = "pan"; KV.cross = null; }
+    if (mode === "pan"){ const t = performance.now(); KV.end = end0 + (x0 - x) / KV.bw; vel = 0.8 * ((lx - x) / KV.bw) / Math.max(1, t - lt) + 0.2 * vel; lx = x; lt = t; kvReq(); }
+  });
+  const up = e => {
+    if (!P.has(e.pointerId)) return; P.delete(e.pointerId); clearTimeout(lp);
+    if (mode === "pinch"){ if (P.size === 1){ const q = [...P.values()][0]; mode = "pan"; x0 = lx = q[0]; end0 = KV.end; lt = performance.now(); vel = 0; } else if (!P.size) mode = null; return; }
+    if (P.size) return;
+    if (mode === "pan"){ if (performance.now() - lt < 80 && Math.abs(vel) > 0.002) kvGlide(vel); }
+    else if (mode === "wait" || mode === "mdown"){                                         // 撳一下：收十字線；撳兩下：返最新
+      const t = performance.now();
+      if (t - lastTap < 320){ lastTap = 0; KV.bw = 6; kvLatest(); }
+      else { lastTap = t; if (KV.cross && e.pointerType !== "mouse"){ KV.cross = null; kvReq(); } }
+    }
+    mode = null;
+  };
+  cv.addEventListener("pointerup", up);
+  cv.addEventListener("pointercancel", e => { P.delete(e.pointerId); clearTimeout(lp); if (!P.size) mode = null; });
+  cv.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !P.size && KV.cross){ KV.cross = null; kvReq(); } });
+  cv.addEventListener("wheel", e => { e.preventDefault(); const x = pos(e)[0], a = kvIdx(x);
+    KV.bw = kvBwClamp(KV.bw * Math.exp(-e.deltaY * 0.0015)); KV.end = a - 0.5 + (KV.map.pr - x) / KV.bw; kvReq(); }, {passive: false});
+  cv.addEventListener("contextmenu", e => e.preventDefault());
+}
+
 // ───────── 事件股價線（2026-10-21 用戶：「影片條 curve 會標邊個時間發生咩大事」「優先要 AI 先，歷史就用翻歷史數據加翻落去」
 // 「唔只係個股，直頭成個大市都可以有」）：scanner/events.py → docs/events/index.json + <MARKET|代號>.json。
 // 2026-10-23 起淨係大升跌同轉燈：AI（DeepSeek，有上網來源先用）搵到原因嘅大升跌寫「事件名 升跌%」，最優先寫標籤；其他畫做細點
@@ -4496,7 +4834,7 @@ function evGet(key){
 }
 const evHas = key => !!(EVX && EVX.items && EVX.items[key]);
 const evTag = sym => evHas(sym) ? ` <span class="tag t-evl" data-evsym="${esc(sym)}" role="button" title="撳落去睇股價走勢同大事">走勢</span>` : "";
-const evC = M => ({d: M.chart.d, c: M.chart.c, o: M.chart.o, h: M.chart.h, l: M.chart.l, events: M.events});   // 開高低：K 線用（2026-11-09）
+const evC = M => ({d: M.chart.d, c: M.chart.c, o: M.chart.o, h: M.chart.h, l: M.chart.l, events: M.events, long: M.chart.long, title: M.name || M.key});   // 開高低：K 線用；long + title：全螢幕 K 線（2026-11-09）
 const evHost = u => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return ""; } };
 const evSheetHtml = (e, C) => `<h4>${esc(e.label)}</h4>
   <p style="color:var(--muted)">${esc((C.d || [])[e.i] || e.d || "")} · 收市 ${f2((C.c || [])[e.i])}${e.chg != null ? ` · 當日 ${pct(e.chg)}` : ""}
@@ -4703,6 +5041,7 @@ async function evMergeRes(r){
     const add = M.events.filter(e => pos.has(M.chart.d[e.i])).map(e => ({...e, i: pos.get(M.chart.d[e.i]), w: Math.min(e.w || 1, 9)}))
       .filter(e => !ai.some(i => Math.abs(i - e.i) <= 3));
     C.events = (C.events || []).map(e => ({...e, w: 99})).concat(add); r._ev = true;
+    if (M.chart.long && !C.long) C.long = M.chart.long;   // 全螢幕週 K／月 K 長歷史
   } catch(e){}
 }
 
@@ -5287,8 +5626,8 @@ function crBind(r){
   $("#rsMenu").onclick = () => { const {sh} = rsSheet(`<h4>${esc(r.sym)} 加密研究</h4>${S.ghToken ? `<button id="crRegen">重新生成報告（雲端，大約 5 分鐘）</button>` : `<p style="color:var(--muted)">喺「設定」填 GitHub token 就可以重新生成。</p>`}<button data-close data-jump="src">睇來源</button><button data-close>關閉</button>`);
     const g = sh.querySelector("#crRegen"); if (g) g.onclick = () => { closeRes(); crGenerate(r.id, r.sym); };
     sh.querySelectorAll("[data-jump]").forEach(b => b.addEventListener("click", () => rsGo(b.dataset.jump))); };
-  const C = r.chart || {}; evDraw($("#crHero"), C, (C.events || []).length + 1);
-  const t = $("#taHero"); if (t && r.ta) taDraw(t, r.ta);
+  const C = r.chart || {}; evDraw($("#crHero"), C, (C.events || []).length + 1); kvTag($("#crHero"), r.sym, true);
+  const t = $("#taHero"); if (t && r.ta){ taDraw(t, r.ta); kvTag(t, r.sym, true); }
   const pills = $("#rsPills"), secs = [...el.querySelectorAll(".rs-sec[data-sec]")];
   let cur = "sum", tick = false;
   const spy = () => { tick = false; const top = el.scrollTop + 130; let k = secs[0] && secs[0].dataset.sec;
@@ -5404,6 +5743,8 @@ function bind(){
     b.dataset.evsym === "MARKET" ? openEv("MARKET") : openStock(b.dataset.evsym, "ev"); });
   on("#goSearch", () => openSearch());
   evDrawPage();                                        // 事件線要等 HTML 出咗先知闊度
+  cryDraw();                                           // 加密頁 BTC／ETH 走勢（2026-11-09）
+  document.querySelectorAll("[data-crys]").forEach(b => b.onclick = () => { CRY_SYM = b.dataset.crys; render("f"); });
   on("#resReload", () => { RS.msg = ""; RS.cache = {}; fetchResIndex(); });
   const rgo = async () => { const v = ($("#resSym").value || "").trim().toUpperCase().replace(/^\$/, ""); if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(v)){ noteBox("請輸入美股代號，例如 NVDA"); return; }
     if (resItem(v)){ openRes(v); return; } if (dsPeak()){ resGenerate(v); return; }   // 繁忙時段 resGenerate 自己會問（唔好問兩次）
@@ -5485,6 +5826,7 @@ return {
   extras:()=>{const F=SCAN&&SCAN.fear,B=SCAN&&SCAN.bounce;return (F&&(F.active||F.vix>=25)?fearCard():"")+(B&&B.zone&&B.signal&&B.signal.active?bounceCard():"");},
   openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,exportBox,pasteBox,
   openCoin,coinMatch,fetchCoins,crItem,chartK,setChartK,ckBars,ckSvg,ckSeg,fp,   // 2026-11-09：加密研究、打字建議、線／K 線
+  kvOpen,kvClose,kvIsOpen,kvPop,kvBrk,kvSeries,kvAgg,kvState:()=>KV,   // 2026-11-09：K 線全螢幕（shell 返回鍵、測試用）
   reload:()=>Promise.allSettled([fetchScan(),fetchModel(),fetchFeeds(true)])
 };
 })();

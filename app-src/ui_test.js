@@ -297,8 +297,56 @@ rows0[0].click(); await settledSheet(); ok("撳列表都開到", Sh.el.querySele
     ok("K 線長按：提示有開高低同 BOS／MSS", mini.classList.contains("on") && t.includes(TA.d[b.i]) && t.includes("開 ") && t.includes("高 ") && t.includes(b.k), t);
     ev(mini, "pointerup", bx, r.top + 80, pe); await sleep(150); ok("長按 BOS／MSS 放手唔會彈事件說明", !Sh.open); await until(() => !mini.classList.contains("on"), 3200); }
   mini.querySelector('[data-ck="0"]').click(); await sleep(80); ok("揀返線", !LG.chartK() && !!mini.querySelector(".ln") && !mini.querySelector(".lines rect") && !evc.classList.contains("ev-k") && getComputedStyle(evc.querySelector(".ev-kx")).display === "none" && mini.querySelectorAll(".evm [data-ev]").length === E0.events.length); }
+// ───── 6b2 K 線全螢幕（2026-11-09 老師：「有冇可能可以將K線圖做到好似tradingview咁樣揀timeframe同埋放大縮小？同埋左右回放更遠的K線？」）
+const tpI = id => ({pointerType: "touch", pointerId: id});
+{ const kb = mini.querySelector("[data-kv]"); ok("事件線有全螢幕 K 線掣", !!kb && kb.getAttribute("aria-label").includes("全螢幕"));
+  const st0 = JSON.stringify(history.state), n0h = HS.n;
+  kb.click(); await sleep(200); const KS = LG.kvState(), kvEl = $("#kv"), cv = kvEl && kvEl.querySelector("canvas");
+  ok("撳掣開全螢幕 K 線", LG.kvIsOpen() && kvEl.querySelector(".kv-t b").textContent === "納指 100" && cv.width > 0 && getComputedStyle(kvEl).position === "fixed", [LG.kvIsOpen(), kvEl && kvEl.querySelector(".kv-t b").textContent]);
+  ok("全螢幕蓋晒成個畫面", (() => { const r = kvEl.getBoundingClientRect(), P = phone.getBoundingClientRect(); return Math.abs(r.width - P.width) < 2 && Math.abs(r.height - P.height) < 2; })());
+  ok("預設日 K：日數同事件線一樣", KS.tf === "D" && KS.S.c.length === E0.c.length, [KS.tf, KS.S.c.length, E0.c.length]);
+  ok("頂行有最新一日開高低收", kvEl.querySelector(".kv-ohlc").textContent.includes(E0.d.at(-1)) && kvEl.querySelector(".kv-ohlc").textContent.includes("開 "), kvEl.querySelector(".kv-ohlc").textContent);
+  ok("日 K 有 BOS／MSS（app 即場計）", KS.brk.length > 0 && KS.brk.every(b => b.k === "BOS" || b.k === "MSS"));
+  ok("有日 K／週 K／月 K 三個掣", [...kvEl.querySelectorAll("[data-kvtf]")].map(b => b.textContent).join() === "日 K,週 K,月 K");
+  kvEl.querySelector('[data-kvtf="W"]').click(); await sleep(120);
+  ok("週 K 用 2010 年起長歷史", KS.tf === "W" && !!E0.long && KS.S.c.length === E0.long.w.c.length && KS.S.d[0] < "2011", [KS.S.c.length, E0.long && E0.long.w.c.length, KS.S.d[0]]);
+  ok("週 K 嘅 BOS／MSS 另外計", KS.brk.length > 0 && kvEl.querySelector('[data-kvtf="W"]').getAttribute("aria-pressed") === "true");
+  kvEl.querySelector('[data-kvtf="M"]').click(); await sleep(120); ok("月 K", KS.tf === "M" && KS.S.c.length === E0.long.m.c.length && KS.S.c.at(-1) === E0.long.m.c.at(-1));
+  kvEl.querySelector('[data-kvtf="D"]').click(); await sleep(120);
+  const cr = cv.getBoundingClientRect(), cx = cr.left + cr.width / 2, cy = cr.top + cr.height / 2, bw0 = KS.bw;
+  cv.dispatchEvent(new WheelEvent("wheel", {deltaY: -300, clientX: cx, clientY: cy, bubbles: true, cancelable: true})); await sleep(60);
+  ok("滑鼠轆放大", KS.bw > bw0 * 1.3, [bw0, KS.bw]);
+  const bw1 = KS.bw;
+  ev(cv, "pointerdown", cx - 60, cy, tpI(11)); ev(cv, "pointerdown", cx + 60, cy, tpI(12));
+  ev(cv, "pointermove", cx - 30, cy, tpI(11)); ev(cv, "pointermove", cx + 30, cy, tpI(12));
+  ev(cv, "pointerup", cx - 30, cy, tpI(11)); ev(cv, "pointerup", cx + 30, cy, tpI(12)); await sleep(60);
+  ok("兩隻手指捏埋 = 縮細", KS.bw < bw1 * 0.6, [bw1, KS.bw]);
+  ev(cv, "pointerdown", cx - 30, cy, tpI(11)); ev(cv, "pointerdown", cx + 30, cy, tpI(12));
+  ev(cv, "pointermove", cx - 90, cy, tpI(11)); ev(cv, "pointermove", cx + 90, cy, tpI(12));
+  ev(cv, "pointerup", cx - 90, cy, tpI(11)); ev(cv, "pointerup", cx + 90, cy, tpI(12)); await sleep(60);
+  ok("兩隻手指拉開 = 放大", KS.bw > bw1 * 1.4, [bw1, KS.bw]);
+  const e0 = KS.end;
+  ev(cv, "pointerdown", cx, cy, tpI(13)); ev(cv, "pointermove", cx + 60, cy, tpI(13)); ev(cv, "pointermove", cx + 160, cy, tpI(13)); await sleep(150);
+  ev(cv, "pointerup", cx + 160, cy, tpI(13)); await sleep(60);
+  ok("一隻手指向右拖 = 睇更早嘅 K 線", KS.end < e0 - 150 / KS.bw, [e0, KS.end, KS.bw]);
+  ok("拖咗返去就出「返最新」", !kvEl.querySelector("[data-kvnow]").hidden);
+  ev(cv, "pointerdown", cx, cy, tpI(14)); await sleep(200); ok("短撳未出十字線", !KS.cross); await sleep(340);
+  ok("長按出十字線", !!KS.cross); const ol = kvEl.querySelector(".kv-ohlc").textContent; ev(cv, "pointerup", cx, cy, tpI(14));
+  ok("頂行換做十字線嗰支（唔係最新嗰日）", !ol.includes(E0.d.at(-1)) && /\d{4}-\d\d-\d\d 開 /.test(ol), ol);
+  ev(cv, "pointerdown", cx, cy, tpI(15)); ev(cv, "pointerup", cx, cy, tpI(15)); ev(cv, "pointerdown", cx, cy, tpI(16)); ev(cv, "pointerup", cx, cy, tpI(16)); await sleep(60);
+  ok("撳兩下返最新", KS.end >= KS.S.c.length - 1 && kvEl.querySelector("[data-kvnow]").hidden && !KS.cross, [KS.end, KS.S.c.length]);
+  const bb = kvEl.querySelector("[data-kvb]"); bb.click(); ok("BOS／MSS 可以收埋", !KS.showB && bb.getAttribute("aria-pressed") === "false"); bb.click();
+  const bw2 = KS.bw; kvEl.querySelector('[data-kvz="1"]').click(); ok("＋ 放大", KS.bw > bw2 * 1.4); kvEl.querySelector('[data-kvz="-1"]').click(); ok("− 縮細返", Math.abs(KS.bw - bw2) < 0.01);
+  ok("全螢幕冇橫向出界", kvEl.scrollWidth - kvEl.clientWidth <= 1); audit("K 線全螢幕", kvEl);
+  history.back(); await until(() => !LG.kvIsOpen(), 2000); await sleep(250);
+  ok("返回鍵淨係收全螢幕 K 線", !LG.kvIsOpen() && cur === "today" && !Pu.open && !Sh.open && HS.n === n0h && JSON.stringify(history.state) === st0, { s: history.state, st0, n: HS.n, n0h, cur, pu: Pu.open, sh: Sh.open, kv: LG.kvIsOpen() });
+  ok("收完乾淨", clean()); }
 evc.querySelector("[data-evall]").click(); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1);
 ok("睇晒全部事件", pushEl.querySelectorAll(".evr").length === E0.events.length, pushEl.querySelectorAll(".evr").length);
+{ pushEl.querySelector(".evch [data-kv]").click(); await sleep(200);
+  ok("全頁事件線都開到全螢幕 K 線", LG.kvIsOpen() && Pu.open);
+  $("#kv [data-kvx]").click(); await until(() => !LG.kvIsOpen() && HS.ignore === 0, 2000); await sleep(250);
+  ok("撳返回掣收全螢幕：全頁仲喺度", !LG.kvIsOpen() && Pu.open && HS.n === 1, { pu: Pu.open, n: HS.n }); }
 const dates = [...pushEl.querySelectorAll(".evr .d")].map(d => d.textContent); ok("新到舊", dates.every((d, i) => !i || dates[i - 1] >= d));
 ok("全頁圖有畫", pushEl.querySelectorAll(".evch .tag").length === 7 && pushEl.querySelector(".evch")._g.W > 200, pushEl.querySelectorAll(".evch .tag").length);
 ok("全頁圖唔出界", pushEl.scrollWidth - pushEl.clientWidth <= 1, pushEl.scrollWidth - pushEl.clientWidth);
@@ -320,7 +368,41 @@ v0.scrollTop = 0; await sleep(60);
   const R = $("#rs"); ok("加密報告有 10 節", R.querySelectorAll(".rs-sec[data-sec]").length === 10, R.querySelectorAll(".rs-sec[data-sec]").length);
   ok("加密報告有價格圖同 BOS／MSS 圖", !!R.querySelector("#crHero svg") && !!R.querySelector("#taHero svg"));
   ok("加密報告冇橫向出界", R.scrollWidth - R.clientWidth <= 1, R.scrollWidth - R.clientWidth); audit("加密報告", R);
+  R.querySelector("#taHero [data-kv]").click(); await sleep(200); const KS = LG.kvState();
+  ok("加密技術圖全螢幕：用價格圖嘅一年日 K（唔係得 120 日）", LG.kvIsOpen() && KS.title === "ETH" && KS.S.c.length > 300, [KS.title, KS.S && KS.S.c.length]);
+  ok("加密 tick 用收市中位數 × 0.00001", KS.tick > 0.001 && KS.tick < 1, KS.tick);
+  $("#kv [data-kvtf=\"W\"]").click(); await sleep(100); ok("加密週 K 用長歷史（幾年）", KS.S.c.length > 200, KS.S.c.length);
+  history.back(); await until(() => !LG.kvIsOpen(), 2000); await sleep(250); ok("返回鍵收全螢幕：加密報告仲喺度", !LG.kvIsOpen() && !$("#rs").hidden);
+  LG.kvState().tf = "D";   // 下一個測試由日 K 開始（全螢幕會記住上次揀嘅 timeframe）
   LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(120); }
+// ───── 6d 加密頁 BTC／ETH 走勢（2026-11-09 老師：「加密做埋K線，做法同股票一樣」）
+{ go("cry"); await until(() => cur === "cry" && !Pg.active); await sleep(150); const vc = view("cry");
+  if (TABS.cry && (ST.sub.cry || 0) !== 0) { segTo(vc.querySelector('[data-segb="0"]')); await sleep(340); }
+  await until(() => !!vc.querySelector("#cryK .cry-hero svg"), 8000); const card = vc.querySelector("#cryK"), hb = card && card.querySelector(".cry-hero");
+  ok("加密頁有 BTC 走勢卡", !!card && card.querySelector("b").textContent.includes("BTC"));
+  ok("線：一年收市 + 100 日線", hb.querySelectorAll("svg polyline").length === 2 && card.querySelector(".cry-leg").textContent.includes("100 日線"), hb.querySelectorAll("svg polyline").length);
+  hb.querySelector('[data-ck="1"]').click(); await sleep(150);
+  const BT = await (await fetch(BASE + "feeds/btc.json")).json(), T0 = BT.kl.BTC.ta;
+  ok("K 線：近 120 日日 K + BOS／MSS（同股票技術圖一樣）", hb.querySelectorAll("svg rect").length === T0.c.length && [...hb.querySelectorAll("svg text")].some(t => t.textContent === "BOS" || t.textContent === "MSS"), hb.querySelectorAll("svg rect").length);
+  ok("K 線下面有 ADR、距 52 週高、距 50 日線", ["ADR", "距 52 週高", "距 50 日線"].every(s => card.querySelector(".cry-leg").textContent.includes(s)));
+  card.querySelector('[data-crys="ETH"]').click(); await until(() => (vc.querySelector("#cryK b") || {}).textContent === "ETH 走勢", 3000); await sleep(150);
+  const hb2 = vc.querySelector("#cryK .cry-hero"); ok("轉 ETH", hb2.dataset.crysym === "ETH" && hb2.querySelectorAll("svg rect").length === BT.kl.ETH.ta.c.length);
+  hb2.querySelector("[data-kv]").click(); await sleep(200); const KS = LG.kvState();
+  ok("ETH 走勢開全螢幕：兩年日 K", LG.kvIsOpen() && KS.title === "ETH" && KS.S.c.length === BT.kl.ETH.c.length, [KS.title, KS.S && KS.S.c.length]);
+  $("#kv [data-kvx]").click(); await until(() => !LG.kvIsOpen() && HS.ignore === 0, 2000); await sleep(200);
+  ok("加密卡冇橫向出界", vc.scrollWidth - vc.clientWidth <= 1); audit("加密走勢卡", vc.querySelector("#cryK"));
+  vc.querySelector('#cryK [data-crys="BTC"]').click(); await sleep(200); vc.querySelector('#cryK [data-ck="0"]').click(); await sleep(100);
+  go("today"); await until(() => cur === "today" && !Pg.active); await sleep(150); }
+// ───── 6e AI 今日重點淨係喺「新聞」（2026-11-09 老師：「我見到經濟數據，新聞定係業績都出同一樣嘢，應該無需要吧？」）
+{ go("info"); await until(() => cur === "info" && !Pg.active); await sleep(150); const vi = view("info");
+  if ((ST.sub.info || 0) !== 0) { segTo(vi.querySelector('[data-segb="0"]')); await sleep(340); }
+  const chip = k => vi.querySelector(`[data-nt="${k}"]`); await until(() => !!chip("news"), 8000);
+  const Dg = () => (LG.state().FEED.news || {}).digest;
+  chip("news").click(); await sleep(350); ok("新聞：有 AI 今日重點", !(Dg() && (Dg().points || []).length) || !!vi.querySelector("#aiDigest"));
+  chip("econ").click(); await sleep(350); ok("經濟數據：唔再重複 AI 今日重點", !!chip("econ") && !vi.querySelector("#aiDigest") && (!(Dg() && Dg().econ) || !!vi.querySelector("#aiEcon")));
+  chip("earn").click(); await sleep(350); ok("業績：唔再出 AI 今日重點", !vi.querySelector("#aiDigest") && !vi.querySelector("#aiEcon"));
+  chip("news").click(); await sleep(300);
+  go("today"); await until(() => cur === "today" && !Pg.active); await sleep(150); }
 
 // ───── 7 曲線
 const sc = A.el, rc = sc.getBoundingClientRect();

@@ -2,7 +2,8 @@
 「唔只係個股，直頭成個大市都可以有」）。[quant-data]
 
 輸出 docs/events/<KEY>.json（KEY = MARKET 即納指 100，或者股票代號）+ docs/events/index.json（有邊啲、幾多個事件）：
-  chart:  {d: [...], c: [...]}  前年 1 月 1 日起每日收市（拆股、派息調整）
+  chart:  {d: [...], c: [...]}  前年 1 月 1 日起每日收市（拆股、派息調整）；o/h/l 開高低；
+          long: {w, m, start} 2010 年起週 K、月 K（2026-11-09，app K 線全螢幕左右拖睇更遠，scanner/bars.py）
   events: [{d, i, kind, label, detail, chg, w, ai, src, model, earn}]  i = chart 第幾日；w = 重要程度（app 揀頭幾個寫標籤，其他畫點）
 事件（2026-10-23 用戶：「淨係要重要事件，轉燈同大升跌就得」「大升跌其實就係因為大事件？會唔會可以合拼」→ 只留兩種，
   大升跌同佢嘅原因合做一個點；之前嘅業績、模型買賣、由高位跌 10%／20% 拎走）：
@@ -91,6 +92,37 @@ def download(syms, start):
 
 
 RAW = None
+RAW_LONG = None          # 2026-11-09：K 線全螢幕週 K／月 K 用 2010 年起長歷史（bars.long_bars）；RAW 剪返同之前一樣長，事件同技術結構唔變
+
+
+def _naive(idx):
+    idx = pd.to_datetime(idx)
+    return idx.tz_localize(None) if idx.tz is not None else idx
+
+
+def trim_raw(cut):
+    """download 攞咗長歷史之後：RAW_LONG 留全部，RAW 同返回嘅收市剪返 cut 之後（事件、技術結構計法同之前一模一樣）。"""
+    global RAW, RAW_LONG
+    RAW_LONG = RAW
+    if RAW is not None:                                  # 測試嘅假 download 冇 RAW
+        RAW = RAW[_naive(RAW.index) >= cut]
+
+
+def long_of(sym):
+    """長歷史週 K／月 K（bars.long_bars）；冇就 None。美股未收市嗰日唔計。"""
+    if RAW_LONG is None:
+        return None
+    try:
+        import bars
+        df = RAW_LONG[sym].dropna(subset=["Open", "High", "Low", "Close"])
+        df.index = _naive(df.index)
+        ny = datetime.now(NYT)
+        if ny.hour * 60 + ny.minute < 16 * 60 + 15:
+            df = df[df.index.date < ny.date()]
+        return bars.long_bars([str(x.date()) for x in df.index], df["Open"], df["High"], df["Low"], df["Close"])
+    except Exception as e:  # noqa: BLE001
+        print(f"[events] {sym} 長歷史 K 線砌唔到：{str(e)[:80]}")
+        return None
 
 
 def _ohlc(sym):
@@ -328,8 +360,12 @@ def main():
     syms, held, top, ind, _ = targets()
     today = datetime.now(NYT).date()
     start = pd.Timestamp(today.year - 2, 1, 1)
-    C = download(syms, (start - timedelta(days=420)).strftime("%Y-%m-%d"))
-    C.index = pd.to_datetime(C.index).tz_localize(None)
+    import bars
+    cut = start - timedelta(days=420)
+    C = download(syms, bars.LONG_FROM)                   # 長歷史俾全螢幕週 K／月 K；下面即刻剪返同之前一樣
+    trim_raw(cut)
+    C.index = _naive(C.index)
+    C = C[C.index >= cut]
     ny = datetime.now(NYT)
     if ny.hour * 60 + ny.minute < 16 * 60 + 15:          # 美股未收市（例如香港晚上 events.yml 補原因）：今日未完嘅價唔算，唔會當大升跌
         C = C[C.index.date < ny.date()]
@@ -374,6 +410,9 @@ def main():
             rep["ta"] = ta
         if RAW is not None:
             rep["chart"] = add_ohlc(rep["chart"], MKT if key == MKT_KEY else key)
+        lg = long_of(MKT if key == MKT_KEY else key)
+        if lg:
+            rep["chart"]["long"] = lg
         (OUT / f"{key}.json").write_text(json.dumps(rep, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         index[key] = dict(name=name, n=len(rep["events"]), ai=sum(1 for e in rep["events"] if e.get("ai")),
                           last=rep["chart"]["d"][-1], ind=ind.get(key))

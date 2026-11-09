@@ -40,6 +40,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bars  # noqa: E402
 import llm  # noqa: E402
 import structure  # noqa: E402
 
@@ -183,29 +184,12 @@ def resolve(q, coins):
 
 
 # ───────────────────────────────────────────── 2. 收集數據
+LONG_DAYS = 3700                 # 2026-11-09：K 線全螢幕週 K／月 K 要長歷史（大約 10 年；幣上市之前嗰段 Coinbase 返空，跳過）
+
+
 def coinbase_ohlc(sym, days=365):
-    """Coinbase 日 K（{SYM}-USD）：[(日子, 開, 高, 低, 收)]，冇呢個幣就 []。每次最多 300 支。"""
-    out, end = {}, datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    start = end - timedelta(days=days)
-    t = start
-    while t < end:
-        t2 = min(end, t + timedelta(days=299))
-        u = (f"https://api.exchange.coinbase.com/products/{urllib.parse.quote(sym)}-USD/candles?granularity=86400"
-             f"&start={t.strftime('%Y-%m-%dT%H:%M:%SZ')}&end={t2.strftime('%Y-%m-%dT%H:%M:%SZ')}")
-        try:
-            rows = get(u, timeout=30, tries=2)
-        except Exception as e:  # noqa: BLE001
-            print(f"[crypto] Coinbase {sym} 攞唔到：{str(e)[:80]}")
-            return []
-        if not rows:
-            return []
-        for ts, lo, hi, op, cl, _v in rows:
-            d = datetime.fromtimestamp(ts, timezone.utc).date()
-            if d < end.date():                           # 今日未完嗰支唔要
-                out[d.isoformat()] = (float(op), float(hi), float(lo), float(cl))
-        t = t2
-        time.sleep(0.4)
-    return [(d, *out[d]) for d in sorted(out)]
+    """Coinbase 日 K（{SYM}-USD）：[(日子, 開, 高, 低, 收)]，冇呢個幣就 []。每次最多 300 支（bars.coinbase_daily）。"""
+    return bars.coinbase_daily(sym, days, get)
 
 
 def llama_maps():
@@ -292,10 +276,12 @@ def collect(cid, maps=None):
         d = datetime.fromtimestamp(ts / 1000, timezone.utc).date()
         if d < datetime.now(timezone.utc).date() and p:
             closes[d.isoformat()] = float(p)
-    k = coinbase_ohlc(sym) if sym else []
+    k_all = coinbase_ohlc(sym, LONG_DAYS) if sym else []
+    k = k_all[-365:]
     if len(k) >= 60:
         chart = dict(d=[x[0] for x in k], o=[structure._r(x[1]) for x in k], h=[structure._r(x[2]) for x in k],
-                     l=[structure._r(x[3]) for x in k], c=[structure._r(x[4]) for x in k], src="C4")
+                     l=[structure._r(x[3]) for x in k], c=[structure._r(x[4]) for x in k], src="C4",
+                     long=bars.long_bars(*([x[j] for x in k_all] for j in range(5))))   # 全螢幕 K 線週 K／月 K
         mid = sorted(x[4] for x in k)[len(k) // 2]
         ta = structure.analyze(chart["d"], [x[1] for x in k], [x[2] for x in k], [x[3] for x in k], [x[4] for x in k],
                                tick=max(1e-12, mid * 1e-5), unit="日")

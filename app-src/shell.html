@@ -246,6 +246,8 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .ck-seg{position:absolute;left:4px;top:0;z-index:2;display:flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden;background:var(--evbg,var(--card))} /* 2026-11-09 線／K 線 */
 .ck-seg button{min-height:28px;padding:0 12px;font-size:12px;font-weight:700;color:var(--mut)}
 .ck-seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.ck-seg [data-kv]{display:grid;place-items:center;padding:0 10px;border-left:1px solid var(--line2)} /* 全螢幕 K 線 */
+.ck-seg [data-kv] svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .evch .e-up{--e:var(--up)}.evch .e-dn{--e:var(--dn)}.evch .e-wr{--e:var(--warn)}
 .evch .tag rect.box{fill:var(--evbg);stroke:var(--line2)}
 .evch .tag text{font:700 12px var(--sans);fill:var(--ink)}
@@ -717,7 +719,7 @@ function evTaDraw(el,T){
   evBind(el);
 }
 function evDraw(el){
-  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);
+  el.dataset.ckbox="1";el._redraw=()=>evDraw(el);el._kv=EV;el._kvT="納指 100"; // 全螢幕 K 線（LG.kvOpen）用成份數據（兩年日 K + 2010 年起週月 K）
   const TA=LG.chartK()&&EV.ta&&EV.ta.c&&EV.ta.c.length>1&&["o","h","l"].every(k=>(EV.ta[k]||[]).length===EV.ta.c.length);
   if(el.parentElement)el.parentElement.classList.toggle("ev-k",!!TA);
   if(TA)return evTaDraw(el,EV.ta);
@@ -765,7 +767,7 @@ function evBind(el){
     return G.evs.filter(e=>Math.abs(e.i-i)<=span).sort((a,b)=>Math.abs(a.i-i)-Math.abs(b.i-i))[0];};
   const stop=()=>{clearTimeout(lp);down=false;armed=false;};
   el.addEventListener("pointerdown",e=>{pt=e.pointerType;down=true;armed=false;moved=false;x0=xl=e.clientX;y0=e.clientY;last=null;clearTimeout(tm);clearTimeout(lp);
-    if(e.target.closest("[data-ck]"))return;
+    if(e.target.closest("[data-ck],[data-kv]"))return;
     if(pt==="mouse"){if(!e.target.closest("[data-ev]"))show(e.clientX);return;}
     lp=setTimeout(()=>{if(!down)return;armed=true;buzz("light");show(xl);},LPS.ms);});
   el.addEventListener("pointermove",e=>{
@@ -781,7 +783,7 @@ function evBind(el){
     stop();hide();});
   el.addEventListener("pointerleave",()=>{stop();hide();});el.addEventListener("pointercancel",()=>{stop();hide();});
   // 手指短撳圖：唔開說明（淨係長按先開）
-  el.addEventListener("click",e=>{if(pt!=="mouse"&&!e.target.closest("[data-ck]")){e.stopPropagation();e.preventDefault();}},true);
+  el.addEventListener("click",e=>{if(pt!=="mouse"&&!e.target.closest("[data-ck],[data-kv]")){e.stopPropagation();e.preventDefault();}},true);
   el.addEventListener("contextmenu",e=>{if(pt!=="mouse")e.preventDefault();});
 }
 function evReveal(el){ // 第一次碌到先畫出嚟，之後唔再播；冇觸發都唔會有嘢遮住
@@ -1247,6 +1249,7 @@ function hback(){
 }
 addEventListener("popstate",()=>{
   if(HS.ignore>0){HS.ignore--;if(!HS.ignore)while(HS.pend>0){HS.pend--;hpushNow();}return;}
+  if(LG.kvPop())return; // K 線全螢幕開緊（或者佢自己撳返回）：engine 自己收，下面嘅頁唔郁
   if(!$("#rs").hidden)return; // engine 嘅詳情頁蓋住：佢自己收
   if(HS.n>0)HS.n--;
   if(Sh.open)closeSheet(true);else if(Se.open)closeSearch(true);else if(Pu.open)popPage(true);
@@ -1546,7 +1549,7 @@ function launch(force){
   try{lcRun(v);}catch(e){lcFinish();}
 }
 function heroCount(){if(!A.s)return;const to=A.s.v.at(-1);A.num.classList.toggle("up",to>=0);A.num.classList.toggle("dn",to<0);countUp(A.num,to,x=>sg(x));}
-function closeAllNow(){closeNow();if(Se.open){Se.open=false;searchEl.hidden=true;searchEl.innerHTML="";hback();}if(Pu.open){Pu.open=false;setLeave();Pu.mv.stop();pushClean();hback();}if(!$("#rs").hidden)LG.closeRes();}
+function closeAllNow(){if(LG.kvIsOpen())LG.kvClose(true);closeNow();if(Se.open){Se.open=false;searchEl.hidden=true;searchEl.innerHTML="";hback();}if(Pu.open){Pu.open=false;setLeave();Pu.mv.stop();pushClean();hback();}if(!$("#rs").hidden)LG.closeRes();}
 
 // ───── 撳
 phone.addEventListener("click",e=>{
@@ -1583,7 +1586,7 @@ function shellBoot(){
   if(RM)phone.setAttribute("data-rm","");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
   window.__booted=true;
-  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,gen:M.gen,events:M.events,ta:M.ta||null};evArrived();}}).catch(()=>{});
+  fetch(BASE+"events/MARKET.json?t="+Math.floor(Date.now()/600e3),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(M=>{if(M){EV={d:M.chart.d,c:M.chart.c,o:M.chart.o,h:M.chart.h,l:M.chart.l,long:M.chart.long||null,gen:M.gen,events:M.events,ta:M.ta||null};evArrived();}}).catch(()=>{});
   shellData();
   if(new URLSearchParams(location.search).get("nosplash")==null)launch();else lcFinish();
   {const idle=window.requestIdleCallback||(f=>setTimeout(f,300));(function pre(i){if(i<ORDER.length)idle(()=>{view(ORDER[i]);pre(i+1);});})(0);} // 有空閒就預先砌好其他分頁，第一次撳先唔會卡一格

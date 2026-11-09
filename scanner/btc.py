@@ -34,6 +34,43 @@ def get(url, timeout=60):
     return urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=timeout).read()
 
 
+def jget(url, timeout=30, tries=2):
+    """JSON；404 → None（Coinbase 冇呢個產品）。"""
+    import time
+    import urllib.error
+    for k in range(tries):
+        try:
+            return json.loads(get(url, timeout))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            if k == tries - 1:
+                raise
+        except Exception:  # noqa: BLE001
+            if k == tries - 1:
+                raise
+        time.sleep(3)
+    return None
+
+
+def klines(prev):
+    """2026-11-09 老師：「加密做埋K線，做法同股票一樣」→ 加密頁 BTC／ETH 走勢：線 = 收市 + 100 日線；K 線 = 日 K + BOS／MSS
+    + ADR／距 52 週高／距 50 日線（structure.py，只供參考）；全螢幕 K 線週 K／月 K 用長歷史（bars.py）。數據：Coinbase 日 K（免費）。
+    攞唔到就沿用上一份（標 stale）。"""
+    import bars
+    out = {}
+    for s in ("BTC", "ETH"):
+        try:
+            b = bars.kline_block(bars.coinbase_daily(s, 3700, jget))
+            if b:
+                out[s] = b
+        except Exception as ex:  # noqa: BLE001
+            print(f"[btc] {s} 日 K 攞唔到：", ex)
+        if s not in out and (prev.get("kl") or {}).get(s):
+            out[s] = dict(prev["kl"][s], stale=True)
+    return out
+
+
 def coinmetrics(asset="btc", since="2016-01-01"):
     url = (f"https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets={asset}&metrics=PriceUSD,CapMVRVCur"
            f"&frequency=1d&page_size=10000&start_time={since}&paging_from=start")
@@ -240,6 +277,9 @@ def main(out):
         print("[btc] 利率攞唔到：", e)
         if pr:
             o["rates"] = pr
+    kl = klines(prev)
+    if kl:
+        o["kl"] = kl
     Path(out, "btc.json").write_text(json.dumps(o, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"[btc] {o['close']['date']} {o['close']['px']:,.0f} vs 365 日線 {o['ma365']:,.0f}；週線{'持有' if o['weekly']['hold'] else '空倉'}（{o['weekly']['since']} 起）；"
           f"穩陣版{'持有' if o['stable']['hold'] else '空倉'}；MVRV {o['mvrv']}；ETH 策略：{(o.get('eth') or {}).get('pos')}（{(o.get('eth') or {}).get('since')} 起）")
