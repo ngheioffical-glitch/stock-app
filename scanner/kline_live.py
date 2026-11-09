@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 NY = ZoneInfo("America/New_York")
-H1_DAYS = 120
+H1_DAYS = 500        # 2026-11-09 老師：「咁歷史數據唔可以用1H同4H睇？」→ 1H 都留盡 Yahoo 60 分鐘 K 嘅約 2 年（之前 120 日）
 H4_DAYS = 500
 MKT, MKT_KEY = "^NDX", "MARKET"
 
