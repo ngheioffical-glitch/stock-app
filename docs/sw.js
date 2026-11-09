@@ -1,5 +1,5 @@
 // 離線快取：全部先試網絡（app 更新即刻見到），冇網先用上次嘅
-const CACHE = "signals-app-126";
+const CACHE = "signals-app-127";
 const SHELL = ["./", "index.html", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png"];
 // 2026-10-24：新聞、加密等喺 raw.githubusercontent.com（feeds／radar／live 分支），之前跨網站唔理，冇網或者 GitHub 5xx 就成頁讀唔到
 const FEED_HOSTS = ["raw.githubusercontent.com"];
@@ -12,7 +12,10 @@ self.addEventListener("fetch", e => {
   // 同一個 key 唔理 ?t= 參數，冇網時都搵到上次嘅 scan.json、news.json
   const key = url.pathname.endsWith(".json") ? (same ? url.pathname : url.origin + url.pathname) : e.request;
   const old = () => caches.match(key).then(r => r || (e.request.mode === "navigate" ? caches.match("index.html") : undefined));
-  e.respondWith(fetch(e.request).then(r => {
+  // 2026-11-09 老師：「push咗係咪要時間先生效？」→ GitHub Pages 頁面帶 max-age=600，手機會用 10 分鐘內嘅舊版；
+  // 開 app（頁面本身）一律問返伺服器有冇新版（no-cache = 有 ETag 就好快），push 完關 app 再開即刻見到
+  const page = same && (e.request.mode === "navigate" || /\/$|\.html$/.test(url.pathname));
+  e.respondWith((page ? fetch(url.href, {cache: "no-cache", credentials: "same-origin"}) : fetch(e.request)).then(r => {
     if (r.ok){ const c = r.clone(); caches.open(CACHE).then(k => k.put(key, c)); return r; }
     return r.status >= 500 ? old().then(c => c || r) : r;           // GitHub 5xx：用返上次；404 照返（例如未有空投分析）
   }).catch(() => old()));
