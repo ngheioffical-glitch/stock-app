@@ -170,6 +170,7 @@ return {
   openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,exportBox,pasteBox,
   openCoin,coinMatch,fetchCoins,crItem,chartK,setChartK,ckBars,ckSvg,ckSeg,fp,   // 2026-11-09：加密研究、打字建議、線／K 線
   kvOpen,kvClose,kvIsOpen,kvPop,kvBrk,kvBuild,kvAgg,kvState:()=>KV,   // 2026-11-09：K 線全螢幕（shell 返回鍵、測試用）
+  rtCard,rtSpan,rtTake,rtPaint,rtNow,rtSym,rtKick,rtSyms,rtState:()=>RT,   // 2026-11-10：CNBC 實時報價（今日頁、測試用）
   reload:()=>Promise.allSettled([fetchScan(),fetchModel(),fetchFeeds(true)])
 };
 })();

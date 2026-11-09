@@ -843,6 +843,13 @@ html,body{height:100%;overflow:hidden;overscroll-behavior:none}
 .lg .mt span{font-size:12px;color:var(--muted);white-space:nowrap}
 .lg .mt b{font-size:21px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.25}
 .lg .mt em{font-style:normal;font-size:12px;font-weight:600;white-space:nowrap}
+.lg .rtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.lg .rtiles .mt{padding:9px 10px}
+.lg .rtiles .mt b{font-size:17px}
+.lg .rtiles .mt span,.lg .rtiles .mt em{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.lg .rt-note{margin:8px 2px 0}
+.lg .rtline{display:block;margin:4px 0 2px;font-size:14px}
+.lg .kv-rt{color:var(--ink)}
 .lg .dlist{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.6}
 .lg .rs-sh .card{background:transparent;padding:0;box-shadow:none}
 .lg details.sig>summary{list-style:none;cursor:pointer}
@@ -1307,7 +1314,7 @@ const ST={done:new Set(),sub:{},skSeen:false};
 const zh=s=>String(s||"").replace(/buy-stop/gi,"突破單");
 const todoAct=t=>t.ups?`改止蝕 ${t.sym}`:t.side==="轉"||t.side==="調整"?t.sym:`${t.side} ${t.sym}`;
 const fracTxt=f=>(f*100).toFixed(f<.1?1:0)+"%";
-const itRow=t=>{const sh=shares(t),on=ST.done.has(t.key),sub=t.ups?`由 ${n2(t.old)} 推高到 ${n2(t.new)}`:t.trigger?`突破 ${n2(t.trigger)} · 止蝕 ${n2(t.stop)}`:`${esc(zh(t.when))} · ${esc(LG.LEGN[t.leg]||"")}`;
+const itRow=t=>{const sh=shares(t),on=ST.done.has(t.key),sub=t.ups?`由 ${n2(t.old)} 推高到 ${n2(t.new)}`:t.trigger?`突破 ${n2(t.trigger)} · 止蝕 ${n2(t.stop)}${LG.rtSpan(t.sym,"todo",{p:t.trigger})}`:`${esc(zh(t.when))} · ${esc(LG.LEGN[t.leg]||"")}`;
   return `<div class="it${on?" done":""}${t.out?" out":""}" data-it="${esc(t.key)}"><button class="chk" data-p="chk" data-chk="${esc(t.key)}" aria-label="${esc(todoAct(t))} 做咗" aria-pressed="${on}">${CHK}</button><button class="it-open" data-p="row" data-todo="${esc(t.key)}"><span class="m"><b><span class="strike">${t.trigger?`掛單買 <span class="num" data-fly>${esc(t.sym)}</span>`:esc(todoAct(t))}</span></b><small class="num">${sub}</small></span><span class="r num">${t.frac!=null?fracTxt(t.frac):""}${sh!=null?`<small>約 ${n0(sh)} 股</small>`:""}</span></button></div>`;};
 const todoEmpty=()=>`<div class="todo-empty"><b>今日冇嘢要做</b><small>揸住就得。${D?` ${esc(D.ver||"")} · ${esc(D.next||"")}`:""}</small></div>`;
 // 剔咗邊件記喺手機，同一份收市數據重開都喺度；新一日收市數據到就重新計
@@ -1337,6 +1344,7 @@ function todayInner(){
   <section class="card todo rise${D.todo.length&&!left?" alldone":""}" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">${left?`仲有 ${left} 件`:"做晒，等收市"}</span></div>${D.todo.map(itRow).join("")}<p class="note"><b class="num">${esc(D.ver||"")} · ${esc(D.next||"")}</b>。${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
   ${lgSec("extras")}
   <h2 class="sec">市況一覽 <small>撳入去睇詳細</small></h2>${lgSec("tiles")}
+  <h2 class="sec">實時報價 <small>盤前、盤中、盤後</small></h2>${lgSec("rt")}
   <h2 class="sec rise">你盤錢喺邊 <small>現金 ${pc(D.cash,0)}</small></h2>
   <div class="alloc rise" id="alloc" role="img" aria-label="四隻腳比重：${LEGS.map(l=>l.name+pc(l.f,0)).join("、")}">${LEGS.map(l=>`<i class="leg-${l.k}" style="flex:${l.f}"></i>`).join("")}</div>
   <div class="pots">${LEGS.map(l=>`<button class="pot pot-${l.k}" data-p="card" data-leg="${l.k}"><span class="pot-n"><i class="dot leg-${l.k}"></i>${l.name}</span><span class="pot-v num">${pc(l.f,0)}</span><span class="pot-l">${l.line}</span></button>`).join("")}</div>
@@ -1362,6 +1370,7 @@ function todayLive(){
     ch_=liveSet(v,"extras",LG.extras())||ch_; // 恐慌、反彈訊號：同舊 todayTodo 一樣擺「今日要做」下面，唔好遮住要做嘅嘢
     ch_=liveSet(v,"light",LG.lightCard())||ch_;
     ch_=liveSet(v,"tiles",LG.mktTiles())||ch_;
+    if(liveSet(v,"rt",LG.rtCard()))LG.rtKick(); // 2026-11-10：CNBC 實時報價（數據到 engine 會就地換數字，唔使重砌）
     ch_=liveSet(v,"cand",n?`<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>`:"")||ch_;
     liveSet(v,"ai",pts.length?`<h2 class="sec">今朝三件事 <small>AI 整理 · ${esc(AI.gen||"")}</small></h2><ol class="news">${pts.map((x,i)=>`<li><button data-p="row" data-art="${i}"><i>${"一二三"[i]}</i><span>${esc(aiFirst(x))}</span></button></li>`).join("")}</ol><button class="more-b" data-p="btn" data-news>睇晒全文同新聞</button>`:"");
   }
@@ -1474,7 +1483,7 @@ function setRange(i){
 }
 
 // ───── 其他分頁：全部用engine 嘅程式（build.py 抽入嚟），功能同數據同engine 一樣；新介面負責殼、顏色同手勢
-const holdRow=(h,i,first)=>`<button class="hr ${first?"first":""}" data-p="row" data-hold="${i}"><span class="sw leg-${h.legk}"></span><span class="m"><b class="num" data-fly>${esc(h.sym)}</b><small>${esc(h.leg)} · 佔 ${pc(h.w,0)}</small></span><span class="r">${ch(h.ret)}<small class="num">買入 ${n2(h.entry)}</small></span></button>`;
+const holdRow=(h,i,first)=>`<button class="hr ${first?"first":""}" data-p="row" data-hold="${i}"><span class="sw leg-${h.legk}"></span><span class="m"><b class="num" data-fly>${esc(h.sym)}</b><small>${esc(h.leg)} · 佔 ${pc(h.w,0)}${LG.rtSpan(h.sym,"mini")}</small></span><span class="r">${ch(h.ret)}<small class="num">買入 ${n2(h.entry)}</small></span></button>`;
 // 模型帳戶卡（2026-11-09 由今日頁搬嚟策略頁「我嘅帳戶」頂）：撳住左右掃睇每日、切時段（initAcct）
 const acctCard=()=>`<section class="card acct" id="acct" style="margin-bottom:14px"><span class="acct-lab" id="acctLab">模型帳戶 · 今年</span><b class="hero num up" id="acctNum">${sg(D.ret.ytd)}</b>
     <div class="row3"><div><b>${ch(D.ret.day)}</b>上一日</div><div><b class="num dn">${sg(D.ret.dd)}</b>由高位</div><div><b class="num">${pc(D.cash,0)}</b>現金</div></div>
@@ -2928,6 +2937,109 @@ function liveStatus(){
   return `<p class="small muted">盤中 5 分鐘掃描（測試）：${LIVE.in_session ? "開市中" : "已收市"} · 最後更新 ${esc(last.run_hk)}（${ago} 分鐘前）${last.delay_min != null ? ` · 數據延遲 ${last.delay_min} 分鐘` : ""}</p>`;
 }
 
+// ───────────────────────── 實時報價（2026-11-10 老師：「睇下有冇實時報價可以塞入app」）
+// 來源：CNBC 公開報價（唔使 key、准網頁直接讀、realTime = true、有盤前盤後，30 隻一次過約 1.5 秒）。非官方介面，可能隨時改或者停。
+// 幾時讀：app 喺前景、而畫面有實時價（今日頁、揀股、股票頁、K 線）先讀；美東星期一至五 09:30–16:00 每 20 秒，
+// 04:00–09:30／16:00–20:00（盤前盤後）每 60 秒，其他時間 30 分鐘；有新代號即刻補。壓縮後 20 隻約 6 KB，開住一個鐘約 1 MB。
+// 只供參考：燈號、排名、止蝕、模型全部照用收市價，唔會因為盤中價改。
+const RT = {q: {}, at: 0, err: "", busy: false, tried: new Set(), off: /[?&]rt=off\b/.test(location.search)};
+const RT_URL = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&symbols=";
+const rtSym = s => /^(\^?NDX|MARKET|\.NDX)$/i.test(String(s || "")) ? ".NDX" : String(s || "").toUpperCase().replace(/-/g, ".");   // BRK-B → BRK.B
+const rtNum = x => { const v = parseFloat(String(x ?? "").replace(/,/g, "")); return isFinite(v) ? v : null; };
+const rtTs = t => Date.parse(String(t || "").replace(/([+-]\d\d)(\d\d)$/, "$1:$2"));          // 2026-11-09T11:19:34.270-0500
+const rtIv = () => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false})
+    .formatToParts(new Date()).map(x => [x.type, x.value])), m = (+p.hour % 24) * 60 + +p.minute;
+  if (/Sat|Sun/.test(p.weekday)) return 30 * 60e3;
+  return m >= 570 && m < 960 ? 20e3 : m >= 240 && m < 1200 ? 60e3 : 30 * 60e3; };
+function rtSyms(){
+  const s = new Set([".NDX", "QQQ", "TQQQ"]);
+  ((MCONT && MCONT.view && MCONT.view.holdings) || []).forEach(p => s.add(rtSym(p.sym)));
+  if (SCAN && SCAN.green) signals().list.forEach(r => s.add(rtSym(r.sym)));
+  if (RS.sym && /^ST:/.test(RS.sym) && !$("#rs").hidden) s.add(rtSym(RS.sym.slice(3)));
+  if (kvIsOpen() && KV.key) s.add(rtSym(KV.key));
+  document.querySelectorAll("[data-rt]").forEach(e => { if (e.dataset.rt) s.add(rtSym(e.dataset.rt)); });
+  return [...s].filter(x => /^\.?[A-Z][A-Z0-9.]{0,9}$/.test(x)).slice(0, 40);
+}
+function rtTake(j){
+  const L = (j && j.FormattedQuoteResult && j.FormattedQuoteResult.FormattedQuote) || [];
+  for (const x of L){
+    const last = rtNum(x.last); if (!x.symbol || last == null) continue;
+    const prev = rtNum(x.previous_day_closing), cp = rtNum(x.change_pct), t = rtTs(x.last_time), st = String(x.curmktstatus || "");
+    const q = {last, prev, pc: prev ? last / prev - 1 : cp == null ? null : cp / 100, t, st, ext: null};
+    const e = x.ExtendedMktQuote, el = e ? rtNum(e.last) : null, et = e ? rtTs(e.last_time) : NaN, ep = e ? rtNum(e.change_pct) : null;
+    if (e && st !== "REG_MKT" && el != null && et > t) q.ext = {type: String(e.type || ""), last: el, pc: ep == null ? null : ep / 100, t: et};   // 正常交易時間 CNBC 仲會帶住朝早盤前嗰份，唔用
+    RT.q[x.symbol] = q;
+  }
+}
+async function fetchRt(){
+  if (RT.busy || RT.off) return;
+  const syms = rtSyms(); if (!syms.length) return;
+  RT.busy = true; syms.forEach(s => RT.tried.add(s));
+  try {
+    const r = await fetch(RT_URL + syms.map(encodeURIComponent).join("%7C"), {cache: "no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    rtTake(await r.json()); RT.err = "";
+  } catch(e){ RT.err = String((e && e.message) || e); }
+  RT.at = Date.now(); RT.busy = false;
+  rtPaint();
+}
+// 而家顯示邊個價：盤前／盤後有新過正常交易嘅就用嗰個
+function rtNow(sym){
+  const q = RT.q[rtSym(sym)]; if (!q) return null;
+  if (q.ext) return {px: q.ext.last, pc: q.ext.pc, t: q.ext.t, ses: q.ext.type === "PRE_MKT" ? "盤前" : "盤後"};
+  return {px: q.last, pc: q.pc, t: q.t, ses: q.st === "REG_MKT" ? "盤中" : "收市"};
+}
+const rtNew = o => o.ses !== "收市" || parts(NY, new Date(o.t)).date > ((SCAN && SCAN.date) || "");   // 收市價已經喺每日掃描入面就唔使再寫
+const rtClock = t => { if (!isFinite(t)) return ""; const p = parts(HK, new Date(t)); return p.date === parts(HK, new Date()).date ? p.time : p.date.slice(5) + " " + p.time; };
+function rtNote(){
+  if (RT.off) return "實時報價已關";
+  if (!RT.at) return "實時報價載入緊…";
+  if (RT.err && !Object.keys(RT.q).length) return `攞唔到實時報價（${esc(RT.err)}），遲啲自動再試`;
+  const iv = rtIv();
+  return `${rtClock(RT.at)} 更新${iv <= 60e3 ? `，每 ${iv / 1e3} 秒` : ""}${RT.err ? "（最近一次攞唔到）" : ""}`;
+}
+function rtHtml(k, sym, p = {}){
+  if (k === "note") return rtNote();
+  const o = rtNow(sym);
+  if (k === "tile"){
+    const nm = esc(p.n || sym);
+    if (!o) return `<span>${nm}</span><b>—</b><em class="muted">${RT.err ? "攞唔到" : RT.at && RT.tried.has(rtSym(sym)) ? "冇報價" : "載入緊"}</em>`;
+    return `<span>${nm}</span><b>${o.px >= 10000 ? f0(o.px) : f2(o.px)}</b><em class="${o.pc > 0 ? "up" : o.pc < 0 ? "dn" : "muted"}">${pct(o.pc, 2)} ${o.ses}</em>`;
+  }
+  if (!o || !rtNew(o)) return "";
+  const piv = +p.p, hit = piv > 0 && o.px >= piv;
+  if (k === "gap") return piv > 0 ? (hit ? `<span class="ind up">${o.ses}已過</span>` : `<span class="ind">${o.ses} ${pct(piv / o.px - 1)}</span>`) : "";
+  if (k === "pill") return `<span class="tag ${hit ? "t-buy" : "t-dim"}">◉ ${o.ses} ${f2(o.px)} ${chg(o.pc)}${piv > 0 ? (hit ? " · 已升穿突破價" : ` · 仲差 ${pct(piv / o.px - 1)}`) : ""}</span>`;
+  if (k === "todo") return ` · ${o.ses} ${f2(o.px)}${piv > 0 ? (hit ? "（已過）" : `（差 ${pct(piv / o.px - 1)}）`) : ""}`;
+  if (k === "mini") return ` · ${o.ses} ${chg(o.pc)}`;
+  if (k === "line") return `<span class="rtline"><span class="tag t-dim">${o.ses}</span> <b class="num">${f2(o.px)}</b> ${chg(o.pc, 2)} <span class="small muted">${rtClock(o.t)} · CNBC 實時，只供參考</span></span>`;
+  return "";
+}
+const rtSpan = (sym, k, p = {}) => `<span data-rt="${esc(sym)}" data-rtk="${k}"${p.p != null ? ` data-rtp="${+p.p}"` : ""}>${rtHtml(k, sym, p)}</span>`;
+// 數據到：就地換晒所有實時價（唔重砌成頁，展開咗嘅卡、捲動位置都唔郁）
+function rtPaint(){
+  document.querySelectorAll("[data-rt]").forEach(el => { const h = rtHtml(el.dataset.rtk, el.dataset.rt, {p: el.dataset.rtp, n: el.dataset.rtn});
+    if (el._rt !== h){ el.innerHTML = h; el._rt = h; } });
+  if (kvIsOpen() && KV.S && KV.key) kvHead();
+}
+// 今日頁實時卡：納指 100、QQQ、TQQQ + 模型持倉（撳股票開股票頁）
+function rtCard(){
+  if (RT.off) return "";
+  const held = [...new Set(((MCONT && MCONT.view && MCONT.view.holdings) || []).map(p => p.sym).filter(s => !/^(SGOV|BIL|TQQQ|QQQ)$/.test(s)))].slice(0, 9);
+  const L = [[".NDX", "納指 100"], ["QQQ", "QQQ"], ["TQQQ", "TQQQ"], ...held.map(s => [s, s])];
+  return `<div class="rtiles">${L.map(([s, n]) => { const a = `data-rt="${esc(s)}" data-rtk="tile" data-rtn="${esc(n)}"`, h = rtHtml("tile", s, {n});
+      return s[0] === "." ? `<div class="mt" ${a}>${h}</div>` : `<button class="mt" data-stock="${esc(s)}" ${a}>${h}</button>`; }).join("")}</div>
+    <p class="small muted rt-note"><span data-rt="" data-rtk="note">${rtNote()}</span>${held.length ? "。第 4 格起係模型持倉" : ""}。CNBC 公開報價（實時，有盤前盤後；非官方，可能隨時用唔到）。只供參考：燈號、排名、止蝕同模型都係用收市價計。</p>`;
+}
+function rtTick(){
+  if (RT.off || RT.busy || document.visibilityState !== "visible") return;
+  const seen = [...document.querySelectorAll("[data-rt]")].some(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > 0 && r.left < innerWidth; });
+  if (!seen && !(kvIsOpen() && KV.key)) return;
+  if (rtSyms().some(s => !RT.tried.has(s)) || Date.now() - RT.at >= rtIv()) fetchRt();
+}
+const rtKick = () => setTimeout(rtTick, 50);
+
 // 2026-10-05 用戶：每年 1 月提醒重新驗證（冇偷睇規矩：每年 1 月只用之前數據重揀）
 function janCard(){
   const d = new Date(), y = d.getFullYear();
@@ -2953,14 +3065,14 @@ function viewPick(){
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅單喺「今日」頁「今日要做」。</p>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">突破價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
     ${o.list.map(r => `<tr><td class="mono">${symB(r.sym)}${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
-      <td class="r mono">${pct(r.pivot / r.close - 1)}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
-    <details><summary class="small muted">點用呢張表</summary><p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：模型實際掛嘅單（已經扣咗持倉、剎車）喺「今日」頁「今日要做」；「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。突破價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近低位 − 0.2 ATR。</p></details>`
+      <td class="r mono">${pct(r.pivot / r.close - 1)}${rtSpan(r.sym, "gap", {p: r.pivot})}</td><td class="r mono">${Math.round(r.frac * 100)}%</td></tr>`).join("")}</table></div>
+    <details><summary class="small muted">點用呢張表</summary><p class="small muted"><b>V2.7 領導股部分（佔帳戶 35%）照呢張表買</b>：「仲差」下面細字 = 用 CNBC 實時價（盤前／盤中／盤後）計仲差幾多，「已過」= 實時價已經高過突破價（只供參考，掛突破單就會自動成交）。模型實際掛嘅單（已經扣咗持倉、剎車）喺「今日」頁「今日要做」；「注碼」係佔領導股部分（即係帳戶嘅 35% × 注碼）。突破價 = 前高：<b>升到呢個價或以上先買</b>，未到唔好追。按排名由高到低，規則最多同時揸 ${RULE.cap} 隻（已經揸咗幾隻就只補差額）。止蝕價 = 最近低位 − 0.2 ATR。</p></details>`
     + liveStatus();
   h += o.list.map(r => {
     const gap = r.pivot / r.close - 1, fill = Math.max(3, Math.min(100, (1 - gap / 0.15) * 100));
     return `<details class="card sig"><summary>
       <div class="head"><div><span class="sym symlink" data-stock="${r.sym}" role="button">${r.sym}</span> <span class="tag t-cyan">排名 #${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}${r.frac > RULE.frac ? ` <span class="tag t-warn">排第 1 · 30%</span>` : ""}<span class="ind">${esc(indOf(r))}</span></div>
-        ${liveTag(r.sym)}</div>
+        ${liveTag(r.sym)}${rtSpan(r.sym, "pill", {p: r.pivot})}</div>
       <div class="row" style="gap:10px"><div><div class="lbl">突破買入價</div><div class="price">${f2(r.pivot)}</div></div><span class="num small">仲差 ${pct(gap)}</span><span class="more">詳細 ▾</span></div></summary>
       <div class="dist"><span class="num">收市 ${f2(r.close)} ${chg(dayChg(r.sym))}</span><div class="bar"><i style="width:${fill}%"></i></div><span class="num">仲差 ${pct(gap)}</span></div>
       ${serNote(r.sym)}${levNote(r.sym)}${valOf(r.sym) ? `<p class="small" style="margin:2px 0">${valTxt(r.sym, true)}</p>` : ""}
@@ -4698,7 +4810,8 @@ function kvBuild(tf){                                   // 而家揀咗嘅 timef
 }
 function kvHead(){
   const S = KV.S, n = S.c.length, c = S.c[n - 1], p = S.c[n - 2], px = KV.el.querySelector(".kv-px");
-  if (px) px.innerHTML = n ? `${fp(c)}${n > 1 ? ` <span class="${c >= p ? "up" : "dn"}">${pct(c / p - 1)}</span>` : ""} · ${esc(S.d[n - 1])}${kvIntra(KV.tf) && KV.live ? ` · ${KV.live.tz}` : ""}` : "";
+  const o = KV.key ? rtNow(KV.key) : null, rt = o && rtNew(o) ? ` · <span class="kv-rt">${o.ses} ${fp(o.px)} ${chg(o.pc)}</span>` : "";   // 2026-11-10：股票加 CNBC 實時價
+  if (px) px.innerHTML = n ? `${fp(c)}${n > 1 ? ` <span class="${c >= p ? "up" : "dn"}">${pct(c / p - 1)}</span>` : ""} · ${esc(S.d[n - 1])}${kvIntra(KV.tf) && KV.live ? ` · ${KV.live.tz}` : ""}${rt}` : "";
 }
 async function kvLoadOlder(){                           // 加密 1H／4H 拖到最左：再攞早 300 個鐘
   if (!KV.cb || !KV.live || !KV.live.h1m || KV.loadingOld || KV.noOlder) return;
@@ -4776,7 +4889,7 @@ function kvOpen(box){
       <button class="kv-now" data-kvnow hidden>返最新 ›</button>
       <button class="kv-auto" data-kvauto aria-pressed="true" aria-label="自動高度（撳一下取消；價錢高度喺右邊價錢欄上下拉）">Auto</button></div>
     <p class="kv-foot">兩隻手指放大縮細時間 · 上下拉右邊價錢欄改高度 · 一隻手指隨便拖（可以打斜）：左右睇前後、上下移高低 · 長按出十字線 · 撳兩下返最新。上下移同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。均線 = EMA21、MA50、MA100、MA200（跟住時間週期計，例如週 K 就係週線；左上角係十字線嗰支或者最新嗰支嘅數值）。BOS／MSS 同均線只供參考，唔係買賣訊號。</p>`;
-  el.hidden = false;
+  el.hidden = false; rtKick();
   history.pushState({kv: 1}, "");                       // 每次開都加一格（返回鍵收佢）
   kvBind(el.querySelector("canvas"));
   KV.onKey = e => { if (e.key === "Escape") kvClose(); }; document.addEventListener("keydown", KV.onKey);
@@ -5178,7 +5291,7 @@ function stockPage(sym){
     <div class="rs-bar"><div class="rs-tick">${rsLogo(sym, 26)}<b>${esc(sym)}</b><span class="px">${px != null ? f2(px) : ""}</span><span class="st">${d1 != null ? chg(d1) : ""}${ri && ri.stars ? ` · AI ${stars(ri.stars)}` : ""}</span></div>
       <div class="rs-pills" id="rsPills">${ST_SECS.map(([k, l], i) => `<button data-go="${k}" class="${i ? "" : "on"}">${l}</button>`).join("")}</div></div>
     <section class="rs-sec" id="rs-sum" data-sec="sum" style="padding-top:6px">
-      <h2 class="rs-name">${esc(sym)}</h2><p class="rs-sub">${esc([name, rk && indOf(rk)].filter(Boolean).join(" · "))}</p>
+      <h2 class="rs-name">${esc(sym)}</h2><p class="rs-sub">${esc([name, rk && indOf(rk)].filter(Boolean).join(" · "))}</p>${rtSpan(sym, "line")}
       <div class="rs-card rs-plain"><span class="bh">白話</span>${L.join("；")}。</div>
       <div class="rs-g4">${g4.map(([k, b, e]) => `<div><span>${k}</span><b>${b}</b>${e ? `<em>${e}</em>` : ""}</div>`).join("")}</div>
       <p class="rs-meta">${SCAN ? `數據：${esc(SCAN.date)} 收市` : ""}</p></section>
@@ -5216,7 +5329,7 @@ async function openStock(sym, sec){
   el.hidden = false; document.body.style.overflow = "hidden";
   if (!(history.state && history.state.rs)) history.pushState({rs: sym}, "");
   const draw = () => { if (RS.sym !== key) return; const t = el.scrollTop; el.innerHTML = stockPage(sym); stockBind(sym); el.scrollTop = t; };
-  el.innerHTML = stockPage(sym); stockBind(sym); el.scrollTop = 0;
+  el.innerHTML = stockPage(sym); stockBind(sym); el.scrollTop = 0; rtKick();
   if (sec) setTimeout(() => rsGo(sec), 60);
   const waits = [];
   if (evHas(sym) && !EVC[sym]) waits.push(evGet(sym).catch(() => {}));
@@ -6014,6 +6127,9 @@ fetchBtc(); fetchFng(); fetchHyper();
 // 2026-10-24 老師：「唔建議更新得咁密，淨係新聞密就得，其他全部淨係排程，除非user自己撳refresh」：
 // 定時淨係讀新聞（app 開住每 5 分鐘檢查，新聞超過 15 分鐘就自動叫雲端更新新聞）；之前加密、恐慌貪婪、巨鯨每 5 分鐘、盤中每 1 分鐘都讀，已經拎走
 setInterval(() => { if (document.visibilityState === "visible") fetchFeeds(); }, 5 * 60e3);
+// 2026-11-10 實時報價：每 5 秒睇一次使唔使讀（有實時價喺畫面、到時間先讀；詳細見 RT 嗰段）
+setInterval(rtTick, 5e3); rtKick();
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(rtTick, 300); });
 fetchLev();
 // 返前景：新聞照讀；其他排程數據（掃描、模型、盤中、加密）舊過 20 分鐘先重讀（「今日要做淨係開市前就得」：app 喺背景放咗一晚，朝早開都係新一日）
 // 2026-10-26：喺背景超過 10 分鐘再返嚟 = 當重新入 app → 返今日頁頂（AI 今日重點）；短時間切走再返唔郁，免得睇緊嘢被彈走
@@ -6047,6 +6163,7 @@ return {
   openStock,closeRes,rsSheet,askBox,noteBox,healthCard,aiUseCard,pauseCard,exportBox,pasteBox,
   openCoin,coinMatch,fetchCoins,crItem,chartK,setChartK,ckBars,ckSvg,ckSeg,fp,   // 2026-11-09：加密研究、打字建議、線／K 線
   kvOpen,kvClose,kvIsOpen,kvPop,kvBrk,kvBuild,kvAgg,kvState:()=>KV,   // 2026-11-09：K 線全螢幕（shell 返回鍵、測試用）
+  rtCard,rtSpan,rtTake,rtPaint,rtNow,rtSym,rtKick,rtSyms,rtState:()=>RT,   // 2026-11-10：CNBC 實時報價（今日頁、測試用）
   reload:()=>Promise.allSettled([fetchScan(),fetchModel(),fetchFeeds(true)])
 };
 })();

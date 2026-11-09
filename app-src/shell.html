@@ -818,7 +818,7 @@ const ST={done:new Set(),sub:{},skSeen:false};
 const zh=s=>String(s||"").replace(/buy-stop/gi,"突破單");
 const todoAct=t=>t.ups?`改止蝕 ${t.sym}`:t.side==="轉"||t.side==="調整"?t.sym:`${t.side} ${t.sym}`;
 const fracTxt=f=>(f*100).toFixed(f<.1?1:0)+"%";
-const itRow=t=>{const sh=shares(t),on=ST.done.has(t.key),sub=t.ups?`由 ${n2(t.old)} 推高到 ${n2(t.new)}`:t.trigger?`突破 ${n2(t.trigger)} · 止蝕 ${n2(t.stop)}`:`${esc(zh(t.when))} · ${esc(LG.LEGN[t.leg]||"")}`;
+const itRow=t=>{const sh=shares(t),on=ST.done.has(t.key),sub=t.ups?`由 ${n2(t.old)} 推高到 ${n2(t.new)}`:t.trigger?`突破 ${n2(t.trigger)} · 止蝕 ${n2(t.stop)}${LG.rtSpan(t.sym,"todo",{p:t.trigger})}`:`${esc(zh(t.when))} · ${esc(LG.LEGN[t.leg]||"")}`;
   return `<div class="it${on?" done":""}${t.out?" out":""}" data-it="${esc(t.key)}"><button class="chk" data-p="chk" data-chk="${esc(t.key)}" aria-label="${esc(todoAct(t))} 做咗" aria-pressed="${on}">${CHK}</button><button class="it-open" data-p="row" data-todo="${esc(t.key)}"><span class="m"><b><span class="strike">${t.trigger?`掛單買 <span class="num" data-fly>${esc(t.sym)}</span>`:esc(todoAct(t))}</span></b><small class="num">${sub}</small></span><span class="r num">${t.frac!=null?fracTxt(t.frac):""}${sh!=null?`<small>約 ${n0(sh)} 股</small>`:""}</span></button></div>`;};
 const todoEmpty=()=>`<div class="todo-empty"><b>今日冇嘢要做</b><small>揸住就得。${D?` ${esc(D.ver||"")} · ${esc(D.next||"")}`:""}</small></div>`;
 // 剔咗邊件記喺手機，同一份收市數據重開都喺度；新一日收市數據到就重新計
@@ -848,6 +848,7 @@ function todayInner(){
   <section class="card todo rise${D.todo.length&&!left?" alldone":""}" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">${left?`仲有 ${left} 件`:"做晒，等收市"}</span></div>${D.todo.map(itRow).join("")}<p class="note"><b class="num">${esc(D.ver||"")} · ${esc(D.next||"")}</b>。${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
   ${lgSec("extras")}
   <h2 class="sec">市況一覽 <small>撳入去睇詳細</small></h2>${lgSec("tiles")}
+  <h2 class="sec">實時報價 <small>盤前、盤中、盤後</small></h2>${lgSec("rt")}
   <h2 class="sec rise">你盤錢喺邊 <small>現金 ${pc(D.cash,0)}</small></h2>
   <div class="alloc rise" id="alloc" role="img" aria-label="四隻腳比重：${LEGS.map(l=>l.name+pc(l.f,0)).join("、")}">${LEGS.map(l=>`<i class="leg-${l.k}" style="flex:${l.f}"></i>`).join("")}</div>
   <div class="pots">${LEGS.map(l=>`<button class="pot pot-${l.k}" data-p="card" data-leg="${l.k}"><span class="pot-n"><i class="dot leg-${l.k}"></i>${l.name}</span><span class="pot-v num">${pc(l.f,0)}</span><span class="pot-l">${l.line}</span></button>`).join("")}</div>
@@ -873,6 +874,7 @@ function todayLive(){
     ch_=liveSet(v,"extras",LG.extras())||ch_; // 恐慌、反彈訊號：同舊 todayTodo 一樣擺「今日要做」下面，唔好遮住要做嘅嘢
     ch_=liveSet(v,"light",LG.lightCard())||ch_;
     ch_=liveSet(v,"tiles",LG.mktTiles())||ch_;
+    if(liveSet(v,"rt",LG.rtCard()))LG.rtKick(); // 2026-11-10：CNBC 實時報價（數據到 engine 會就地換數字，唔使重砌）
     ch_=liveSet(v,"cand",n?`<button class="small" data-sub="pick">揀股參考：${n} 隻候選股 →</button>`:"")||ch_;
     liveSet(v,"ai",pts.length?`<h2 class="sec">今朝三件事 <small>AI 整理 · ${esc(AI.gen||"")}</small></h2><ol class="news">${pts.map((x,i)=>`<li><button data-p="row" data-art="${i}"><i>${"一二三"[i]}</i><span>${esc(aiFirst(x))}</span></button></li>`).join("")}</ol><button class="more-b" data-p="btn" data-news>睇晒全文同新聞</button>`:"");
   }
@@ -985,7 +987,7 @@ function setRange(i){
 }
 
 // ───── 其他分頁：全部用engine 嘅程式（build.py 抽入嚟），功能同數據同engine 一樣；新介面負責殼、顏色同手勢
-const holdRow=(h,i,first)=>`<button class="hr ${first?"first":""}" data-p="row" data-hold="${i}"><span class="sw leg-${h.legk}"></span><span class="m"><b class="num" data-fly>${esc(h.sym)}</b><small>${esc(h.leg)} · 佔 ${pc(h.w,0)}</small></span><span class="r">${ch(h.ret)}<small class="num">買入 ${n2(h.entry)}</small></span></button>`;
+const holdRow=(h,i,first)=>`<button class="hr ${first?"first":""}" data-p="row" data-hold="${i}"><span class="sw leg-${h.legk}"></span><span class="m"><b class="num" data-fly>${esc(h.sym)}</b><small>${esc(h.leg)} · 佔 ${pc(h.w,0)}${LG.rtSpan(h.sym,"mini")}</small></span><span class="r">${ch(h.ret)}<small class="num">買入 ${n2(h.entry)}</small></span></button>`;
 // 模型帳戶卡（2026-11-09 由今日頁搬嚟策略頁「我嘅帳戶」頂）：撳住左右掃睇每日、切時段（initAcct）
 const acctCard=()=>`<section class="card acct" id="acct" style="margin-bottom:14px"><span class="acct-lab" id="acctLab">模型帳戶 · 今年</span><b class="hero num up" id="acctNum">${sg(D.ret.ytd)}</b>
     <div class="row3"><div><b>${ch(D.ret.day)}</b>上一日</div><div><b class="num dn">${sg(D.ret.dd)}</b>由高位</div><div><b class="num">${pc(D.cash,0)}</b>現金</div></div>

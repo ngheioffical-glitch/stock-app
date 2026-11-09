@@ -94,6 +94,31 @@ const colOf = el => getComputedStyle(el).color;
   ok("市況顏色跟新介面（紅跌綠升、警告黃）", !badT.length, badT); }
 ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySelector("em").textContent.trim().length > 0 || m.dataset.mkt === "val"), mts.map(m => m.textContent));
 
+// ───── 2b 實時報價（2026-11-10 老師：「睇下有冇實時報價可以塞入app」）：CNBC 數據用假嘅注入（唔靠網絡），全部同步驗，真數據唔會中途撳走
+{ const RT0 = LG.rtState(), keep = RT0.q, sig = LG.signals().list[0];
+  ok("實時報價擺市況一覽下面（市況一覽照舊緊貼「今日 N 件事」）", (() => { const r = v0.querySelector('[data-live="rt"]'), m = v0.querySelector('[data-live="tiles"]'); return !!r && !!(m.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING); })());
+  const fq = (symbol, last, prev, st, ext) => ({symbol, last, previous_day_closing: prev, change_pct: "", last_time: "2026-11-10T11:19:34.270-0500", curmktstatus: st, realTime: "true", ExtendedMktQuote: ext});
+  RT0.q = {};
+  LG.rtTake({FormattedQuoteResult: {FormattedQuote: [fq(".NDX", "12,345.678", "12,000.00", "REG_MKT"),
+    fq("QQQ", "500.00", "510.00", "POST_MKT", {type: "POST_MKT", last: "505.50", change_pct: "+1.10%", last_time: "2026-11-10T17:30:00.000-0500"}),
+    fq("TQQQ", "50.00", "49.00", "REG_MKT", {type: "PRE_MKT", last: "48.00", change_pct: "-2.04%", last_time: "2026-11-10T09:00:00.000-0500"}),
+    fq("NVDA", "123.45", "120.00", "REG_MKT"), ...(sig ? [fq(LG.rtSym(sig.sym), String(+(sig.pivot * 1.01).toFixed(2)), String(sig.close), "REG_MKT")] : [])]}});
+  LG.rtPaint();
+  const t = [...v0.querySelectorAll('[data-live="rt"] .rtiles .mt')];
+  ok("實時卡有納指 100、QQQ、TQQQ", t.length >= 3 && t[0].textContent.includes("納指 100") && t[1].textContent.includes("QQQ") && t[2].textContent.includes("TQQQ"), t.map(x => x.textContent));
+  ok("實時價就地更新：納指 12,346 +2.88% 盤中", t[0].textContent.includes("12,346") && t[0].textContent.includes("+2.88%") && t[0].textContent.includes("盤中"), t[0].textContent);
+  ok("收市後有盤後價就用盤後（QQQ 505.50）", t[1].textContent.includes("505.50") && t[1].textContent.includes("盤後"), t[1].textContent);
+  ok("正常交易時間唔用朝早嘅盤前價（TQQQ 50.00 盤中）", t[2].textContent.includes("50.00") && t[2].textContent.includes("盤中"), t[2].textContent);
+  ok("代號轉 CNBC：BRK-B → BRK.B、大市 → .NDX", LG.rtSym("BRK-B") === "BRK.B" && LG.rtSym("MARKET") === ".NDX");
+  ok("股票 tile 撳得開股票頁", t.slice(1).every(x => x.dataset.stock));
+  ok("有寫來源同只供參考", v0.querySelector('[data-live="rt"]').textContent.includes("CNBC") && v0.querySelector('[data-live="rt"]').textContent.includes("只供參考"));
+  if (sig){ const ph = LG.html("pick");
+    ok("揀股表：實時價高過突破價寫「已過」、卡寫「已升穿突破價」", ph.includes("盤中已過") && ph.includes("已升穿突破價"), sig.sym); }
+  LG.openStock("NVDA"); const rl = $("#rs").querySelector(".rtline");
+  ok("股票頁有實時價（NVDA 123.45 盤中）", !!rl && rl.textContent.includes("123.45") && rl.textContent.includes("盤中"), rl && rl.textContent);
+  LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(80);
+  RT0.q = keep; LG.rtPaint(); }
+
 // ───── 3 撳落去
 const hb = v0.querySelector(".head button"); let [x, y] = center(hb);
 ev(hb, "pointerdown", x, y); ok("撳落有反應", hb.classList.contains("is-down")); await until(() => Math.abs(new DOMMatrix(getComputedStyle(hb).transform).a - .975) < .01, 4000);
