@@ -48,6 +48,16 @@ noFvg = list(rows)
 noFvg[B + 8] = (11.5, 12, 9.6, 11.8)                         # 第 3 支低位 9.6 < 第 1 支高位 9.7：冇 FVG
 tn = S.analyze(d, *[list(x) for x in zip(*noFvg)])
 check(not any(b["i"] == B + 7 for b in tn["brk"]), "收穿但唔係 FVG 中間支：唔算突破")
+# 2026-11-09 老師：「BOS，MSS應該計埋開市缺口，好似10月30號咁，應該有」
+# 第 1 支轉角低 9.6；第 4 支開市跳空落到 9.3（已經喺 9.6 下面），收 9.1；第 5 支高位 9.2 < 第 3 支低位 10.0（FVG）
+gap = flat + [(10, 10.2, 9.9, 10), (10, 10.1, 9.6, 9.8), (9.8, 10.3, 9.7, 10.2), (10.2, 10.4, 10.0, 10.3), (9.3, 9.4, 9.0, 9.1), (9.1, 9.2, 8.8, 8.9)]
+dg = [f"g{k}" for k in range(len(gap))]
+tg = S.analyze(dg, *[list(x) for x in zip(*gap)])
+check([(b["dir"], b["i"], b["s"], b["lv"]) for b in tg["brk"]] == [(-1, 29, 26, 9.6)], f"開市跳空穿轉角低都算突破（好似 NDX 10-30）：{tg['brk']}")
+same = list(gap)
+same[28] = (10.2, 10.4, 9.5, 9.55)                           # 上一支已經收喺 9.6 下面（佢自己先係突破）：今支跳空唔係「穿」，唔再算
+ts = S.analyze(dg, *[list(x) for x in zip(*same)])
+check(not any(b["i"] == 29 for b in ts["brk"]), "上一支已經收喺位下面：今支唔當收穿")
 line = S.facts_line(ta)
 check("只係參考" in line and "BOS" in line and "MSS" in line, "俾 AI 嘅一行寫明只係參考")
 check(S.facts_line(None) == "", "冇數據就空")

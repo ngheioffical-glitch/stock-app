@@ -447,11 +447,16 @@ v0.scrollTop = 0; await sleep(60);
   if ((ST.sub.info || 0) !== 0) { segTo(vi.querySelector('[data-segb="0"]')); await sleep(340); }
   const chip = k => vi.querySelector(`[data-nt="${k}"]`); await until(() => !!chip("news"), 8000);
   const Dg = () => (LG.state().FEED.news || {}).digest;
+  // 2026-11-09 老師：「點解冇咗ai今日重點？」→ 入新聞頁預設係「新聞」（之前預設「經濟數據」所以見唔到）
+  ok("入新聞頁預設係「新聞」，即刻見到 AI 今日重點", chip("news").getAttribute("aria-pressed") === "true" && (!(Dg() && (Dg().points || []).length) || !!vi.querySelector("#aiDigest")), chip("news").getAttribute("aria-pressed"));
   chip("news").click(); await sleep(350); ok("新聞：有 AI 今日重點", !(Dg() && (Dg().points || []).length) || !!vi.querySelector("#aiDigest"));
   chip("econ").click(); await sleep(350); ok("經濟數據：唔再重複 AI 今日重點", !!chip("econ") && !vi.querySelector("#aiDigest") && (!(Dg() && Dg().econ) || !!vi.querySelector("#aiEcon")));
   chip("earn").click(); await sleep(350); ok("業績：唔再出 AI 今日重點", !vi.querySelector("#aiDigest") && !vi.querySelector("#aiEcon"));
   chip("news").click(); await sleep(300);
-  go("today"); await until(() => cur === "today" && !Pg.active); await sleep(150); }
+  go("today"); await until(() => cur === "today" && !Pg.active); await sleep(150);
+  // 2026-11-09 老師：「睇哂全文同新聞及今日冇嘢要做之間係咪應該有翻小小空位？依家好似冇」
+  { const ai = view("today").querySelector('[data-live="ai"]'), td = view("today").querySelector("#todo");
+    ok("「睇晒全文同新聞」同「今日要做」之間有空位", !ai || !ai.innerHTML || td.getBoundingClientRect().top - ai.getBoundingClientRect().bottom >= 16, ai && td && [ai.getBoundingClientRect().bottom, td.getBoundingClientRect().top]); } }
 
 // ───── 7 曲線（2026-11-09 老師：「模型賬戶點解出現喺今日頁面？唔喺應該策略頁面咩？」→ 帳戶卡喺策略頁「我嘅帳戶」頂）
 ok("今日頁冇模型帳戶卡", !v0.querySelector("#acct") && !v0.textContent.includes("模型帳戶 ·"));

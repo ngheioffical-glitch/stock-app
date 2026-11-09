@@ -8,6 +8,9 @@
   突破：一支 K 線實體收穿當時最近嘅轉角位（好：開 ≤ 位 < 收；淡：開 ≥ 位 > 收），實體 ≥ 全長 60%，
         而且佢本身係同方向 3 支 FVG 嘅中間支（第 3 支低位 > 第 1 支高位，最少 1 tick）。
   BOS／MSS：Pine 全部叫 MSS（佢喺掃完流動性先睇）。呢度老師要分開：同上一次突破同方向 = BOS（延續），反方向 = MSS（轉向）。
+  開市跳空（2026-11-09 老師：「因為有收市，我覺得BOS，MSS應該計埋開市缺口，好似10月30號咁，應該有」）：
+    收穿嗰支當「上一支收市 → 今支收市」計（開 = 上一支收市；高低都包埋上一支收市），所以跳空穿位都算；
+    例：NDX 10-30 開市跳空 −2.7%，開喺 10-23 轉角低 28,825.72 下面，舊規則唔算，而家算 BOS。加密 24 小時冇跳空，唔受影響。
   冇 SMT、冇掃流動性、冇每日重設（日線每支 K 線就係一日）。
 只係參考（純粹 influence）：LAB_ANSON（Trading/stock-strategy/LAB_ANSON.md）測過日線版本，對 V2.7 領導股同 TQQQ 冇幫助；唔改任何交易規則。
 """
@@ -61,15 +64,17 @@ def analyze(d, o, h, l, c, keep=KEEP, tick=0.01, unit="個交易日"):
         if i < 2:
             continue
         m = i - 1                                      # 今支係 FVG 第 3 支，m 係中間支（收穿嗰支）
-        rng = H[m] - L[m]
-        bp = abs(C[m] - O[m]) / rng if rng > 0 else 0.0
+        po = C[m - 1]                                  # 開市跳空計埋：用上一支收市當開市（GAP_OPEN）
+        eh, el = max(H[m], po), min(L[m], po)
+        rng = eh - el
+        bp = abs(C[m] - po) / rng if rng > 0 else 0.0
         bull_fvg = L[i] > H[i - 2] and L[i] - H[i - 2] >= tick * GAP_TICKS - 1e-9
         bear_fvg = H[i] < L[i - 2] and L[i - 2] - H[i] >= tick * GAP_TICKS - 1e-9
         bh, bl = lvl[m]
         hit = 0
-        if bull_fvg and bh and O[m] <= bh[0] < C[m] and C[m] > O[m] and bp >= BODY:
+        if bull_fvg and bh and po <= bh[0] < C[m] and C[m] > po and bp >= BODY:
             hit, lv, s = 1, bh[0], bh[1]
-        elif bear_fvg and bl and O[m] >= bl[0] > C[m] and C[m] < O[m] and bp >= BODY:
+        elif bear_fvg and bl and po >= bl[0] > C[m] and C[m] < po and bp >= BODY:
             hit, lv, s = -1, bl[0], bl[1]
         if hit:
             brk.append(dict(s=s, i=m, lv=lv, dir=hit, k="BOS" if hit == last_dir else "MSS" if last_dir else "BOS"))
