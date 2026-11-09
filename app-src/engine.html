@@ -2452,7 +2452,7 @@ function viewSet(){
 // ───────────────────────── 新聞同經濟數據（GitHub Actions：開市每 15–30 分鐘、收市後每 4 個鐘或者期貨大郁，更新 feeds 分支）
 // 2026-11-09 老師：「點解冇咗ai今日重點？」→ AI 今日重點淨係擺「新聞」之後，入新聞頁預設仲係「經濟數據」所以見唔到；改做預設「新聞」
 let FEED = {news:null, econ:null, err:null, at:0, busy:false}, NT = "news", NCAT = "全部", EALL = false;
-try { NT = localStorage.getItem(KEY + "-nt") || "econ"; } catch(e){}
+try { NT = localStorage.getItem(KEY + "-nt") || "news"; } catch(e){}   // 2026-11-10：11-09 漏改呢行，冇記錄（新裝、清咗資料）仲係開「經濟數據」；ui_test 喺全新瀏覽器先撞到
 function fromET(t){
   if (t.length === 10) return null;
   for (const off of [4, 5]){ const d = new Date(Date.parse(t + ":00Z") + off * 3600e3); const p = parts(NY, d); if (`${p.date}T${p.time}` === t) return d; }

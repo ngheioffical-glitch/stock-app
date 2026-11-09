@@ -9,6 +9,9 @@ const touch = (el, type, x, y) => { const t = new Touch({ identifier: 7, target:
 const onv = () => Object.values(VIEWS).filter(v => v.classList.contains("on")).map(v => v.dataset.view);
 const settledSheet = () => until(() => Sh.open && !Sh.mv.anims.length && Math.abs(Sh.mv.val) < 1);
 const closedSheet = () => until(() => !Sh.open);
+// 真手指撳：先 touchstart／touchend 再 click。app 嘅「撳定碌」把關（shell TG）喺手指郁過之後 400 毫秒內唔當撳；
+// 真人撳一定有新嘅 touchstart 重新計，淨係 .click() 就會承接上一下掃嘅狀態俾擋走（2026-11-10「左右掃做完狀態乾淨」就係咁失敗：詳情關唔到）
+const tapEl = el => { const [x, y] = center(el); touch(el, "touchstart", x, y); touch(el, "touchend", x, y); el.click(); };
 const touchNC = (el, type, x, y) => { const t = new Touch({ identifier: 7, target: el, clientX: x, clientY: y }); const e = new TouchEvent(type, { bubbles: true, cancelable: false, touches: [t], changedTouches: [t] }); el.dispatchEvent(e); return e; };
 const clean = () => !Sh.open && !Se.open && !Pu.open && !Pu.setting && $("#rs").hidden && HS.n === 0 && HS.ignore === 0 && HS.pend === 0 && stack.style.transform === "" && !stack.inert && !stack.classList.contains("carded") && mainEl.style.transform === "" && phone.querySelectorAll(".flyer").length === 0 && layer.innerHTML === "" && pushEl.hidden && searchEl.hidden;
 const hrefStart = location.href;
@@ -207,7 +210,7 @@ await drag(sf, -(PW * .5)); await sleep(40); dock.querySelector("[data-tab=info]
 touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 100, sy0); dock.querySelector("[data-tab=stocks]").click(); touch(sf, "touchmove", sx0 - 160, sy0); await sleep(130); touch(sf, "touchend", sx0 - 160, sy0); await until(() => onv().length === 1); await sleep(320); ok("拖緊撳底部分頁都唔會卡", plain("stocks"), pgInfo()); go("today"); await until(() => onv().join() === "today"); await sleep(320);
 await sleep(760); ev(sf, "mousedown", sx0, sy0); ev(window, "mousemove", sx0 - 14, sy0); ev(window, "mousemove", sx0 - PW * .5, sy0); await sleep(130); ev(window, "mouseup", sx0 - PW * .5, sy0); await pgIdle(); ok("滑鼠都拖得", plain("strat"), pgInfo()); await sleep(320); go("today"); await until(() => onv().join() === "today"); await sleep(320);
 setRM(true); await drag(sf, -(PW * .5)); ok("減少動態：即刻轉", plain("strat"), pgInfo()); go("today"); await until(() => onv().join() === "today"); setRM(false); await sleep(320);
-{ const r = v0.querySelector(".it-open"); r.click(); await settledSheet(); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 200, sy0); ok("開住詳情唔轉頁", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); Sh.el.querySelector("[data-close]").click(); await closedSheet(); await sleep(420);
+{ const r = v0.querySelector(".it-open"); tapEl(r); await settledSheet(); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 200, sy0); ok("開住詳情唔轉頁", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); tapEl(Sh.el.querySelector("[data-close]")); await closedSheet(); ok("掃完再撳關閉掣關到詳情", !Sh.open); await sleep(420);
   pushArticle(0); await until(() => !Pu.mv.anims.length && Pu.mv.val < 1); touch(sf, "touchstart", sx0, sy0); touch(sf, "touchmove", sx0 - 14, sy0); touch(sf, "touchmove", sx0 - 200, sy0); ok("開住推入頁唔轉頁", !Pg.active); touch(sf, "touchend", sx0 - 200, sy0); popPage(); await until(() => pushEl.hidden); await sleep(120); }
 ok("左右掃做完狀態乾淨", clean() && plain("today"), pgInfo());
 

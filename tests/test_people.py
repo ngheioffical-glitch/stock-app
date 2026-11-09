@@ -6,14 +6,16 @@ import io
 import json
 import os
 import sys
+import tempfile
 import time
 import zipfile
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 T = Path(__file__).resolve().parent
 sys.path.insert(0, str(T.parent / "scanner"))
 sys.stdout.reconfigure(encoding="utf-8")
+os.environ.pop("FMP_API_KEY", None)   # 2026-11-10：直接行（唔經 run_all）而部機有真 key，就會行 FMP 路線令「冇 FMP key」嗰項失敗；下面要 key 嗰段自己設假 key
 import people as P  # noqa: E402
 
 ok = 0
@@ -80,22 +82,25 @@ check(len(f) == 1 and f[0]["code"] == "S" and f[0]["shares"] == 4000 and f[0]["v
 check(f[0]["plan"] and f[0]["role"] == "CEO、董事" and f[0]["sym"] == "DEMO", "記低 10b5-1 預先計劃、職位、代號")
 
 # 成個流程：假網絡
-out = Path(os.environ.get("TEST_OUT") or T / "_out") / "people" / time.strftime("%Y%m%d-%H%M%S")
+# 2026-11-10：輸出 folder 以前淨係用秒做名，同一秒行兩次就撞 folder（讀到上次嘅 people.json，當唔係第一次行）→ 加隨機尾確保每次全新
+base = Path(os.environ.get("TEST_OUT") or T / "_out") / "people"
+base.mkdir(parents=True, exist_ok=True)
+out = Path(tempfile.mkdtemp(prefix=time.strftime("%Y%m%d-%H%M%S-"), dir=base))
 (out / "research").mkdir(parents=True, exist_ok=True)
 (out / "scan.json").write_text(json.dumps({"ranking": [{"sym": "DEMO", "status": "候選"}, {"sym": "TQQQ", "status": "唔合格"}]}), encoding="utf-8")
 (out / "model_cont.json").write_text(json.dumps({"positions": [{"sym": "DEL"}]}), encoding="utf-8")
 (out / "research" / "index.json").write_text(json.dumps({"items": [{"sym": "NVDA"}]}), encoding="utf-8")
 check(P.watch_list(out)[:3] == ["DEMO", "DEL", "NVDA"] and "TQQQ" not in P.watch_list(out), "留意清單：排名、持倉、研究；唔要 ETF")
-today = date.today()
+today = datetime.now(timezone.utc).date()   # 2026-11-10：同 people.main 一樣用 UTC 日期（以前用本地日期，香港 00:00–08:00 行 senate_since 就對唔上）
 f1, f_old = (today - timedelta(days=3)).strftime("%m/%d/%Y"), (today - timedelta(days=200)).strftime("%m/%d/%Y")
 
 
-def idx_zip(docs):
+def idx_zip(docs, y):
     xml = "<FinancialDisclosure>" + "".join(f"<Member><First>Ann</First><Last>Lee</Last><FilingType>{t}</FilingType><StateDst>CA01</StateDst>"
                                             f"<FilingDate>{d}</FilingDate><DocID>{doc}</DocID></Member>" for doc, t, d in docs) + "</FinancialDisclosure>"
     b = io.BytesIO()
     with zipfile.ZipFile(b, "w") as z:
-        z.writestr(f"{today.year}FD.xml", xml)
+        z.writestr(f"{y}FD.xml", xml)            # 檔名跟 URL 嘅年份（house() 用本地日期揀年份，新年頭幾個鐘可能同 UTC 年份唔同）
     return b.getvalue()
 
 
@@ -106,7 +111,8 @@ calls = []
 def fake_get(url, **k):
     calls.append(url)
     if url.endswith("FD.zip"):
-        return idx_zip(IDX) if str(today.year) in url else idx_zip([])
+        y = url.rsplit("/", 1)[-1][:4]
+        return idx_zip(IDX if y == str(today.year) else [], y)
     if url.endswith(".pdf"):
         return b"pdf"
     if url == P.SEC_TICK:
