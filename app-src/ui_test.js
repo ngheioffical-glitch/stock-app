@@ -349,21 +349,21 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
   // 2026-11-09 老師：「好似 tradingview 右下角個 Auto 掣…取消咗 Auto 之後…可以隨意上下左右拉大縮小」（之後改做淨係價錢欄改高度）
   { const ab = kvEl.querySelector("[data-kvauto]"), r = ab.getBoundingClientRect(), rg = () => KS.map.hi - KS.map.lo;
     ok("右下角有 Auto 掣（預設開）", ab.textContent === "Auto" && ab.getAttribute("aria-pressed") === "true" && KS.auto && Math.abs(r.right - cr.right) < 2 && Math.abs(r.bottom - cr.bottom) < 2 && r.height >= 24, [r.right, cr.right, r.bottom, cr.bottom, r.height]);
-    // 老師之後：「幅圖裡面都可以上下同左右，不過一次只可以一個動作，唔可以同時上下同左右」→ 起手方向鎖死
+    // 老師之後：「唔可以打斜放大縮小係正確，但係可以打斜移動吧」→ 一隻手指自由移動（可以打斜）；放大縮細一次一個方向
+    const lo0 = KS.map.lo, e0a = KS.end;
+    ev(cv, "pointerdown", cx, cy, tpI(20)); ev(cv, "pointermove", cx + 40, cy + 8, tpI(20)); ev(cv, "pointermove", cx + 120, cy + 15, tpI(20)); await sleep(150); ev(cv, "pointerup", cx + 120, cy + 15, tpI(20)); await sleep(60);
+    ok("Auto 開：左右拖手震少少（< 24px）唔會熄 Auto", KS.auto && KS.end < e0a - 60 / KS.bw, [KS.auto, e0a, KS.end]);
     const lo1 = KS.map.lo, e1 = KS.end, g0 = rg();
     ev(cv, "pointerdown", cx, cy, tpI(21)); ev(cv, "pointermove", cx, cy + 50, tpI(21)); ev(cv, "pointermove", cx, cy + 120, tpI(21)); ev(cv, "pointerup", cx, cy + 120, tpI(21)); await sleep(60);
-    ok("圖表向下拖 = 成幅圖向下移（高度唔變、時間唔郁），會熄 Auto", KS.map.lo > lo1 && Math.abs(rg() - g0) < g0 * 1e-9 && Math.abs(KS.end - e1) < 0.01 && !KS.auto && ab.getAttribute("aria-pressed") === "false", [lo1, KS.map.lo, g0, rg(), KS.auto]);
+    ok("圖表向下拖 = 成幅圖向下移（高度唔變），會熄 Auto", KS.map.lo > lo1 && Math.abs(rg() - g0) < g0 * 1e-9 && Math.abs(KS.end - e1) < 0.01 && !KS.auto && ab.getAttribute("aria-pressed") === "false", [lo1, KS.map.lo, g0, rg(), KS.auto]);
     ab.click(); await sleep(60); ok("撳 Auto = 返自動", KS.auto && ab.getAttribute("aria-pressed") === "true" && Math.abs(KS.map.lo - lo1) < 1e-9, [lo1, KS.map.lo]);
     ab.click(); await sleep(60); ok("再撳 Auto = 熄", !KS.auto && ab.getAttribute("aria-pressed") === "false" && Math.abs(KS.map.lo - lo1) < 1e-9);
-    const lo3 = KS.map.lo, e3 = KS.end;
-    ev(cv, "pointerdown", cx, cy, tpI(31)); ev(cv, "pointermove", cx + 40, cy + 15, tpI(31)); ev(cv, "pointermove", cx + 120, cy + 45, tpI(31)); ev(cv, "pointerup", cx + 120, cy + 45, tpI(31)); await sleep(60);
-    ok("打斜拖（橫多啲）= 淨係郁時間", KS.map.lo === lo3 && KS.end < e3 - 60 / KS.bw, [lo3, KS.map.lo, e3, KS.end]);
+    const lo3 = KS.map.lo, e3 = KS.end, g3a = rg();
+    ev(cv, "pointerdown", cx, cy, tpI(31)); ev(cv, "pointermove", cx - 40, cy + 15, tpI(31)); ev(cv, "pointermove", cx - 120, cy + 45, tpI(31)); await sleep(150); ev(cv, "pointerup", cx - 120, cy + 45, tpI(31)); await sleep(60);
+    ok("打斜拖（向左下）= 時間同高低一齊郁，高度唔變", KS.map.lo > lo3 && KS.end > e3 + 60 / KS.bw && Math.abs(rg() - g3a) < g3a * 1e-9, [lo3, KS.map.lo, e3, KS.end]);
     const lo4 = KS.map.lo, e4 = KS.end;
-    ev(cv, "pointerdown", cx, cy, tpI(32)); ev(cv, "pointermove", cx - 40, cy + 6, tpI(32)); ev(cv, "pointermove", cx - 60, cy + 140, tpI(32)); ev(cv, "pointerup", cx - 60, cy + 140, tpI(32)); await sleep(60);
-    ok("起手向橫就鎖左右：之後拖落去都唔郁價錢", KS.map.lo === lo4 && KS.end > e4 + 40 / KS.bw, [lo4, KS.map.lo, e4, KS.end]);   // 向左拖 = 睇返新啲（上一步可能已經拖到最舊）
-    const lo5 = KS.map.lo, e5 = KS.end, g5 = rg();
-    ev(cv, "pointerdown", cx, cy, tpI(33)); ev(cv, "pointermove", cx + 6, cy - 40, tpI(33)); ev(cv, "pointermove", cx + 140, cy - 60, tpI(33)); ev(cv, "pointerup", cx + 140, cy - 60, tpI(33)); await sleep(60);
-    ok("起手向上就鎖上下：之後打橫都唔郁時間", KS.map.lo < lo5 && Math.abs(rg() - g5) < g5 * 1e-9 && Math.abs(KS.end - e5) < 0.01, [lo5, KS.map.lo, e5, KS.end]);
+    ev(cv, "pointerdown", cx, cy, tpI(32)); ev(cv, "pointermove", cx + 40, cy - 30, tpI(32)); ev(cv, "pointermove", cx + 120, cy - 90, tpI(32)); await sleep(150); ev(cv, "pointerup", cx + 120, cy - 90, tpI(32)); await sleep(60);
+    ok("打斜拖（向右上）= 睇返早啲同向上移", KS.map.lo < lo4 && KS.end < e4 - 60 / KS.bw, [lo4, KS.map.lo, e4, KS.end]);
     const g3 = rg(), bw3 = KS.bw;
     ev(cv, "pointerdown", cx, cy - 30, tpI(24)); ev(cv, "pointerdown", cx, cy + 30, tpI(25));
     ev(cv, "pointermove", cx, cy - 90, tpI(24)); ev(cv, "pointermove", cx, cy + 90, tpI(25));

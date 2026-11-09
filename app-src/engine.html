@@ -3246,7 +3246,7 @@ function kvOpen(box){
       <div class="kv-zm"><button data-kvz="-1" aria-label="縮細">−</button><button data-kvz="1" aria-label="放大">＋</button></div>
       <button class="kv-now" data-kvnow hidden>返最新 ›</button>
       <button class="kv-auto" data-kvauto aria-pressed="true" aria-label="自動高度（撳一下取消；價錢高度喺右邊價錢欄上下拉）">Auto</button></div>
-    <p class="kv-foot">兩隻手指放大縮細 · 一隻手指左右拖睇更早、上下拖移高低（每次淨係郁一個方向）· 長按出十字線 · 撳兩下返最新。上下拉右邊價錢欄改高度（上下拖同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動）。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。BOS／MSS 只供參考，唔係買賣訊號。</p>`;
+    <p class="kv-foot">兩隻手指放大縮細時間 · 上下拉右邊價錢欄改高度 · 一隻手指隨便拖（可以打斜）：左右睇前後、上下移高低 · 長按出十字線 · 撳兩下返最新。上下移同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。BOS／MSS 只供參考，唔係買賣訊號。</p>`;
   el.hidden = false;
   history.pushState({kv: 1}, "");                       // 每次開都加一格（返回鍵收佢）
   kvBind(el.querySelector("canvas"));
@@ -3411,10 +3411,11 @@ function kvGlide(v){                                    // 放手之後慣性滑
 function kvBind(cv){
   // 2026-11-09 老師：「縱向只可以用側邊價錢嗰邊上下滑動，圖表嗰度淨係可以橫向滑動…跟翻tradingview咁樣」
   // → 兩隻手指淨係縮放時間；價錢高度喺右邊價錢欄上下拉（或者滑鼠喺價錢欄碌轆），拉咗就熄 Auto
-  // 同日再改（老師：「幅圖裡面都可以上下同左右，不過一次只可以一個動作，唔可以同時上下同左右」）：
-  // → 圖表一隻手指（或者滑鼠）拖：起手邊個方向郁得多就鎖死邊個方向，成次拖都唔變。左右 = 前後時間（放手會滑）；
-  //   上下 = 成幅圖上下移（價錢高度唔變，會熄 Auto，冇慣性）。放手再拖先可以揀過方向
-  const P = new Map(); let mode = null, x0 = 0, y0 = 0, end0 = 0, lp = 0, pin = null, lastTap = 0, vel = 0, lx = 0, lt = 0, lo0 = 0, hi0 = 0, onAx = false;
+  // 同日再改（老師：「唔可以打斜放大縮小係正確，但係可以打斜移動吧」）：放大縮細一次一個方向（兩指 = 時間、價錢欄 = 高度）；
+  // → 圖表一隻手指（或者滑鼠）拖 = 自由移動，可以打斜：左右 = 前後時間（放手會滑），上下 = 成幅圖上下移（高度唔變）。
+  //   上下移會熄 Auto；Auto 開緊時上下要拉過 24px 先開始（免得左右拖手震就熄咗 Auto），由嗰點起計唔會跳
+  const P = new Map(); let mode = null, x0 = 0, y0 = 0, end0 = 0, lp = 0, pin = null, lastTap = 0, vel = 0, lx = 0, lt = 0, lo0 = 0, hi0 = 0, onAx = false, vy = null;
+  const V_GATE = 24;
   const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const cross = (x, y) => { KV.cross = {x, y}; kvReq(); };
   const inAx = (x, y) => !!KV.map && x > KV.map.pr && y < KV.map.pb;                     // 右邊價錢欄
@@ -3438,15 +3439,18 @@ function kvBind(cv){
       KV.bw = kvBwClamp(pin.bw * d / pin.d); KV.end = pin.a - 0.5 + (KV.map.pr - mx) / KV.bw; kvReq(); return; }   // 兩隻手指：淨係縮放時間（價錢唔郁）
     if (mode === "cross"){ cross(x, y); return; }
     if ((mode === "wait" || mode === "mdown") && Math.hypot(x - x0, y - y0) > LP.slop){ clearTimeout(lp);
-      mode = onAx ? "axis" : Math.abs(y - y0) > Math.abs(x - x0) ? "vpan" : "pan"; KV.cross = null;   // 鎖方向：起手邊個方向郁得多就係邊個
-      if (mode !== "pan"){ kvAuto(false); lo0 = KV.vlo; hi0 = KV.vhi; } }
+      mode = onAx ? "axis" : "pan"; KV.cross = null; if (onAx) kvAuto(false);
+      lo0 = KV.vlo; hi0 = KV.vhi; vy = KV.auto ? null : y0; }
     if (mode === "axis"){ yScale(lo0, hi0, Math.exp((y - y0) * 0.006)); kvReq(); return; }   // 拉價錢欄：向下 = 壓扁，向上 = 拉高
-    if (mode === "vpan"){ const pp = (hi0 - lo0) / Math.max(1, KV.map.pb - 20); KV.vlo = lo0 + (y - y0) * pp; KV.vhi = hi0 + (y - y0) * pp; kvReq(); return; }   // 圖表上下：成幅圖跟手指移，時間唔郁
-    if (mode === "pan"){ const t = performance.now(); KV.end = end0 + (x0 - x) / KV.bw; vel = 0.8 * ((lx - x) / KV.bw) / Math.max(1, t - lt) + 0.2 * vel; lx = x; lt = t; kvReq(); }   // 圖表左右：價錢唔郁
+    if (mode === "pan"){                                                                      // 圖表：自由移動（可以打斜）
+      if (vy == null && Math.abs(y - y0) > V_GATE){ kvAuto(false); lo0 = KV.vlo; hi0 = KV.vhi; vy = y; }
+      if (vy != null){ const pp = (hi0 - lo0) / Math.max(1, KV.map.pb - 20); KV.vlo = lo0 + (y - vy) * pp; KV.vhi = hi0 + (y - vy) * pp; }
+      const t = performance.now(); KV.end = end0 + (x0 - x) / KV.bw; vel = 0.8 * ((lx - x) / KV.bw) / Math.max(1, t - lt) + 0.2 * vel; lx = x; lt = t; kvReq(); }
   });
   const up = e => {
     if (!P.has(e.pointerId)) return; P.delete(e.pointerId); clearTimeout(lp);
-    if (mode === "pinch"){ if (P.size === 1){ const q = [...P.values()][0]; mode = "pan"; onAx = false; x0 = lx = q[0]; y0 = q[1]; end0 = KV.end; lt = performance.now(); vel = 0; } else if (!P.size) mode = null; return; }
+    if (mode === "pinch"){ if (P.size === 1){ const q = [...P.values()][0]; mode = "pan"; onAx = false; x0 = lx = q[0]; y0 = q[1]; end0 = KV.end; lt = performance.now(); vel = 0;
+      lo0 = KV.vlo; hi0 = KV.vhi; vy = KV.auto ? null : y0; } else if (!P.size) mode = null; return; }
     if (P.size) return;
     if (mode === "pan"){ if (performance.now() - lt < 80 && Math.abs(vel) > 0.002) kvGlide(vel); }
     else if (mode === "wait" || mode === "mdown"){                                         // 撳一下：收十字線；撳兩下：返最新（連 Auto 一齊返）
