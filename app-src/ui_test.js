@@ -448,6 +448,7 @@ v0.scrollTop = 0; await sleep(60);
   const chip = k => vi.querySelector(`[data-nt="${k}"]`); await until(() => !!chip("news"), 8000);
   const Dg = () => (LG.state().FEED.news || {}).digest;
   // 2026-11-09 老師：「點解冇咗ai今日重點？」→ 入新聞頁預設係「新聞」（之前預設「經濟數據」所以見唔到）
+  ok("分頁次序：新聞 → 經濟數據 → 業績", [...vi.querySelectorAll("[data-nt]")].map(b => b.textContent).join() === "新聞,經濟數據,業績", [...vi.querySelectorAll("[data-nt]")].map(b => b.textContent));
   ok("入新聞頁預設係「新聞」，即刻見到 AI 今日重點", chip("news").getAttribute("aria-pressed") === "true" && (!(Dg() && (Dg().points || []).length) || !!vi.querySelector("#aiDigest")), chip("news").getAttribute("aria-pressed"));
   chip("news").click(); await sleep(350); ok("新聞：有 AI 今日重點", !(Dg() && (Dg().points || []).length) || !!vi.querySelector("#aiDigest"));
   chip("econ").click(); await sleep(350); ok("經濟數據：唔再重複 AI 今日重點", !!chip("econ") && !vi.querySelector("#aiDigest") && (!(Dg() && Dg().econ) || !!vi.querySelector("#aiEcon")));

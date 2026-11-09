@@ -2694,7 +2694,7 @@ function viewSerList(){
 
 function viewNews(){
   if (!FEED.news && !FEED.err) fetchFeeds();
-  let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button><button data-nt="earn" aria-pressed="${NT === "earn"}">業績</button></div>
+  let h = topbar() + `<div class="row spread"><div class="chips"><button data-nt="news" aria-pressed="${NT === "news"}">新聞</button><button data-nt="econ" aria-pressed="${NT === "econ"}">經濟數據</button><button data-nt="earn" aria-pressed="${NT === "earn"}">業績</button></div>
     <button id="feedReload" class="small">${FEED.busy ? "更新中…" : "重新整理"}</button></div>`;
   if (FEED.cloud) h += `<p class="small" style="color:var(--cyan)">${esc(FEED.cloud)}</p>`;
   // 2026-11-09 老師：「研究ai今日重點擺放位置。我見到經濟數據，新聞定係業績都出同一樣嘢，應該無需要吧？」
