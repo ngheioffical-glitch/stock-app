@@ -346,6 +346,28 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
   ok("頂行換做十字線嗰支（唔係最新嗰日）", !ol.includes(KS.S.d.at(-1)) && /\d{4}-\d\d-\d\d 開 /.test(ol), ol);
   ev(cv, "pointerdown", cx, cy, tpI(15)); ev(cv, "pointerup", cx, cy, tpI(15)); ev(cv, "pointerdown", cx, cy, tpI(16)); ev(cv, "pointerup", cx, cy, tpI(16)); await sleep(60);
   ok("撳兩下返最新", KS.end >= KS.S.c.length - 1 && kvEl.querySelector("[data-kvnow]").hidden && !KS.cross, [KS.end, KS.S.c.length]);
+  // 2026-11-09 老師：「好似 tradingview 右下角個 Auto 掣…取消咗 Auto 之後…可以隨意上下左右拉大縮小」
+  { const ab = kvEl.querySelector("[data-kvauto]"), r = ab.getBoundingClientRect(), rg = () => KS.map.hi - KS.map.lo;
+    ok("右下角有 Auto 掣（預設開）", ab.textContent === "Auto" && ab.getAttribute("aria-pressed") === "true" && KS.auto && Math.abs(r.right - cr.right) < 2 && Math.abs(r.bottom - cr.bottom) < 2 && r.height >= 24, [r.right, cr.right, r.bottom, cr.bottom, r.height]);
+    const lo1 = KS.map.lo, e1 = KS.end;
+    ev(cv, "pointerdown", cx, cy, tpI(21)); ev(cv, "pointermove", cx, cy + 50, tpI(21)); ev(cv, "pointermove", cx, cy + 120, tpI(21)); ev(cv, "pointerup", cx, cy + 120, tpI(21)); await sleep(60);
+    ok("Auto 開：上下拖唔郁價錢高度", Math.abs(KS.map.lo - lo1) < 1e-9 && Math.abs(KS.end - e1) < 0.01, [lo1, KS.map.lo]);
+    ab.click(); await sleep(60); ok("撳 Auto = 熄（變畫布）", !KS.auto && ab.getAttribute("aria-pressed") === "false" && Math.abs(KS.map.lo - lo1) < 1e-9);
+    const g1 = rg(), lo2 = KS.map.lo;
+    ev(cv, "pointerdown", cx, cy, tpI(22)); ev(cv, "pointermove", cx, cy + 50, tpI(22)); ev(cv, "pointermove", cx, cy + 120, tpI(22)); ev(cv, "pointerup", cx, cy + 120, tpI(22)); await sleep(60);
+    ok("Auto 熄：向下拖 = 睇高啲嘅價", KS.map.lo > lo2 + g1 * 0.1 && Math.abs(rg() - g1) < g1 * 1e-6, [lo2, KS.map.lo, g1, rg()]);
+    const ax = cr.right - KS.ax / 2, g2 = rg();
+    ev(cv, "pointerdown", ax, cy, tpI(23)); ev(cv, "pointermove", ax, cy - 40, tpI(23)); ev(cv, "pointermove", ax, cy - 100, tpI(23)); ev(cv, "pointerup", ax, cy - 100, tpI(23)); await sleep(60);
+    ok("拉右邊價錢欄向上 = 拉高 K 線（價錢範圍細咗）", rg() < g2 * 0.7 && !KS.auto, [g2, rg()]);
+    const g3 = rg(), bw3 = KS.bw;
+    ev(cv, "pointerdown", cx, cy - 30, tpI(24)); ev(cv, "pointerdown", cx, cy + 30, tpI(25));
+    ev(cv, "pointermove", cx, cy - 90, tpI(24)); ev(cv, "pointermove", cx, cy + 90, tpI(25));
+    ev(cv, "pointerup", cx, cy - 90, tpI(24)); ev(cv, "pointerup", cx, cy + 90, tpI(25)); await sleep(60);
+    ok("Auto 熄：兩隻手指上下拉開 = 價錢放大，時間唔變", rg() < g3 * 0.6 && Math.abs(KS.bw - bw3) < bw3 * 0.05, [g3, rg(), bw3, KS.bw]);
+    kvEl.querySelector('[data-kvtf="W"]').click(); await sleep(80); ok("轉 timeframe 自動返 Auto", KS.auto && ab.getAttribute("aria-pressed") === "true");
+    kvEl.querySelector('[data-kvtf="D"]').click(); await sleep(80); ab.click(); await sleep(40);
+    ev(cv, "pointerdown", cx, cy, tpI(26)); ev(cv, "pointerup", cx, cy, tpI(26)); ev(cv, "pointerdown", cx, cy, tpI(27)); ev(cv, "pointerup", cx, cy, tpI(27)); await sleep(60);
+    ok("撳兩下：返最新同返 Auto", KS.auto && ab.getAttribute("aria-pressed") === "true" && KS.end >= KS.S.c.length - 1); }
   const bb = kvEl.querySelector("[data-kvb]"); bb.click(); ok("BOS／MSS 可以收埋", !KS.showB && bb.getAttribute("aria-pressed") === "false"); bb.click();
   const bw2 = KS.bw; kvEl.querySelector('[data-kvz="1"]').click(); ok("＋ 放大", KS.bw > bw2 * 1.4); kvEl.querySelector('[data-kvz="-1"]').click(); ok("− 縮細返", Math.abs(KS.bw - bw2) < 0.01);
   ok("全螢幕冇橫向出界", kvEl.scrollWidth - kvEl.clientWidth <= 1); audit("K 線全螢幕", kvEl);
