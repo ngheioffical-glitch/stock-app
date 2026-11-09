@@ -4592,7 +4592,7 @@ function taSec(T, txt, none){
 //   股票：雲端 scanner/kline_live.py（盤中掃描每個鐘一次，live 分支 kline/<代號>.json，紐約時間），開住每 5 分鐘再讀；
 //   加密：app 直接攞 Coinbase（佢准網頁讀），每分鐘更新；4H = 1H 合併（UTC 00/04/08… 開始，顯示香港時間），拖到最左會再攞更早。
 //   日 K 用盤中數據補「今日」嗰支（未收市都會郁），週 K／月 K 跟住更新。
-const KV = {el: null, src: null, title: "", key: "", cb: "", tick: 0.01, tf: "D", S: null, brk: [], end: 0, bw: 7, cross: null, showB: true,
+const KV = {el: null, src: null, title: "", key: "", cb: "", tick: 0.01, tf: "D", S: null, brk: [], end: 0, bw: 7, cross: null, showB: true, showMA: true,
   raf: 0, anim: 0, selfBack: false, map: null, onKey: null, onRz: null, daily: null, live: null, liveSt: "", timer: 0, want: null, old: false, seq: 0};
 const KV_TF = [["60", "1H", "1 小時 K"], ["240", "4H", "4 小時 K"], ["D", "日", "日 K"], ["W", "週", "週 K"], ["M", "月", "月 K"]];
 const kvIntra = tf => tf === "60" || tf === "240";
@@ -4769,13 +4769,13 @@ function kvOpen(box){
   el.innerHTML = `<div class="kv-top"><button class="kv-x" data-kvx aria-label="返回">${`<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>`}</button>
       <div class="kv-t"><b>${esc(KV.title)}</b><span class="kv-px"></span></div></div>
     <div class="kv-bar"><div class="kv-tf" role="group" aria-label="時間週期">${KV_TF.map(([k, l, a]) => `<button data-kvtf="${k}" aria-pressed="false" aria-label="${a}">${l}</button>`).join("")}</div>
-      <button data-kvb aria-pressed="${KV.showB}">BOS／MSS</button></div>
+      <button data-kvb aria-pressed="${KV.showB}">BOS／MSS</button><button data-kvma aria-pressed="${KV.showMA}">均線</button></div>
     <div class="kv-ohlc" aria-live="polite"></div>
     <div class="kv-cv"><canvas aria-label="K 線圖"></canvas>
       <div class="kv-zm"><button data-kvz="-1" aria-label="縮細">−</button><button data-kvz="1" aria-label="放大">＋</button></div>
       <button class="kv-now" data-kvnow hidden>返最新 ›</button>
       <button class="kv-auto" data-kvauto aria-pressed="true" aria-label="自動高度（撳一下取消；價錢高度喺右邊價錢欄上下拉）">Auto</button></div>
-    <p class="kv-foot">兩隻手指放大縮細時間 · 上下拉右邊價錢欄改高度 · 一隻手指隨便拖（可以打斜）：左右睇前後、上下移高低 · 長按出十字線 · 撳兩下返最新。上下移同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。BOS／MSS 只供參考，唔係買賣訊號。</p>`;
+    <p class="kv-foot">兩隻手指放大縮細時間 · 上下拉右邊價錢欄改高度 · 一隻手指隨便拖（可以打斜）：左右睇前後、上下移高低 · 長按出十字線 · 撳兩下返最新。上下移同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。均線 = EMA21、MA50、MA100、MA200（跟住時間週期計，例如週 K 就係週線；左上角係十字線嗰支或者最新嗰支嘅數值）。BOS／MSS 同均線只供參考，唔係買賣訊號。</p>`;
   el.hidden = false;
   history.pushState({kv: 1}, "");                       // 每次開都加一格（返回鍵收佢）
   kvBind(el.querySelector("canvas"));
@@ -4796,6 +4796,7 @@ function kvEnsure(){
     if (t.hasAttribute("data-kvx")) kvClose();
     else if (t.dataset.kvtf) kvSet(t.dataset.kvtf);
     else if (t.hasAttribute("data-kvb")){ KV.showB = !KV.showB; t.setAttribute("aria-pressed", KV.showB); kvReq(); }
+    else if (t.hasAttribute("data-kvma")){ KV.showMA = !KV.showMA; t.setAttribute("aria-pressed", KV.showMA); kvReq(); }
     else if (t.dataset.kvz){ const m = KV.map, x = m ? m.pr / 2 : 0, a = kvIdx(x); KV.bw = kvBwClamp(KV.bw * (t.dataset.kvz === "1" ? 1.5 : 1 / 1.5)); if (m) KV.end = a - 0.5 + (m.pr - x) / KV.bw; kvReq(); }
     else if (t.hasAttribute("data-kvnow")) kvLatest();
     else if (t.hasAttribute("data-kvauto")) kvAuto(!KV.auto);
@@ -4839,6 +4840,20 @@ function kvNice(x){ const p = Math.pow(10, Math.floor(Math.log10(x))), f = x / p
 function kvFmt(v, step){                                // 刻度小數位跟格距（2.5、0.25 要多一位）
   const e = Math.floor(Math.log10(step)), f = Math.round(step / Math.pow(10, e) * 10) / 10, dp = Math.min(8, Math.max(0, -e + (f === 2.5 ? 1 : 0)));
   return v.toLocaleString("en-US", {minimumFractionDigits: dp, maximumFractionDigits: dp}); }
+// 均線（2026-11-09 老師：「可唔可以加埋均線去K線圖？ 21 55 100 200呢啲我哋回測過的」→ 回測過嘅係 21／50／100／200（LAB_CRYPTOMA；
+// 大市燈號用 21 日 EMA、50、200 日線），冇測過 55，所以用 EMA21、MA50、MA100、MA200）。跟住時間週期計，只係顯示
+const KV_MA = [[21, "e", "--cyan", "#7dd3e8", "EMA21"], [50, "s", "--ora", "#f3a56d", "MA50"], [100, "s", "--warn", "#f3c26d", "MA100"], [200, "s", "--pur", "#b9a2ff", "MA200"]];
+function kvMa(S){
+  const c = S.c, n = c.length, k = n + ":" + c[n - 1];
+  if (S._ma && S._maK === k) return S._ma;
+  S._maK = k;
+  return S._ma = KV_MA.map(([p, t]) => {
+    const o = new Array(n).fill(null);
+    if (t === "e"){ if (n >= p){ let e = 0; for (let i = 0; i < p; i++) e += c[i]; e /= p; o[p - 1] = e; const a = 2 / (p + 1); for (let i = p; i < n; i++){ e = c[i] * a + e * (1 - a); o[i] = e; } } }
+    else { let s = 0; for (let i = 0; i < n; i++){ s += c[i]; if (i >= p) s -= c[i - p]; if (i >= p - 1) o[i] = s / p; } }
+    return o;
+  });
+}
 function kvDraw(){
   KV.raf = 0;
   if (!kvIsOpen() || !KV.S) return;
@@ -4896,6 +4911,15 @@ function kvDraw(){
     g.strokeStyle = g.fillStyle = c; g.beginPath(); g.moveTo(xm, Y(S.h[i])); g.lineTo(xm, Y(S.l[i])); g.stroke();
     if (bw >= 2) g.fillRect(x - w / 2, Math.min(yo, yc), w, Math.max(1, Math.abs(yc - yo)));
   }
+  // 均線（喺陰陽燭上面、BOS／MSS 下面；唔計入自動高度，K 線先唔會俾遠嘅 200 線壓扁）
+  const MA = KV.showMA ? kvMa(S) : null, maCol = KV_MA.map(m => col(m[2]) || m[3]);
+  if (MA){
+    g.lineWidth = 1.4;
+    MA.forEach((m, k) => { g.strokeStyle = maCol[k]; g.beginPath(); let on = false;
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++){ const v = m[i]; if (v == null){ on = false; continue; } const x = X(i), y = Y(v); if (on) g.lineTo(x, y); else g.moveTo(x, y); on = true; }
+      g.stroke(); });
+    g.lineWidth = 1;
+  }
   // BOS／MSS：由轉角位畫到收穿嗰支
   if (KV.showB){
     g.font = `700 12px ${SANS}`; g.textAlign = "center";
@@ -4926,6 +4950,15 @@ function kvDraw(){
   }
   // 上面一行：十字線嗰支（冇就最新）嘅開高低收
   const j = ci >= 0 ? ci : n - 1, ch = j ? S.c[j] / S.c[j - 1] - 1 : null, bk = KV.showB ? KV.brk.filter(b => b.i === j) : [];
+  if (MA){                                              // 左上角：均線數值（十字線嗰支，冇就最新），色條 + 字（字用正文色）
+    g.font = `11px ${MONO}`; g.textAlign = "left"; g.textBaseline = "middle";
+    let lx = 6, ly = 9;
+    KV_MA.forEach(([, , , , lab], k) => { const v = MA[k][j]; if (v == null) return;
+      const s = `${lab} ${fp(v)}`, w = 14 + g.measureText(s).width + 10;
+      if (lx + w > pr - 4 && lx > 6){ lx = 6; ly += 15; }
+      g.globalAlpha = 0.78; g.fillStyle = BG; g.fillRect(lx - 3, ly - 7, w - 4, 14); g.globalAlpha = 1;
+      g.fillStyle = maCol[k]; g.fillRect(lx, ly - 1, 10, 2.5); g.fillStyle = INK; g.fillText(s, lx + 14, ly); lx += w; });
+  }
   if (KV.note && performance.now() < KV.note.until && !KV.cross) el.querySelector(".kv-ohlc").textContent = KV.note.t;
   else el.querySelector(".kv-ohlc").innerHTML = `<b>${esc(S.d[j])}</b> 開 ${fp(S.o[j])} 高 ${fp(S.h[j])} 低 ${fp(S.l[j])} 收 ${fp(S.c[j])}${ch != null ? ` <span class="${ch >= 0 ? "up" : "dn"}">${pct(ch)}</span>` : ""}${bk.map(b => ` · <b class="${b.dir > 0 ? "up" : "dn"}">${b.dir > 0 ? "向上" : "向下"} ${b.k}</b>`).join("")}`;
   el.querySelector("[data-kvnow]").hidden = KV.end >= n - 1.5;

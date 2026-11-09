@@ -383,6 +383,12 @@ const tpI = id => ({pointerType: "touch", pointerId: id});
     ev(cv, "pointerdown", cx, cy, tpI(26)); ev(cv, "pointerup", cx, cy, tpI(26)); ev(cv, "pointerdown", cx, cy, tpI(27)); ev(cv, "pointerup", cx, cy, tpI(27)); await sleep(60);
     ok("撳兩下：返最新同返 Auto", KS.auto && ab.getAttribute("aria-pressed") === "true" && KS.end >= KS.S.c.length - 1); }
   const bb = kvEl.querySelector("[data-kvb]"); bb.click(); ok("BOS／MSS 可以收埋", !KS.showB && bb.getAttribute("aria-pressed") === "false"); bb.click();
+  // 2026-11-09 老師：「可唔可以加埋均線去K線圖？」→ EMA21、MA50、MA100、MA200，有掣收埋
+  { const mb = kvEl.querySelector("[data-kvma]"), c = KS.S.c, n = c.length, M = KS.S._ma;
+    const sma = p => c.slice(n - p).reduce((a, b) => a + b, 0) / p;
+    ok("K 線有均線（MA50／MA200 數值啱）", mb && mb.getAttribute("aria-pressed") === "true" && M && M.length === 4 && Math.abs(M[1][n - 1] - sma(50)) < 1e-6 * sma(50) && (n < 200 || Math.abs(M[3][n - 1] - sma(200)) < 1e-6 * sma(200)), M && [M[1][n - 1], sma(50)]);
+    ok("EMA21 喺最近收市附近（唔係 null）", M && M[0][n - 1] != null && Math.abs(M[0][n - 1] / c[n - 1] - 1) < 0.3);
+    mb.click(); ok("均線可以收埋", !KS.showMA && mb.getAttribute("aria-pressed") === "false"); mb.click(); ok("均線再撳返出", KS.showMA); }
   const bw2 = KS.bw; kvEl.querySelector('[data-kvz="1"]').click(); ok("＋ 放大", KS.bw > bw2 * 1.4); kvEl.querySelector('[data-kvz="-1"]').click(); ok("− 縮細返", Math.abs(KS.bw - bw2) < 0.01);
   ok("全螢幕冇橫向出界", kvEl.scrollWidth - kvEl.clientWidth <= 1); audit("K 線全螢幕", kvEl);
   history.back(); await until(() => !LG.kvIsOpen(), 2000); await sleep(250);
