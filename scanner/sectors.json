@@ -29,6 +29,12 @@
   "sector": "Consumer Cyclical",
   "src": "yahoo"
  },
+ "APA": {
+  "date": "2026-11-10",
+  "industry": "Oil & Gas E&P",
+  "sector": "Energy",
+  "src": "yahoo"
+ },
  "APP": {
   "date": "2026-09-27",
   "industry": "Advertising Agencies",
@@ -179,6 +185,12 @@
   "sector": "Industrials",
   "src": "yahoo"
  },
+ "GH": {
+  "date": "2026-11-10",
+  "industry": "Diagnostics & Research",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
  "GKOS": {
   "date": "2026-10-31",
   "industry": "Medical Devices",
@@ -207,6 +219,12 @@
   "date": "2026-09-27",
   "industry": "Capital Markets",
   "sector": "Financial Services",
+  "src": "yahoo"
+ },
+ "HALO": {
+  "date": "2026-11-10",
+  "industry": "Biotechnology",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "HD": {
@@ -441,6 +459,18 @@
   "date": "2026-09-27",
   "industry": "Semiconductors",
   "sector": "Technology",
+  "src": "yahoo"
+ },
+ "ROIV": {
+  "date": "2026-11-10",
+  "industry": "Biotechnology",
+  "sector": "Healthcare",
+  "src": "yahoo"
+ },
+ "RVMD": {
+  "date": "2026-11-10",
+  "industry": "Biotechnology",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "RVTY": {
