@@ -120,6 +120,15 @@ ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySel
   LG.openStock("NVDA"); const rl = $("#rs").querySelector(".rtline");
   ok("股票頁有實時價（NVDA 123.45 盤中）", !!rl && rl.textContent.includes("123.45") && rl.textContent.includes("盤中"), rl && rl.textContent);
   LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(80);
+  // 2026-11-10 老師：「點解K線冇跟住實時？」→ 日 K 今日嗰支用實時開高低收（日子要新過正式數據）
+  { const kb = v0.querySelector("#evCard .evch [data-kv]"), nq = (last, high) => LG.rtTake({FormattedQuoteResult: {FormattedQuote: [{symbol: ".NDX", last, previous_day_closing: "29,000.00", open: "29,100.00", high, low: "29,050.00", last_time: "2099-01-02T11:00:00.000-0500", curmktstatus: "REG_MKT"}]}});
+    if (kb){ RT0.q = {}; nq("30,000.00", "30,100.00"); tapEl(kb); await until(() => LG.kvIsOpen() && LG.kvState().S, 2000); await sleep(150);
+      const KS = LG.kvState(), D = KS.daily, n = D.c.length;
+      ok("K 線今日嗰支跟實時價（開高低收）", D.d[n - 1] === "2099-01-02" && D.o[n - 1] === 29100 && D.h[n - 1] === 30100 && D.l[n - 1] === 29050 && D.c[n - 1] === 30000 && KS.S.c[KS.S.c.length - 1] === 30000, [D.d[n - 1], D.c[n - 1]]);
+      nq("30,200.00", "30,250.00"); LG.rtPaint();
+      ok("實時價再郁：同一支更新，唔會加多支", D.c.length === n && D.c[n - 1] === 30200 && D.h[n - 1] === 30250 && KS.S.c[KS.S.c.length - 1] === 30200, [D.c.length, n, D.c[n - 1]]);
+      ok("正式收市嗰日唔會俾實時價改", KS.offEnd && D.d[n - 2] <= KS.offEnd);
+      $("#kv [data-kvx]").click(); await until(() => !LG.kvIsOpen(), 2000); await until(() => HS.ignore === 0); await sleep(120); } }
   RT0.q = keep; LG.rtPaint(); }
 
 // ───── 3 撳落去

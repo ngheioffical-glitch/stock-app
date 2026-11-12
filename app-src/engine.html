@@ -1431,7 +1431,7 @@ function rtTake(j){
   for (const x of L){
     const last = rtNum(x.last); if (!x.symbol || last == null) continue;
     const prev = rtNum(x.previous_day_closing), cp = rtNum(x.change_pct), t = rtTs(x.last_time), st = String(x.curmktstatus || "");
-    const q = {last, prev, pc: prev ? last / prev - 1 : cp == null ? null : cp / 100, t, st, ext: null};
+    const q = {last, prev, pc: prev ? last / prev - 1 : cp == null ? null : cp / 100, t, st, ext: null, o: rtNum(x.open), h: rtNum(x.high), l: rtNum(x.low)};
     const e = x.ExtendedMktQuote, el = e ? rtNum(e.last) : null, et = e ? rtTs(e.last_time) : NaN, ep = e ? rtNum(e.change_pct) : null;
     if (e && st !== "REG_MKT" && el != null && et > t) q.ext = {type: String(e.type || ""), last: el, pc: ep == null ? null : ep / 100, t: et};   // 正常交易時間 CNBC 仲會帶住朝早盤前嗰份，唔用
     RT.q[x.symbol] = q;
@@ -1486,7 +1486,21 @@ const rtSpan = (sym, k, p = {}) => `<span data-rt="${esc(sym)}" data-rtk="${k}"$
 function rtPaint(){
   document.querySelectorAll("[data-rt]").forEach(el => { const h = rtHtml(el.dataset.rtk, el.dataset.rt, {p: el.dataset.rtp, n: el.dataset.rtn});
     if (el._rt !== h){ el.innerHTML = h; el._rt = h; } });
-  if (kvIsOpen() && KV.S && KV.key) kvHead();
+  if (kvIsOpen() && KV.S && KV.key){ if (kvRtBar() && !kvIntra(KV.tf)) kvRefresh(); else kvHead(); }
+}
+// 2026-11-10 老師：「點解K線冇跟住實時？」→ 股票日 K（連週 K、月 K）今日嗰支用 CNBC 實時開、高、低、價（正常交易時段）；
+// 之前只靠雲端盤中掃描（每個鐘一次，GitHub 排程成日遲／停），而且駁咗一次就唔再更新。已經有正式收市數據嘅日子唔郁。1H／4H 照用雲端。
+function kvRtBar(){
+  if (!KV.key || KV.cb || !KV.daily) return false;
+  const q = RT.q[rtSym(KV.key)]; if (!q || !isFinite(q.t) || !(q.o > 0 && q.h >= q.l && q.l > 0)) return false;
+  const d = parts(NY, new Date(q.t)).date, D = KV.daily, n = D.d.length, hi = Math.max(q.h, q.last), lo = Math.min(q.l, q.last);
+  if (!n || d <= (KV.offEnd || "")) return false;
+  if (D.d[n - 1] === d){
+    if (D.o[n - 1] === q.o && D.h[n - 1] === hi && D.l[n - 1] === lo && D.c[n - 1] === q.last) return false;
+    D.o[n - 1] = q.o; D.h[n - 1] = hi; D.l[n - 1] = lo; D.c[n - 1] = q.last; return true;
+  }
+  if (d > D.d[n - 1]){ D.d.push(d); D.o.push(q.o); D.h.push(hi); D.l.push(lo); D.c.push(q.last); return true; }
+  return false;
 }
 // 今日頁實時卡：納指 100、QQQ、TQQQ + 模型持倉（撳股票開股票頁）
 function rtCard(){
@@ -2253,7 +2267,10 @@ function healthCard(){
   else if (BTC) fresh("加密燈號（BTC 100 日線）", BTC.generated || (BTC.ma100 && BTC.ma100.at), FM, FN);
   if (HYP) fresh("Hyperliquid 巨鯨、AI 加密", HYP.generated && HYP.generated.length > 16 ? HYP.generated : HYP.generated && HYP.generated + "Z", FM, FN, Object.values(HYP.err || {}));
   if (!RADAR && !NARR && !MEME && !THEME) fetchRadarAll();
-  [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 14 * 60, "每日 2 次", X.errs); });
+  // 2026-11-10 老師：「雷達成日都flag健康度」→ 兩個原因：①排程香港 07:47、21:47，相隔最長 14 個鐘，GitHub 排程成日遲 2–3 個鐘，之前 14 個鐘就當過期 → 改 18 個鐘；
+  //   ②個別項目 AI 摘要失敗（DeepSeek 繁忙時段唔用、Gemini 429／逾時）都當出錯 → 呢類唔當警告（AI 全部用唔到有「AI 額度同 key」嗰行），雷達數據本身照更新
+  const aiErr = x => /gemini|deepseek|claude|github models|openai|AI|導讀/i.test(String(x));
+  [["雷達：項目", RADAR], ["雷達：前瞻敘事", NARR], ["雷達：Meme", MEME], ["雷達：題材", THEME]].forEach(([n, X]) => { if (X) fresh(n, X.at, 18 * 60, "每日 2 次（香港 07:47、21:47，GitHub 會遲）", (X.errs || []).filter(e => !aiErr(e))); });
   // 2026-11-02：每日掃描淨係香港星期二至六朝早跑 → 星期六朝早嗰份要用到星期二朝早（約 72 個鐘），之前寫死 36 個鐘，星期日、一會誤報
   const hkDay = new Date(now + 8 * 3600e3), wd = hkDay.getUTCDay(), DMAX = (wd === 0 || wd === 1 || (wd === 2 && hkDay.getUTCHours() < 12)) ? 84 * 60 : 36 * 60;
   fresh("估值（每日）", VAL && VAL.generated, DMAX, "美股每個交易日收市後", VAL && VAL.errs);
@@ -3339,9 +3356,11 @@ function kvOpen(box){
   KV.src = src; KV.title = box._kvT || src.title || (hero && hero._kvT) || "";
   const crypto = box._kvC || (hero && hero._kvC);
   KV.seq++; KV.live = null; KV.liveSt = ""; KV.want = null; KV.old = false; KV.note = null; KV.noOlder = false; KV.daily = kvDaily(src); KV.auto = true;
+  KV.offEnd = KV.daily.d[KV.daily.d.length - 1] || "";                                         // 正式數據最後一日（實時價唔會改呢日或者之前）
   KV.cb = crypto && /^[A-Z0-9]{2,10}$/.test(KV.title) ? KV.title : "";                       // Coinbase 產品：BTC → BTC-USD
   KV.key = crypto ? "" : (src.key || box._kvK || (hero && hero._kvK) || (/^[A-Z][A-Z0-9.\-]{0,9}$/.test(KV.title) ? KV.title : ""));
-  const cs = (src.c || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  kvRtBar();                                                                                  // 已經有實時價就即刻補今日嗰支
+  const cs =(src.c || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
   KV.tick = src.tick || (crypto && cs.length ? Math.max(1e-12, cs[cs.length >> 1] * 1e-5) : 0.01);   // 同 scanner 一樣：股票 1 仙；加密 = 收市中位數 × 0.00001
   const el = kvEnsure();
   el.innerHTML = `<div class="kv-top"><button class="kv-x" data-kvx aria-label="返回">${`<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>`}</button>
@@ -3353,7 +3372,7 @@ function kvOpen(box){
       <div class="kv-zm"><button data-kvz="-1" aria-label="縮細">−</button><button data-kvz="1" aria-label="放大">＋</button></div>
       <button class="kv-now" data-kvnow hidden>返最新 ›</button>
       <button class="kv-auto" data-kvauto aria-pressed="true" aria-label="自動高度（撳一下取消；價錢高度喺右邊價錢欄上下拉）">Auto</button></div>
-    <p class="kv-foot">兩隻手指放大縮細時間 · 上下拉右邊價錢欄改高度 · 一隻手指隨便拖（可以打斜）：左右睇前後、上下移高低 · 長按出十字線 · 撳兩下返最新。上下移同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動。${crypto ? "加密每分鐘更新（Coinbase）" : "股票開市時間大約每個鐘更新"}。均線 = EMA21、MA50、MA100、MA200（跟住時間週期計，例如週 K 就係週線；左上角係十字線嗰支或者最新嗰支嘅數值）。BOS／MSS 同均線只供參考，唔係買賣訊號。</p>`;
+    <p class="kv-foot">兩隻手指放大縮細時間 · 上下拉右邊價錢欄改高度 · 一隻手指隨便拖（可以打斜）：左右睇前後、上下移高低 · 長按出十字線 · 撳兩下返最新。上下移同拉價錢欄都會熄右下角 Auto；撳 Auto 或者撳兩下返自動。${crypto ? "加密每分鐘更新（Coinbase）" : "股票日 K／週 K／月 K 今日嗰支跟 CNBC 實時價（開市時間約 20 秒一次）；1 小時／4 小時 K 靠雲端，開市時間大約每個鐘更新"}。均線 = EMA21、MA50、MA100、MA200（跟住時間週期計，例如週 K 就係週線；左上角係十字線嗰支或者最新嗰支嘅數值）。BOS／MSS 同均線只供參考，唔係買賣訊號。</p>`;
   el.hidden = false; rtKick();
   history.pushState({kv: 1}, "");                       // 每次開都加一格（返回鍵收佢）
   kvBind(el.querySelector("canvas"));
