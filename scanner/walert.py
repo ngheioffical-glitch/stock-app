@@ -26,6 +26,8 @@ EXCH = {"binance", "coinbase", "coinbaseinstitutional", "kraken", "okx", "okex",
         "luno", "coincheck", "binanceus", "hyperliquid", "falconx", "cumberland", "wintermute", "bitvavo", "whitebit", "lbank", "bingx"}
 STABLE = {"USDT", "USDC", "DAI", "FDUSD", "PYUSD", "USDE", "USD1", "RLUSD", "EURC", "TUSD"}
 PAT = re.compile(r"([\d,\.]+)\s+\$?#?([A-Z0-9]{2,10})\s+\(([\d,\.]+)\s+USD\)\s+(transferred|minted|burned)\s*(?:from\s+(.+?))?\s*(?:to\s+(.+?))?(?:\s+https?://\S+|$)", re.S)
+# 2026-11-13（老師批）：印發／銷毀帖係「… minted at Tether Treasury …」，PAT 要求 minted 後面即刻係 from／to／網址／結尾，配唔到 → 印發長期計 0
+MINT = re.compile(r"([\d,\.]+)\s+\$?#?([A-Z0-9]{2,10})\s+\(([\d,\.]+)\s+USD\)\s+(minted|burned)\b")
 
 
 def side(name):
@@ -43,10 +45,10 @@ def side(name):
 
 def parse(t):
     txt = (t.get("text") or "").replace("\n", " ")
-    m = PAT.search(txt)
+    m = PAT.search(txt) or MINT.search(txt)
     if not m:
         return None
-    amt, sym, usd, verb, frm, to = m.groups()
+    amt, sym, usd, verb, frm, to = (m.groups() + (None, None))[:6]
     usd = float(usd.replace(",", ""))
     link = re.search(r"https?://whale-alert\.io/\S+", txt)
     if verb in ("minted", "burned"):

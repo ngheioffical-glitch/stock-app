@@ -364,6 +364,18 @@ quiet(walert.main, str(WO))
 J = json.loads((WO / "walert.json").read_text(encoding="utf-8"))
 walert.parse = real_parse
 check(J["net24"] == {"穩定幣": {"in": 5e6, "out": 0.0, "mint": 30e6, "n": 3, "net": 5e6}}, "walert：穩定幣合埋計；印發加、銷毀減")
+# 2026-11-13（老師批修正）：真嘅印發／銷毀帖係「minted at …」「burned at …」，之前 PAT 配唔到 → 印發永遠 0
+MB = [dict(id=21, created_at=ca(1), text="\U0001F5A8 50,000,000 #USDT (50,012,345 USD) minted at Tether Treasury\n\nhttps://whale-alert.io/transaction/tron/abc"),
+      dict(id=22, created_at=ca(2), text="\U0001F525 20,000,000 #USDC (20,000,000 USD) burned at USDC Treasury"),
+      dict(id=23, created_at=ca(3), text="1,000 #BTC (100,000,000 USD) transferred from unknown wallet to #Coinbase https://whale-alert.io/x1")]
+xfeed.posts = lambda *a, **k: {"results": MB}
+quiet(walert.main, str(WO))
+J = json.loads((WO / "walert.json").read_text(encoding="utf-8"))
+check([(x["sym"], x["kind"], x["usd"], x["to"]) for x in J["items"]] == [("USDT", "印發", 50012345.0, "Tether Treasury"), ("USDC", "銷毀", 2e7, "USDC Treasury"),
+                                                                          ("BTC", "入交易所", 1e8, "Coinbase")]
+      and J["items"][0]["link"] == "https://whale-alert.io/transaction/tron/abc" and J["items"][1]["link"] is None
+      and J["net24"]["穩定幣"]["mint"] == 50012345.0 - 2e7 and J["net24"]["BTC"]["in"] == 1e8,
+      "walert：真嘅「minted at／burned at …」帖解析到（印發加、銷毀減）；轉帳照舊")
 xfeed.posts = lambda *a, **k: {"results": []}
 quiet(walert.main, str(WO))
 check(json.loads((WO / "walert.json").read_text(encoding="utf-8"))["items"] == [], "walert：冇出錯只係 48 小時內冇大額轉帳 → 照寫空清單，唔當失敗")
