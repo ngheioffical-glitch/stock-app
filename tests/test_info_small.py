@@ -44,7 +44,7 @@ import airdrop  # noqa: E402
 import llm  # noqa: E402
 
 time.sleep = lambda s: None                     # valuation／trump 會等；測試唔使等
-OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "info_small" / time.strftime("%Y%m%d-%H%M%S")
+OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "info_small" / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"   # 同一秒跑兩次都唔撞
 OUT.mkdir(parents=True, exist_ok=True)
 ok = 0
 

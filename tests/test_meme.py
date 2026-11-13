@@ -22,7 +22,7 @@ import meme  # noqa: E402
 import radar  # noqa: E402
 
 time.sleep = lambda s: None
-OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "meme" / time.strftime("%Y%m%d-%H%M%S")
+OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "meme" / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
 OUT.mkdir(parents=True, exist_ok=True)
 NOW = datetime(2026, 11, 13, 12, 0, tzinfo=timezone.utc)
 ok = 0

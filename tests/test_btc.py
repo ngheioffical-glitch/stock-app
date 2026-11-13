@@ -23,7 +23,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 import btc  # noqa: E402
 
 time.sleep = lambda s: None          # jget 出錯會等 3 秒再試：測試唔使等
-OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "btc_logic" / time.strftime("%Y%m%d-%H%M%S")
+OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "btc_logic" / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
 OUT.mkdir(parents=True, exist_ok=True)
 ok = 0
 

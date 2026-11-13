@@ -25,7 +25,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 import scan as S  # noqa: E402
 from sector_names import zh  # noqa: E402
 
-OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "scan" / time.strftime("%Y%m%d-%H%M%S")
+OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "scan" / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
 OUT.mkdir(parents=True, exist_ok=True)
 ok = 0
 

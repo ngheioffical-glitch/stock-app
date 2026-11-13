@@ -27,7 +27,7 @@ import v24  # noqa: E402
 import model  # noqa: E402
 import llm  # noqa: E402
 
-OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "model_run" / time.strftime("%Y%m%d-%H%M%S")
+OUT = Path(os.environ.get("TEST_OUT") or T / "_out") / "model_run" / f"{time.strftime('%Y%m%d-%H%M%S')}-{os.getpid()}"
 OUT.mkdir(parents=True, exist_ok=True)
 ok = 0
 
