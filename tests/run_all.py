@@ -3,12 +3,15 @@
 - 每個 test_*.py 自己一個子程序（佢哋會換走 llm 等模組，唔可以同一個程序跑）
 - 唔用真 key、唔使錢、唔上網：清走環境變數入面嘅 key 同 AI 設定，再用 tests/_guard/sitecustomize.py 封鎖上網
 - 最後用 check_js.py 檢查 app 嘅 JavaScript 語法（要 node；本機冇 node 就跳過，GitHub 上面一定有）
+- 2026-11-13：測試檔之間冇共用檔案（各自寫 TEST_OUT/<名>/<時間>），所以同時跑幾個（預設 8 個；TEST_JOBS=1 = 逐個跑），
+  成套由約 30 秒減到約 10 秒；結果照檔名次序印，格式唔變（變異測試 .claude/tools/audit/mutation_test.py 靠 ✗ 嗰行）。
 用法：python tests/run_all.py [llm events ...]（唔寫就全部）；全部過返 0。"""
 import os
 import re
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 T = Path(__file__).resolve().parent
@@ -34,8 +37,12 @@ def main(argv):
     want = set(argv)
     tests = sorted(p for p in T.glob("test_*.py") if not want or p.stem.removeprefix("test_") in want)
     env, fails, total = clean_env(), [], 0
+    jobs = max(1, int(os.environ.get("TEST_JOBS") or min(8, os.cpu_count() or 1)))
+    with ThreadPoolExecutor(jobs) as ex:                      # 大嘅檔（通常跑得耐）先開始
+        futs = {p: ex.submit(run, [sys.executable, str(p)], env) for p in sorted(tests, key=lambda p: -p.stat().st_size)}
+        js = ex.submit(run, [sys.executable, str(T / "check_js.py")], env) if not want or "js" in want else None
     for p in tests:
-        r, sec = run([sys.executable, str(p)], env)
+        r, sec = futs[p].result()
         m = re.search(r"全部 (\d+) 項通過", r.stdout)
         if r.returncode == 0 and m:
             total += int(m.group(1))
@@ -44,9 +51,9 @@ def main(argv):
             fails.append(p.name)
             print(f"✗ {p.name} 失敗（exit {r.returncode}，{sec:.0f} 秒）\n{(r.stdout + r.stderr).strip()[-3000:]}\n")
     summary = f"Python {len(tests) - len(fails)}/{len(tests)} 個檔、{total} 項"
-    if not want or "js" in want:
-        r, _ = run([sys.executable, str(T / "check_js.py")], env)
-        last = (r.stdout.strip().splitlines() or [""])[-1].strip()
+    if js is not None:
+        r, _ = js.result()
+        last =(r.stdout.strip().splitlines() or [""])[-1].strip()
         if r.returncode == 2:
             summary += "；冇 node，跳過 JS 語法檢查"
         elif r.returncode:
