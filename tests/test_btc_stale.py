@@ -15,6 +15,7 @@ sys.path.insert(0, str(T.parent / "scanner"))
 sys.stdout.reconfigure(encoding="utf-8")
 import btc  # noqa: E402
 
+time.sleep = lambda s: None          # 2026-11-13：jget 出錯會等 3 秒再試，測試唔使等（之前呢個檔用 10 秒）
 ok = 0
 
 
