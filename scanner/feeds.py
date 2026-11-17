@@ -117,6 +117,10 @@ def _clean(s, n=None):
     return (s[: n - 1] + "…") if n and len(s) > n else s
 
 
+# 2026-11-17：Al Jazeera／BBC 「all」RSS 有體育、相集，例如「Germany thrash Netherlands to book quarterfinal spot」走咗入國際新聞
+OFFTOPIC = re.compile(r"/(sports?|gallery|galleries)/|/in[-_]pictures", re.I)
+
+
 def rss(url, source, cat, sym=None):
     try:
         root = ET.fromstring(get(url))
@@ -126,7 +130,7 @@ def rss(url, source, cat, sym=None):
     out = []
     for it in root.iter("item"):
         t = _clean(_text(it, "title"))
-        if not t:
+        if not t or (not sym and (OFFTOPIC.search(_text(it, "link") or "") or t.startswith("Photos:"))):
             continue
         ts = None
         for tag in ("pubDate", "{http://purl.org/dc/elements/1.1/}date"):

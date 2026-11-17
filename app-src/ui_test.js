@@ -101,7 +101,7 @@ ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySel
 { const RT0 = LG.rtState(), keep = RT0.q, sig = LG.signals().list[0];
   ok("實時報價擺市況一覽下面（市況一覽照舊緊貼「今日 N 件事」）", (() => { const r = v0.querySelector('[data-live="rt"]'), m = v0.querySelector('[data-live="tiles"]'); return !!r && !!(m.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING); })());
   const fq = (symbol, last, prev, st, ext) => ({symbol, last, previous_day_closing: prev, change_pct: "", last_time: "2026-11-10T11:19:34.270-0500", curmktstatus: st, realTime: "true", ExtendedMktQuote: ext});
-  RT0.q = {};
+  RT0.q = {}; RT0.now = Date.parse("2026-11-10T11:25:00-05:00");   // 2026-11-17：「盤中」要睇時鐘，固定喺星期二紐約 11:25
   LG.rtTake({FormattedQuoteResult: {FormattedQuote: [fq(".NDX", "12,345.678", "12,000.00", "REG_MKT"),
     fq("QQQ", "500.00", "510.00", "POST_MKT", {type: "POST_MKT", last: "505.50", change_pct: "+1.10%", last_time: "2026-11-10T17:30:00.000-0500"}),
     fq("TQQQ", "50.00", "49.00", "REG_MKT", {type: "PRE_MKT", last: "48.00", change_pct: "-2.04%", last_time: "2026-11-10T09:00:00.000-0500"}),
@@ -119,6 +119,10 @@ ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySel
     ok("揀股表：實時價高過突破價寫「已過」、卡寫「已升穿突破價」", ph.includes("盤中已過") && ph.includes("已升穿突破價"), sig.sym); }
   LG.openStock("NVDA"); const rl = $("#rs").querySelector(".rtline");
   ok("股票頁有實時價（NVDA 123.45 盤中）", !!rl && rl.textContent.includes("123.45") && rl.textContent.includes("盤中"), rl && rl.textContent);
+  // 2026-11-17：CNBC 指數收市後仲寫 REG_MKT（11-16 17:15 ET 見到），唔可以叫「盤中」
+  RT0.now = Date.parse("2026-11-10T17:20:00-05:00"); RT0.q[".NDX"].t = Date.parse("2026-11-10T17:15:59-05:00"); LG.rtPaint();
+  { const n0 = v0.querySelector('[data-live="rt"] .rtiles .mt'); ok("收市後指數仍寫 REG_MKT：顯示「收市」唔係「盤中」", !!n0 && n0.textContent.includes("收市") && !n0.textContent.includes("盤中"), n0 && n0.textContent); }
+  RT0.now = Date.parse("2026-11-10T11:25:00-05:00"); RT0.q[".NDX"].t = Date.parse("2026-11-10T11:19:34-05:00");
   LG.closeRes(); await until(() => $("#rs").hidden && HS.ignore === 0); await sleep(80);
   // 2026-11-10 老師：「點解K線冇跟住實時？」→ 日 K 今日嗰支用實時開高低收（日子要新過正式數據）
   { const kb = v0.querySelector("#evCard .evch [data-kv]"), nq = (last, high) => LG.rtTake({FormattedQuoteResult: {FormattedQuote: [{symbol: ".NDX", last, previous_day_closing: "29,000.00", open: "29,100.00", high, low: "29,050.00", last_time: "2099-01-02T11:00:00.000-0500", curmktstatus: "REG_MKT"}]}});
@@ -129,7 +133,7 @@ ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySel
       ok("實時價再郁：同一支更新，唔會加多支", D.c.length === n && D.c[n - 1] === 30200 && D.h[n - 1] === 30250 && KS.S.c[KS.S.c.length - 1] === 30200, [D.c.length, n, D.c[n - 1]]);
       ok("正式收市嗰日唔會俾實時價改", KS.offEnd && D.d[n - 2] <= KS.offEnd);
       $("#kv [data-kvx]").click(); await until(() => !LG.kvIsOpen(), 2000); await until(() => HS.ignore === 0); await sleep(120); } }
-  RT0.q = keep; LG.rtPaint(); }
+  RT0.q = keep; RT0.now = 0; LG.rtPaint(); }
 
 // ───── 3 撳落去
 const hb = v0.querySelector(".head button"); let [x, y] = center(hb);

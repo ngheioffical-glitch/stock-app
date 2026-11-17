@@ -685,7 +685,10 @@ function dataAlert(){
   if (ERR) return `<div class="alert"><b>讀唔到數據</b><p class="small">${esc(ERR)}。去「設定」檢查數據網址，或者遲啲再試。</p></div>`;
   if (!SCAN) return "";
   const stale = Date.now() > Date.parse(SCAN.next_day + "T22:30:00Z") + 8 * 3600e3;
-  return stale ? `<div class="alert"><b>數據舊咗</b><p class="small">仲係 ${SCAN.date} 收市數據，${SCAN.next_day} 嘅應該已經出咗：自動掃描可能失敗，唔好照下面價錢落單。</p></div>` : "";
+  // 2026-11-17：排程 22:43 UTC，GitHub 成日遲 2–5 個鐘；未夠鐘出警告之前先輕輕講一句，免得朝早當咗上一日嘅「今日要做」係新嘅
+  const late = !stale && SCAN.next_day && Date.now() > Date.parse(SCAN.next_day + "T23:15:00Z");
+  return stale ? `<div class="alert"><b>數據舊咗</b><p class="small">仲係 ${SCAN.date} 收市數據，${SCAN.next_day} 嘅應該已經出咗：自動掃描可能失敗，唔好照下面價錢落單。</p></div>`
+    : late ? `<p class="small muted data-late">${esc(SCAN.next_day.slice(5))} 收市數據未到（GitHub 排程通常遲 2 至 5 個鐘），下面仲係 ${esc(SCAN.date.slice(5))} 收市計。</p>` : "";
 }
 function lightCard(){
   if (!SCAN) return "";
@@ -1412,9 +1415,10 @@ const RT_URL = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolTyp
 const rtSym = s => /^(\^?NDX|MARKET|\.NDX)$/i.test(String(s || "")) ? ".NDX" : String(s || "").toUpperCase().replace(/-/g, ".");   // BRK-B → BRK.B
 const rtNum = x => { const v = parseFloat(String(x ?? "").replace(/,/g, "")); return isFinite(v) ? v : null; };
 const rtTs = t => Date.parse(String(t || "").replace(/([+-]\d\d)(\d\d)$/, "$1:$2"));          // 2026-11-09T11:19:34.270-0500
+const rtT = () => RT.now || Date.now();   // RT.now 淨係測試用（固定時鐘）；平時冇
 const rtIv = () => {
   const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false})
-    .formatToParts(new Date()).map(x => [x.type, x.value])), m = (+p.hour % 24) * 60 + +p.minute;
+    .formatToParts(new Date(rtT())).map(x => [x.type, x.value])), m = (+p.hour % 24) * 60 + +p.minute;
   if (/Sat|Sun/.test(p.weekday)) return 30 * 60e3;
   return m >= 570 && m < 960 ? 20e3 : m >= 240 && m < 1200 ? 60e3 : 30 * 60e3; };
 function rtSyms(){
@@ -1453,7 +1457,9 @@ async function fetchRt(){
 function rtNow(sym){
   const q = RT.q[rtSym(sym)]; if (!q) return null;
   if (q.ext) return {px: q.ext.last, pc: q.ext.pc, t: q.ext.t, ses: q.ext.type === "PRE_MKT" ? "盤前" : "盤後"};
-  return {px: q.last, pc: q.pc, t: q.t, ses: q.st === "REG_MKT" ? "盤中" : "收市"};
+  // 2026-11-17：CNBC 指數（.NDX）收市後仲寫 REG_MKT（17:15 ET 都係），所以要正常交易時間兼報價 30 分鐘內先叫「盤中」
+  const live = q.st === "REG_MKT" && rtIv() === 20e3 && rtT() - q.t < 30 * 60e3;
+  return {px: q.last, pc: q.pc, t: q.t, ses: live ? "盤中" : "收市"};
 }
 const rtNew = o => o.ses !== "收市" || parts(NY, new Date(o.t)).date > ((SCAN && SCAN.date) || "");   // 收市價已經喺每日掃描入面就唔使再寫
 const rtClock = t => { if (!isFinite(t)) return ""; const p = parts(HK, new Date(t)); return p.date === parts(HK, new Date()).date ? p.time : p.date.slice(5) + " " + p.time; };
@@ -4248,7 +4254,7 @@ function viewRes(){
   const items = ((RS.index && RS.index.items) || []).filter(x => !x.dry);
   const u = RS.index && RS.index.usage, mon = new Date().toISOString().slice(0, 7), spent = u ? (u[mon] || 0) : 0;
   let h = topbar() + `<div class="row spread"><h2>AI 個股研究</h2><button id="resReload" class="small">重新整理</button></div>
-    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ AI 上網搜尋（有 Claude 用 Claude；冇就免費 Gemini 搜尋 + Mistral 分析）→ 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
+    <p class="small muted">每份報告：程式攞數據（Yahoo、SEC 財報）→ AI 上網搜尋（DeepSeek 主力，Gemini 後備；同成個 app 一樣次序，見設定頁「系統健康」）→ 寫評級、情境、好淡理由 → 程式按公式計公允價值同星級（盈利／股息情境估值）。成本同倉位只存呢部手機。AI 生成，唔係投資建議。</p>`;
   h += Object.keys(JOB).filter(k => !JOB[k].cry).map(resJobCard).join("");      // 2026-11-02：生成緊嘅報告逐步顯示（加密嘅喺加密研究頁）
   if (RS.err) h += `<div class="alert small">讀唔到研究清單：${esc(RS.err)}</div>`;
   if (!items.length) h += `<div class="card"><p class="muted small">${RS.index ? "仲未有報告。" : RS.err ? "暫時讀唔到清單，請撳重新整理。" : "載入中…"}${S.ghToken ? "喺下面輸入代號叫雲端生成第一份。" : ""}</p></div>`;
