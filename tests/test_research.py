@@ -78,9 +78,20 @@ R.collect = lambda s: dict(D, sym=s)
 R.peer_rows = lambda peers: [dict(sym=p, name=p, price=100, mcap=1e12, fpe=25.0, peg=1.5, rg=0.2, om=0.3, gm=0.5, chg52=0.1) for p in peers]
 
 # 1. JSON Schema 只用 API 支援嘅寫法（SDK 嘅 transform_schema 唔使改任何嘢）
+# 2026-11-17：GitHub 裝最新 SDK（requirements 冇鎖版本），anthropic 2.x 嘅 transform_schema 會將有 enum 嘅欄位嗰句 "type" 拎走
+# （1.x 唔會；兩種寫法 API 都收），之前要求「完全一樣」令 GitHub 嘅測試由 11-12 起連續失敗 3 次（本機用 1.15 或者冇裝，一直過）。
+# 所以比較之前兩邊都拎走「同 enum 一齊嘅 type」；其他關鍵字（例如 minLength、pattern）如果俾 SDK 改走，照樣會失敗。
+def _norm(x):
+    if isinstance(x, dict):
+        return {k: _norm(v) for k, v in x.items() if not (k == "type" and "enum" in x)}
+    return [_norm(v) for v in x] if isinstance(x, list) else x
+
+
 if transform_schema:
-    check(transform_schema(R.SCHEMA_A) == R.SCHEMA_A, "分析 JSON Schema 符合 API 支援範圍")
-    check(transform_schema(R.SCHEMA_W) == R.SCHEMA_W, "寫作 JSON Schema 符合 API 支援範圍")
+    check(_norm(transform_schema(R.SCHEMA_A)) == _norm(R.SCHEMA_A), "分析 JSON Schema 符合 API 支援範圍")
+    check(_norm(transform_schema(R.SCHEMA_W)) == _norm(R.SCHEMA_W), "寫作 JSON Schema 符合 API 支援範圍")
+    bad = {"type": "object", "properties": {"x": {"type": "string", "minLength": 3}}, "required": ["x"], "additionalProperties": False}
+    check(_norm(transform_schema(bad)) != _norm(bad), "對照：用咗 API 唔支援嘅寫法（minLength）呢個檢查會捉到")
 else:
     print("⚠ 冇 anthropic SDK（或者佢改咗內部位置）：跳過 JSON Schema 格式檢查")
 
