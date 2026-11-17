@@ -1547,6 +1547,17 @@ function viewPick(){
   if (!SCAN) return h + dataAlert();
   const o = signals();
   h += `<div class="row spread"><h2>揀股參考 · ${esc(SCAN.next_day)}</h2><span class="small muted">${o.list.length ? `${o.list.length} 隻` : ""}</span></div>`;
+  // 2026-11-17 老師：「紅燈嗰度可以改」：紅燈唔再得一句，列出轉綠燈之後會買邊幾隻（同綠燈一樣嘅候選、排名次序），講明而家唔買
+  if (!SCAN.green){
+    const W = SCAN.ranking.filter(r => r.status === "候選").slice(0, RULE.show), m = SCAN.tq && SCAN.tq.margin;
+    h += `<div class="ok"><b>${esc(o.why)}</b>${m != null && isFinite(m) ? `<p class="small">納指要升 ${pct(Math.abs(m)).replace("+", "")} 先轉綠燈。</p>` : ""}</div>`;
+    if (W.length) h += `<div class="row spread"><h3>轉綠燈之後先會買</h3><span class="small muted">而家唔好買 · ${W.length} 隻</span></div>
+      <div class="tablewrap"><table class="pick-wait"><tr><th>股票</th><th class="r">突破價</th><th class="r">止蝕價</th><th class="r">仲差</th></tr>
+      ${W.map(r => `<tr><td class="mono">${symB(r.sym)} <span class="tag t-dim">#${r.rank}</span>${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
+        <td class="r mono">${pct(r.pivot / r.close - 1)}${rtSpan(r.sym, "gap", {p: r.pivot})}</td></tr>`).join("")}</table></div>
+      <p class="small muted">呢啲係而家排名入面合格、收市仲未升穿前高嘅股，按排名排。<b>紅燈期間規則唔開新倉</b>，就算實時價「已過」突破價都唔買；大市轉返綠燈之後，模型先會照嗰日嘅名單掛突破單（名單每日收市後更新，到時可能唔同）。</p>`;
+    return h + `<p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅單喺「今日」頁「今日要做」。</p>` + (W.length ? liveStatus() : "");
+  }
   if (!o.list.length) return h + `<div class="ok"><b>${esc(o.why)}</b></div><p class="small muted">V2.7 領導股部分（35%）用呢啲訊號；模型實際要掛嘅單喺「今日」頁「今日要做」。</p>`;
   h += `<div class="tablewrap"><table><tr><th>股票</th><th class="r">突破價</th><th class="r">止蝕價</th><th class="r">仲差</th><th class="r">注碼</th></tr>
     ${o.list.map(r => `<tr><td class="mono">${symB(r.sym)}${serTag(r.sym)}${resTag(r.sym)}${evTag(r.sym)}<span class="ind">${chg(dayChg(r.sym))}</span></td><td class="r mono hl">${f2(r.pivot)}</td><td class="r mono dn">${f2(r.stop)}</td>
@@ -2233,9 +2244,9 @@ function healthCard(){
     const AS = FEED.news.ai_status;      // 2026-10-20：AI 接駁層（scanner/llm.py）：用緊邊個 AI、今日（香港時間）用咗幾多錢
     // 2026-10-22：收錢 AI（2026-10-23 起係 DeepSeek）多一個試用總額上限；用晒就自動用 Gemini 後備
     if (AS){
-      const who = {deepseek: "DeepSeek", claude: "Claude", gemini: "Gemini", mistral: "Mistral"}[AS.provider] || "AI", totOut = AS.total_budget != null && AS.total >= AS.total_budget;
+      const who = {deepseek: "DeepSeek", claude: "Claude", gemini: "Gemini", mistral: "Mistral"}[AS.provider] || "AI", totOut = AS.total_budget > 0 && AS.total >= AS.total_budget;   // 2026-11-17：total_budget 冇（null）= 冇總額上限（老師會續費）
       add("AI 供應商同今日用量", AS.spent < AS.budget && !totOut,
-        `${AS.model}${AS.light ? "（翻譯、數據解讀、導讀先用免費 Gemini）" : ""} · 今日約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}` + (AS.total_budget != null ? ` · 試用累計 US$${Number(AS.total).toFixed(2)}／US$${AS.total_budget}` : ""),
+        `${AS.model}${AS.light ? "（翻譯、數據解讀、導讀先用免費 Gemini）" : ""} · 今日約 US$${Number(AS.spent).toFixed(2)}／上限 US$${AS.budget}` + (AS.total_budget > 0 ? ` · 試用累計 US$${Number(AS.total).toFixed(2)}／US$${AS.total_budget}` : AS.total != null ? ` · 累計 US$${Number(AS.total).toFixed(2)}（冇總額上限）` : ""),
         totOut ? `${who} 試用總額用晒：之後嘅 AI 用 Gemini 後備（會標明）；要繼續用就加大 AI_PAID_TOTAL_USD（叫 Claude 改）`
           : AS.spent >= AS.budget ? `今日 ${who} 預算用晒：之後嘅 AI 用 Gemini 後備（會標明），香港時間零時重新計` : "");
     }

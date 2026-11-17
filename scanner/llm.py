@@ -73,7 +73,9 @@ DS_RESULTS = int(os.environ.get("DEEPSEEK_SEARCH_COUNT", "6"))                # 
 # 收錢 AI 嘅上限（2026-10-22 Qwen 試用時定：每日 US$1、試用總額 US$10，老師冇反對；DeepSeek 照用）
 PAID = ("deepseek",)
 PAID_DAY_USD = float(os.environ.get("AI_PAID_DAILY_USD", "1"))                # 每日（香港時間）上限，所有流程加埋
-PAID_TOTAL_USD = float(os.environ.get("AI_PAID_TOTAL_USD", "10"))             # 試用總額上限，所有流程加埋
+# 總額上限，所有流程加埋；0 = 冇總額上限。2026-11-17 老師：「deepseek我會持續續費 冇事」→ 預設由 10（試用）改做 0，
+# 每日上限（AI_PAID_DAILY_USD，預設 US$1）照舊把關；想再設總額就喺 workflow 加 AI_PAID_TOTAL_USD
+PAID_TOTAL_USD = float(os.environ.get("AI_PAID_TOTAL_USD", "0"))
 # 跨流程帳本：每個 workflow 寫自己嘅 ai_usage（paid.today／total 只計自己），開始時讀晒其他流程嘅加埋，上限先準（2026-10-22 Codex 改卷）
 LEDGER = os.environ.get("AI_LEDGER", "feeds").strip()
 LEDGERS = {"feeds": "feeds/ai_usage.json", "radar": "radar/ai_usage.json", "scan": "main/docs/ai_usage_scan.json",
@@ -264,7 +266,7 @@ def status():
     if PROVIDER in PAID:
         d, a = paid_spent()
         return dict(provider=PROVIDER, model=f"DeepSeek（{DS_FAST}／{DS_SMART}）", spent=round(d, 2), budget=PAID_DAY_USD,
-                    total=round(a, 2), total_budget=PAID_TOTAL_USD, day=DAY, calls=len(USAGE),
+                    total=round(a, 2), total_budget=PAID_TOTAL_USD or None, day=DAY, calls=len(USAGE),
                     light=LIGHT if LIGHT and has_key(LIGHT) else None)
     return dict(provider=PROVIDER, model=label_claude() if PROVIDER == "claude" else PROVIDER, spent=round(spent_today(), 2),
                 budget=BUDGET, day=DAY, calls=len(USAGE))
@@ -604,7 +606,7 @@ def _dlog(kind, model, secs, hit, miss, out, n_search=0):
     USAGE.append(rec)
     d, a = paid_spent()
     print(f"[llm] deepseek {kind} {model} {secs:.0f} 秒｜輸入 {rec['inp']:,}（緩存 {rec['cr']:,}）｜輸出 {rec['out']:,}｜搜尋 {n_search}｜約 US${rec['usd']:.4f}"
-          f"（今日 US${d:.3f}／上限 {PAID_DAY_USD:g}；試用 US${a:.2f}／{PAID_TOTAL_USD:g}）")
+          f"（今日 US${d:.3f}／上限 {PAID_DAY_USD:g}；累計 US${a:.2f}／{f'{PAID_TOTAL_USD:g}' if PAID_TOTAL_USD > 0 else '冇總額上限'}）")
     return rec
 
 
@@ -616,7 +618,7 @@ def _paid_check(prov):
     if not _PD["loaded"]:
         _paid_load()                                     # 冇行 start() 嘅程式都要讀帳本先查上限
     d, a = paid_spent()
-    if a >= PAID_TOTAL_USD:
+    if PAID_TOTAL_USD > 0 and a >= PAID_TOTAL_USD:
         raise RuntimeError(f"{prov}：試用總預算 US${PAID_TOTAL_USD:g} 用晒")
     if d >= PAID_DAY_USD:
         raise RuntimeError(f"{prov}：今日預算 US${PAID_DAY_USD:g} 用晒")

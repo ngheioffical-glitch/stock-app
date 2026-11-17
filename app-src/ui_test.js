@@ -117,6 +117,10 @@ ok("每張卡都有文字標籤，唔係淨靠顏色", mts.every(m => m.querySel
   ok("有寫來源同只供參考", v0.querySelector('[data-live="rt"]').textContent.includes("CNBC") && v0.querySelector('[data-live="rt"]').textContent.includes("只供參考"));
   if (sig){ const ph = LG.html("pick");
     ok("揀股表：實時價高過突破價寫「已過」、卡寫「已升穿突破價」", ph.includes("盤中已過") && ph.includes("已升穿突破價"), sig.sym); }
+  // 2026-11-17 老師：「紅燈嗰度可以改」：紅燈揀股頁列出轉綠燈之後會買邊幾隻（之前得一句「規則唔開新倉」）
+  { const SC = LG.state().SCAN, g0 = SC.green, c0 = SC.ranking.find(r => r.status === "候選"); SC.green = false; let ph = ""; try { ph = LG.html("pick"); } finally { SC.green = g0; }
+    ok("紅燈揀股頁：列出轉綠燈之後會買嘅候選、講明而家唔買、冇注碼欄", ph.includes("規則唔開新倉") && ph.includes("轉綠燈之後先會買") && ph.includes("而家唔好買") && (!c0 || ph.includes(`data-stock="${c0.sym}"`) || ph.includes(c0.sym)) && !ph.includes("注碼</th>"), c0 && c0.sym);
+    ok("綠燈揀股頁照舊（有注碼欄、冇「轉綠燈之後先會買」）", !SC.green || (LG.html("pick").includes("注碼</th>") && !LG.html("pick").includes("轉綠燈之後先會買"))); }
   LG.openStock("NVDA"); const rl = $("#rs").querySelector(".rtline");
   ok("股票頁有實時價（NVDA 123.45 盤中）", !!rl && rl.textContent.includes("123.45") && rl.textContent.includes("盤中"), rl && rl.textContent);
   // 2026-11-17：CNBC 指數收市後仲寫 REG_MKT（11-16 17:15 ET 見到），唔可以叫「盤中」
