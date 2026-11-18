@@ -77,6 +77,12 @@
   "sector": "Industrials",
   "src": "yahoo"
  },
+ "CHYM": {
+  "date": "2026-11-18",
+  "industry": "Software - Application",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
  "CNC": {
   "date": "2026-11-06",
   "industry": "Healthcare Plans",
