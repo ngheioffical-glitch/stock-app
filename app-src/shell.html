@@ -845,7 +845,7 @@ function todayInner(){
   ${lgSec("alerts")}
   ${headHTML()}
   <div data-live="ai"></div>
-  <section class="card todo rise${D.todo.length&&!left?" alldone":""}" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">${left?`仲有 ${left} 件`:"做晒，等收市"}</span></div>${D.todo.map(itRow).join("")}<p class="note"><b class="num">${esc(D.ver||"")} · ${esc(D.next||"")}</b>。${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2），邊張先觸發就先買，現金用完就停，冇觸發嘅收市後取消。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
+  <section class="card todo rise${D.todo.length&&!left?" alldone":""}" id="todo">${D.todo.length?`<div class="todo-h"><span>今日 ${D.todo.length} 件事</span><span class="todo-c" id="todoC">${left?`仲有 ${left} 件`:"做晒，等收市"}</span></div>${D.todo.map(itRow).join("")}<p class="note"><b class="num">${esc(D.ver||"")} · ${esc(D.next||"")}</b>。${D.nb>1?`領導股突破單掛 ${D.nb} 張（空位 × 2）：開市已經高過突破價嘅一開市就成交；其餘邊張先升穿就先買，買夠空位或者現金用完就取消其餘，冇觸發嘅收市後取消。模型冇分鐘數據，幾隻都係盤中先升穿就當排名高先買，所以你實際買到嘅可能同模型唔同。`:""}「開市」= 美股開市（香港 21:30，冬令 22:30）；「收市前」= 美股收市前（香港 04:00，冬令 05:00）。${LG.base()>0?"":"喺「策略」頁填本金就會計埋金額。"}</p>`:todoEmpty()}</section>
   ${lgSec("extras")}
   <h2 class="sec">市況一覽 <small>撳入去睇詳細</small></h2>${lgSec("tiles")}
   <h2 class="sec">實時報價 <small>盤前、盤中、盤後</small></h2>${lgSec("rt")}

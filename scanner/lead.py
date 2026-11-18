@@ -3,7 +3,8 @@
 每個交易日（model.py 按次序調用）：
   0. 除息：前一日收市揸住先有息，記應收，到期入現金（2026-11-04）
   1. 開市：執行上一日收市決定嘅賣出（開市價；冇開市價就等下一日，唔用收市價扮成交）
-  2. 盤中：上一日掛嘅 buy-stop，最高 >= 買入價就買（成交 = max(開市, 買入價)），排名高先用現金，買夠持股上限（5 隻／剎車 2 隻）就停，
+  2. 盤中：上一日掛嘅 buy-stop，最高 >= 買入價就買（成交 = max(開市, 買入價)）；開市已經高過買入價嘅一開市就成交，排先；
+     其餘盤中先穿嘅冇分鐘數據分唔到先後，當排名高先（2026-11-18）；買夠持股上限（5 隻／剎車 2 隻）或者現金用完就停，
      每隻 = 呢部分帳戶值 × 20%（排第 1 用 30%）
   3. 盤中：最低 <= 止蝕就賣（開市已穿用開市價，否則止蝕價；當日先買嘅用止蝕價）
   4. 收市：記收市價；連續 5 個交易日冇價 AI 查證（有來源嘅現金收購價先當變現，其他凍結持倉）；現金：上一日綠燈收國債息（SGOV／BIL），紅燈跟 IEF
@@ -87,7 +88,9 @@ def step(st, sc, i, actions):
                 actions["warn"].append(f"{p['sym']} {d} 冇開市價：今日冇賣，下一個有價嘅交易日開市再賣（原因：{x['reason']}）")
     if pend.get("for") and pend["for"] <= d:
         cap = R["cap_brake"] if st.get("braking") else R["cap"]
-        for b in pend.get("buys", []):                         # 2. buy-stop
+        bs = pend.get("buys", [])                              # 2026-11-18（Codex 11-17）：開市已穿嘅一開市就成交，真人戶口會先買到佢哋；
+        gap = lambda b: (arr(b["sym"], "o10") or 0) >= b["trigger"]   # 舊版淨係按排名，會用盡空位買之後先穿嘅高排名股
+        for b in [b for b in bs if gap(b)] + [b for b in bs if not gap(b)]:   # 2. buy-stop
             s = b["sym"]
             if len(st["positions"]) >= cap:                    # 2026-11-04：上限要限制成交，唔係淨係限制掛單（掛單數 = 空位 × 2）
                 break
@@ -159,9 +162,12 @@ def plan(st, sc, actions):
     sells = []
     for p in st["positions"]:
         s = stocks.get(p["sym"])
-        if not s or s.get("close") is None:
-            actions["warn"].append(f"{p['sym']} 今日冇數據（已連續 {p.get('miss', 0)} 日）：連續 {R['delist_days']} 日冇數據就會 AI 查證；冇可成交價唔會當賣咗")
-            continue
+        if not s or s.get("close") is None:                  # 2026-11-18（Codex 11-17）：冇個股數據都要照排大市紅燈賣單（唔使個股價），
+            actions["warn"].append(f"{p['sym']} 今日冇數據（已連續 {p.get('miss', 0)} 日）：連續 {R['delist_days']} 日冇數據就會 AI 查證；冇可成交價唔會當賣咗"
+                                   + ("；大市紅燈賣單照排，有開市價先賣" if not sc["green"] else ""))
+            if not sc["green"]:                              # 開市冇價 step() 會留低（carry_sells）等下一個有價嘅交易日；舊版直接跳過，賣單冇咗
+                sells.append(dict(sym=p["sym"], reason="大市紅燈"))
+            continue                                         # 止蝕上移、200 日線、排名出局要個股數據，冇數據唔做（排名可能因為缺數據先唔見）
         c, old = s["close"], p["stop"]
         if not p["be"] and p["R"] > 0 and c >= p["entry"] + R["be_R"] * p["R"]:
             p["be"], p["stop"] = True, max(p["stop"], p["entry"])
@@ -331,5 +337,5 @@ def todo(st, tot):
         out.append(dict(when="盤中（buy-stop）", leg="lead", side="買入", sym=b["sym"], frac=b["frac"] * lv / tot if tot else None,
                         trigger=round(b["trigger"], 2), stop=round(b["stop"], 2), rank=b["rank"],
                         reason=f"領導股：排第 {b['rank']}，升穿前高 {b['trigger']:.2f} 先買（掛 buy-stop），止蝕 {b['stop']:.2f}；"
-                               f"每隻用領導股部分 {int(b['frac'] * 100)}%（現金唔夠就買少啲，排名高先）"))
+                               f"每隻用領導股部分 {int(b['frac'] * 100)}%（開市已穿嘅先買；現金唔夠就買少啲）"))
     return out

@@ -279,4 +279,38 @@ P1 = plans(*frames(extra=15))
 same = all(P0[d]["ranking"] == P1[d]["ranking"] and P0[d]["stocks"] == P1[d]["stocks"] and P0[d]["green"] == P1[d]["green"] for d in P0)
 check(same, "之後 15 日大跌：中間日排名、狀態、止蝕全部唔變（冇偷睇）")
 
+# ---- 10. 2026-11-18（Codex 11-17 挑戰）：成交次序同缺數據賣單
+held = pos(sym="ZZZ", stop=50.0)                               # 剎車中上限 2 隻，已經揸 1 隻 → 得 1 個空位
+st = lst(braking=True, positions=[dict(held)], pending={"for": DAYS[1], "sells": [], "buys": [order("AAA", 1), order("BBB", 2)]})
+lead.step(st, sc({"ZZZ": bar((100, 100), (100, 100), (100, 100), (100, 100)),
+                  "AAA": bar((95, 92), (96, 102), (94, 91), (95, 101)), "BBB": bar((99, 101), (100, 103), (98, 99), (99, 102))}), 1, acts())
+check(sorted(p["sym"] for p in st["positions"]) == ["BBB", "ZZZ"], "得 1 個空位：開市已穿突破價嘅 BBB（排第 2）先成交，唔係之後先穿嘅 AAA（排第 1）")
+st = lst(braking=True, positions=[dict(held)], pending={"for": DAYS[1], "sells": [], "buys": [order("AAA", 1), order("BBB", 2)]})
+lead.step(st, sc({"ZZZ": bar((100, 100), (100, 100), (100, 100), (100, 100)),
+                  "AAA": bar((95, 92), (96, 102), (94, 91), (95, 101)), "BBB": bar((99, 95), (100, 103), (98, 94), (99, 102))}), 1, acts())
+check(sorted(p["sym"] for p in st["positions"]) == ["AAA", "ZZZ"], "兩隻都係盤中先穿（分唔到先後）：照舊排名高先，買 AAA")
+
+
+def psc(green, week_end=False, ranking=None, stocks=None):
+    return dict(stocks=stocks or {}, ranking=ranking or [], green=green, week_end=week_end, rank1=None, next_day=DAYS[1], date=DAYS[0])
+
+
+st = lst(positions=[pos(stop=80.0)])
+a = acts()
+lead.plan(st, psc(False), a)
+check([x["sym"] for x in st["pending"]["sells"]] == ["AAA"] and st["pending"]["sells"][0]["reason"] == "大市紅燈" and "紅燈賣單照排" in a["warn"][0],
+      "冇個股數據 + 大市紅燈：照排賣單（舊版跳過，賣單冇咗）")
+st["pending"]["for"] = DAYS[1]
+a = acts()
+lead.step(st, sc({"AAA": bar((100, 95), (100, 96), (100, 94), (100, 95))}), 1, a)
+check(not st["positions"] and a["fills"][0]["px"] == 95 and "大市紅燈" in a["fills"][0]["reason"], "第二日有開市價：按開市價 95 賣（唔用收市價扮成交）")
+st = lst(positions=[pos(stop=80.0)])
+lead.plan(st, psc(False), acts())
+st["pending"]["for"] = DAYS[1]
+lead.step(st, sc({"AAA": bar((100, None), (100, None), (100, None), (100, None))}), 1, acts())
+check([p["sym"] for p in st["positions"]] == ["AAA"] and st["carry_sells"][0]["sym"] == "AAA", "第二日都冇開市價：唔賣，留低下一個有價嘅交易日再賣")
+st = lst(positions=[pos(stop=80.0)])
+lead.plan(st, psc(True, week_end=True, ranking=[]), acts())
+check(st["pending"]["sells"] == [], "冇個股數據 + 綠燈星期五唔喺排名：唔賣（排名可能因為缺數據先唔見，唔當出局）")
+
 print(f"\n全部 {ok} 項通過")
