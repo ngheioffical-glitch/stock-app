@@ -407,6 +407,12 @@
   "sector": "Technology",
   "src": "yahoo"
  },
+ "NSIT": {
+  "date": "2026-11-19",
+  "industry": "Electronics & Computer Distribution",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
  "NTRA": {
   "date": "2026-10-31",
   "industry": "Diagnostics & Research",
