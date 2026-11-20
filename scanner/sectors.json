@@ -179,6 +179,12 @@
   "sector": "Energy",
   "src": "yahoo"
  },
+ "EXPD": {
+  "date": "2026-11-20",
+  "industry": "Integrated Freight & Logistics",
+  "sector": "Industrials",
+  "src": "yahoo"
+ },
  "GE": {
   "date": "2026-10-15",
   "industry": "Aerospace & Defense",
