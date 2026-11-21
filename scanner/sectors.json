@@ -257,6 +257,12 @@
   "sector": "Financial Services",
   "src": "yahoo"
  },
+ "HPQ": {
+  "date": "2026-11-21",
+  "industry": "Computer Hardware",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
  "HUM": {
   "date": "2026-11-06",
   "industry": "Healthcare Plans",
@@ -473,6 +479,12 @@
   "sector": "Energy",
   "src": "yahoo"
  },
+ "PTC": {
+  "date": "2026-11-21",
+  "industry": "Software - Application",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
  "QCOM": {
   "date": "2026-09-27",
   "industry": "Semiconductors",
@@ -584,6 +596,12 @@
  "TXN": {
   "date": "2026-10-15",
   "industry": "Semiconductors",
+  "sector": "Technology",
+  "src": "yahoo"
+ },
+ "U": {
+  "date": "2026-11-21",
+  "industry": "Software - Application",
   "sector": "Technology",
   "src": "yahoo"
  },
