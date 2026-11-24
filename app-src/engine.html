@@ -2432,8 +2432,11 @@ async function setPause(on){
   try {
     const r = await fetch(`https://api.github.com/repos/${repoOf()}/actions/workflows/pause.yml/dispatches`, {method: "POST",
       headers: {"Accept": "application/vnd.github+json", "Authorization": "Bearer " + S.ghToken, "X-GitHub-Api-Version": "2022-11-28"},
-      body: JSON.stringify({ref: "main", inputs: {on: on ? "1" : "0"}})});
-    if (r.status !== 204) throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : r.status === 404 ? "（雲端未有 pause.yml）" : ""));
+      body: JSON.stringify({ref: "main", inputs: {state: on ? "1" : "0"}})});   // 2026-11-24：輸入由「on」改名「state」（舊名次次 HTTP 422）
+    if (r.status !== 204){
+      let why = ""; try { why = String((await r.json()).message || "").slice(0, 160); } catch(e){}   // 將 GitHub 講嘅原因都顯示，下次唔使估
+      throw new Error("GitHub 回覆 HTTP " + r.status + (r.status === 401 || r.status === 403 ? "（token 錯或者冇 Actions 權限）" : r.status === 404 ? "（雲端未有 pause.yml）" : "") + (why ? "：" + why : ""));
+    }
   } catch(e){ PAUSE_MSG = "觸發唔到：" + e.message; render(); return; }
   PAUSE_MSG = on ? "已叫雲端暫停，大約 1–2 分鐘生效…" : "已叫雲端恢復，大約 1–2 分鐘生效…"; render();
   const t0 = Date.now(), tick = async () => {

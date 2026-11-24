@@ -68,6 +68,18 @@ check("paused: ${{ steps.g.outputs.paused }}" in Y and "FEEDS_PAUSED: ${{ needs.
 P = (W / "pause.yml").read_text(encoding="utf-8")
 check("workflow_dispatch" in P and "scanner/pause.py set" in P and "git add docs/pause.json" in P and "schedule" not in P, "pause.yml：淨係手動觸發，寫 docs/pause.json")
 check(json.loads((APP / "docs" / "pause.json").read_text(encoding="utf-8"))["paused"] is False, "預設 docs/pause.json 係冇暫停")
+# 2026-11-24：輸入原本叫「on」，app 撳暫停次次 HTTP 422（pause.yml 從來冇行過）。app 送嘅輸入名一定要同 pause.yml 一樣，
+# 所有 workflow_dispatch 輸入都唔可以用 YAML 1.1 會讀成真／假嘅字。
+BOOLW = {"on", "off", "yes", "no", "y", "n", "true", "false"}
+for wf in sorted(W.glob("*.yml")):
+    m = re.search(r"\n  workflow_dispatch:\n    inputs:\n((?:      .*\n|\s*\n)+)", wf.read_text(encoding="utf-8"))
+    names = re.findall(r"^      (\w+):", m.group(1), re.M) if m else []
+    check(not BOOLW & {x.lower() for x in names}, f"{wf.name}：workflow_dispatch 輸入名唔係 on／yes／true 之類（{', '.join(names) or '冇輸入'}）")
+pin = re.findall(r"^      (\w+):", re.search(r"\n    inputs:\n((?:      .*\n)+)", P).group(1), re.M)
+E = (APP / "app-src" / "engine.html").read_text(encoding="utf-8")
+sent = re.search(r"workflows/pause\.yml/dispatches`.*?inputs: \{(\w+):", E, re.S)
+check(sent and pin == [sent.group(1)] and "inputs.state" in P and "inputs.on" not in P,
+      f"app 撳暫停送嘅輸入名（{sent and sent.group(1)}）同 pause.yml 一樣（{pin}）")
 
 # 4. ai.py：暫停中淨係寫今日重點
 os.environ["FEEDS_PAUSED"] = "1"
