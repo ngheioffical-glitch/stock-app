@@ -275,6 +275,12 @@
   "sector": "Industrials",
   "src": "yahoo"
  },
+ "IBIT": {
+  "date": "2026-11-25",
+  "industry": "",
+  "sector": "",
+  "src": "nasdaq"
+ },
  "INTC": {
   "date": "2026-09-27",
   "industry": "Semiconductors",
@@ -303,6 +309,12 @@
   "date": "2026-10-15",
   "industry": "Beverages - Non-Alcoholic",
   "sector": "Consumer Defensive",
+  "src": "yahoo"
+ },
+ "KYMR": {
+  "date": "2026-11-25",
+  "industry": "Biotechnology",
+  "sector": "Healthcare",
   "src": "yahoo"
  },
  "LITE": {
