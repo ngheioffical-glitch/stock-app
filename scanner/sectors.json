@@ -29,6 +29,12 @@
   "sector": "Consumer Cyclical",
   "src": "yahoo"
  },
+ "ANF": {
+  "date": "2026-11-26",
+  "industry": "Apparel Retail",
+  "sector": "Consumer Cyclical",
+  "src": "yahoo"
+ },
  "APA": {
   "date": "2026-11-10",
   "industry": "Oil & Gas E&P",
